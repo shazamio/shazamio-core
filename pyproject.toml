@@ -7,8 +7,7 @@ readme = "README.md"
 packages = [{include = "shazamio_core"}]
 
 [tool.poetry.dependencies]
-python = "^3.10"
-shazamio = "^0.4.0.1"
+python = "^3.8"
 
 [build-system]
 requires = ["maturin>=1.4,<2.0"]
@@ -16,7 +15,7 @@ build-backend = "maturin"
 
 [project]
 name = "shazamio_core"
-requires-python = ">=3.10"
+requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
