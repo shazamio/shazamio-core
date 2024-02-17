@@ -40,8 +40,7 @@ jobs:
       - name: Install required libraries
         shell: bash
         run: |
-          sudo apt-get update && sudo apt-get install g++ pkg-config libx11-dev libasound2-dev libudev-dev
-          export PKG_CONFIG_SYSROOT_DIR=/
+          sudo apt-get update && sudo apt-get install build-essential g++ pkg-config libx11-dev libasound2-dev libudev-dev libssl-dev
       - name: A
         run: find /usr -name alsa.pc
       - name: Build wheels
@@ -49,7 +48,7 @@ jobs:
         with:
           target: ${{ matrix.target }}
           command: build
-          args: --release --out dist --find-interpreter
+          args: --release --out dist --interpreter python${{ matrix.python-version }} --target=x86_64-unknown-linux-gnu
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:

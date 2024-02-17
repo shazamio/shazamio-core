@@ -13,7 +13,7 @@ crate-type = ["cdylib"]
 pyo3 = {version = "0.20.2"}
 tokio = { version = "1.35.0", features = ["full"] }
 tempfile = "3.10.0"
-rodio = "0.17.3"
+rodio = {version = "0.17.3"}
 serde_json = "1.0.113"
 blocking = { version = "1.5.1", features = [] }
 byteorder = "1.5.0"
