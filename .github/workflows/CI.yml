@@ -26,7 +26,7 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.10"]
-        target: [amd64, i386]
+        target: [aarch64]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
@@ -41,8 +41,10 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install build-essential pkg-config
-          sudo apt-get install -y libasound2-dev libssl-dev libudev-dev
+          sudo apt-get install build-essential crossbuild-essential-arm64  pkg-config
+          sudo apt-get install -y libasound2-dev libasound2-dev:arm64
+          export PKG_CONFIG_ALLOW_CROSS=1
+          export PKG_CONFIG_PATH_aarch64-unknown-linux-gnu=/usr/lib/aarch64-linux-gnu/pkgconfig/
       - name: A
         run: find /usr -name alsa.pc
       - name: Build wheels
