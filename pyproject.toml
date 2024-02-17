@@ -8,7 +8,6 @@ packages = [{include = "shazamio_core"}]
 
 [tool.poetry.dependencies]
 python = "^3.8"
-shazamio = "^0.4.0.1"
 
 [build-system]
 requires = ["maturin>=1.4,<2.0"]
