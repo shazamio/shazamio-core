@@ -35,7 +35,7 @@ jobs:
       - name: Install required libraries
         shell: bash
         run: |
-          dpkg --add-architecture armhf
+          sudo dpkg --add-architecture armhf
           sudo apt-get update && sudo apt-get install build-essential g++ pkg-config libx11-dev libasound2-dev:armhf libudev-dev libssl-dev
       - name: A
         run: find /usr -name alsa.pc
