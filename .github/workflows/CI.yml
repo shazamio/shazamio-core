@@ -26,7 +26,7 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.10"]
-        target: [aarch64]
+        target: [amd64, i386]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
@@ -40,17 +40,9 @@ jobs:
       - name: Install required libraries
         shell: bash
         run: |
-          sudo dpkg --add-architecture arm64
-          sudo dpkg --add-architecture armel
-          sudo dpkg --add-architecture mipsel
           sudo apt-get update
-          sudo apt-get install build-essential crossbuild-essential-arm64 crossbuild-essential-armel crossbuild-essential-mipsel pkg-config
-          sudo apt-get install -y libasound2-dev libasound2-dev:arm64 libasound2-dev:armel libasound2-dev:mipsel
-          export PKG_CONFIG_ALLOW_CROSS=1
-          export PKG_CONFIG_PATH_aarch64-unknown-linux-gnu=/usr/lib/aarch64-linux-gnu/pkgconfig/
-          export PKG_CONFIG_PATH_arm-unknown-linux-gnueabihf=/usr/lib/arm-linux-gnueabihf/pkgconfig/
-          export PKG_CONFIG_PATH_arm-unknown-linux-gnueabi=/usr/lib/arm-linux-gnueabi/pkgconfig/
-          export PKG_CONFIG_PATH_mipsel-unknown-linux-gnu=/usr/lib/mipsel-linux-gnu/pkgconfig/
+          sudo apt-get install build-essential pkg-config
+          sudo apt-get install -y libasound2-dev libssl-dev libudev-dev
       - name: A
         run: find /usr -name alsa.pc
       - name: Build wheels
