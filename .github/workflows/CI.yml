@@ -21,62 +21,57 @@ permissions:
   contents: read
 
 jobs:
-  linux:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
-        target: [x86_64]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: install rust stable
-        id: rust-toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: llvm-tools
-      - name: Install required libraries
-        shell: bash
-        run: |
-          sudo apt-get update && sudo apt-get install g++ pkg-config libx11-dev libasound2-dev libudev-dev
-      - name: A
-        run: find /usr -name alsa.pc
-      - name: Build wheels
-        uses: PyO3/maturin-action@v1
-        with:
-          target: ${{ matrix.target }}
-          command: build
-          args: --release --out dist --find-interpreter
-      - name: Upload wheels
-        uses: actions/upload-artifact@v3
-        with:
-          name: wheels
-          path: dist
-  windows:
-    runs-on: windows-latest
-    strategy:
-      matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
-        target: [ x64, x86 ]
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
-          architecture: ${{ matrix.target }}
-      - name: Build wheels
-        uses: PyO3/maturin-action@v1
-        with:
-          target: ${{ matrix.target }}
-          args: --release --out dist --find-interpreter
-          sccache: 'true'
-      - name: Upload wheels
-        uses: actions/upload-artifact@v3
-        with:
-          name: wheels
-          path: dist
+#  linux:
+#    runs-on: ubuntu-latest
+#    strategy:
+#      matrix:
+#        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+#        target: [x86_64]
+#    steps:
+#      - uses: actions/checkout@v4
+#      - uses: actions/setup-python@v4
+#        with:
+#          python-version: ${{ matrix.python-version }}
+#      - name: Install required libraries
+#        shell: bash
+#        run: |
+#          sudo apt-get update && sudo apt-get install g++ pkg-config libx11-dev libasound2-dev libudev-dev
+#      - name: A
+#        run: find /usr -name alsa.pc
+#      - name: Build wheels
+#        uses: PyO3/maturin-action@v1
+#        with:
+#          target: ${{ matrix.target }}
+#          command: build
+#          args: --release --out dist --find-interpreter
+#      - name: Upload wheels
+#        uses: actions/upload-artifact@v3
+#        with:
+#          name: wheels
+#          path: dist
+#  windows:
+#    runs-on: windows-latest
+#    strategy:
+#      matrix:
+#        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+#        target: [ x64, x86 ]
+#    steps:
+#      - uses: actions/checkout@v3
+#      - uses: actions/setup-python@v4
+#        with:
+#          python-version: ${{ matrix.python-version }}
+#          architecture: ${{ matrix.target }}
+#      - name: Build wheels
+#        uses: PyO3/maturin-action@v1
+#        with:
+#          target: ${{ matrix.target }}
+#          args: --release --out dist --find-interpreter
+#          sccache: 'true'
+#      - name: Upload wheels
+#        uses: actions/upload-artifact@v3
+#        with:
+#          name: wheels
+#          path: dist
 
   macos:
     runs-on: macos-latest
@@ -121,7 +116,7 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     if: "startsWith(github.ref, 'refs/tags/')"
-    needs: [linux, windows, macos, sdist]
+    needs: [macos, sdist]
     steps:
       - uses: actions/download-artifact@v3
         with:
