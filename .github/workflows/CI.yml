@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        build_target: [linux, linux-armhf, linux-armv6]
+        build_target: [macos, linux, linux-armhf, linux-armv6]
         artifact_type: ['slim', 'default', 'full']
         python-version: ["3.8"]
         include:
