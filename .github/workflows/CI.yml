@@ -22,44 +22,69 @@ permissions:
 
 jobs:
   linux:
-#    name: Build ${{ matrix.build_target }}-python${{matrix.python-version}}
+    needs: [ generate-license ]
+    name: Manylinux
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version:
-          - "3.8"
-          - "3.9"
-#          - "3.10"
-#          - "3.11"
-#          - "3.12"
-        target: ["x86_64"]
-
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v4
+      - uses: actions/checkout@v3
+      - run: rm LICENSE.txt
+      - name: Download LICENSE.txt
+        uses: actions/download-artifact@v3
         with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Install required libraries
-        shell: bash
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y -qq libasound2-dev libssl-dev pkg-config
-
+          name: python-wheel-license
+      - run: cat LICENSE.txt
       - name: Build wheels
-        uses: PyO3/maturin-action@v1
-        with:
-          target: ${{ matrix.target }}
-          command: build
-          manylinux: true
-          sccache: 'true'
-          args: --release --out dist --interpreter python${{ matrix.python-version }}
-      - name: Upload wheels
+        run: |
+          export RUSTFLAGS='-C target-cpu=skylake'
+          rm ../ballista/core/proto/*
+          docker run --rm -v $(pwd)/..:/io \
+            --workdir /io/python \
+            ghcr.io/pyo3/maturin:v0.13.7 \
+            build --release --manylinux 2010
+      - name: Archive wheels
         uses: actions/upload-artifact@v3
         with:
           name: wheels
           path: dist
+
+#  linux:
+##    name: Build ${{ matrix.build_target }}-python${{matrix.python-version}}
+#    runs-on: ubuntu-latest
+#    strategy:
+#      fail-fast: false
+#      matrix:
+#        python-version:
+#          - "3.8"
+#          - "3.9"
+##          - "3.10"
+##          - "3.11"
+##          - "3.12"
+#        target: ["x86_64"]
+#
+#    steps:
+#      - uses: actions/checkout@v4
+#      - uses: actions/setup-python@v4
+#        with:
+#          python-version: ${{ matrix.python-version }}
+#
+#      - name: Install required libraries
+#        shell: bash
+#        run: |
+#          sudo apt-get update
+#          sudo apt-get install -y -qq libasound2-dev libssl-dev pkg-config
+#
+#      - name: Build wheels
+#        uses: PyO3/maturin-action@v1
+#        with:
+#          target: ${{ matrix.target }}
+#          command: build
+#          sccache: 'true'
+#          args: --release --out dist --interpreter python${{ matrix.python-version }}
+#      - name: Upload wheels
+#        uses: actions/upload-artifact@v3
+#        with:
+#          name: wheels
+#          path: dist
 
   sdist:
     runs-on: ubuntu-latest
