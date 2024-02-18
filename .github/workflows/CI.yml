@@ -22,7 +22,6 @@ permissions:
 
 jobs:
   linux:
-    needs: [ generate-license ]
     name: Manylinux
     runs-on: ubuntu-latest
     steps:
