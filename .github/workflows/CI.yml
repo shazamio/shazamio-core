@@ -85,7 +85,7 @@ jobs:
         id: rust-toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          run: rustup target add armv7-unknown-linux-gnueabihf
+          run: rustup install stable --profile=minimal --target aarch64
           target: ${{ matrix.target }}
           components: llvm-tools
 
