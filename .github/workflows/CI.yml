@@ -22,7 +22,7 @@ permissions:
 
 jobs:
   linux:
-    name: Build ${{ matrix.build_target }}-${{ matrix.artifact_type }}
+    name: Build ${{ matrix.build_target }}-python${{python-version}}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
