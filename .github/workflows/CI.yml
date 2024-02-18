@@ -52,6 +52,7 @@ jobs:
         with:
           target: ${{ matrix.target }}
           command: build
+          manylinux: true
           sccache: 'true'
           args: --release --out dist --interpreter python${{ matrix.python-version }}
       - name: Upload wheels
