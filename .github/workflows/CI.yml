@@ -23,7 +23,7 @@ permissions:
 jobs:
   linux:
     name: Build ${{ matrix.build_target }}-python${{matrix.python-version}}
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         target: [aarch64]
