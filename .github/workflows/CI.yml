@@ -26,7 +26,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: [aarch64]
+        target:
+          - armv7-unknown-linux-gnueabihf
         python-version: ["3.9"]
 #        include:
 #          - build_target: macos
@@ -85,9 +86,14 @@ jobs:
         id: rust-toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          run: rustup install stable --profile=minimal --target aarch64
+          profile: minimal
+          toolchain: stable
           target: ${{ matrix.target }}
-          components: llvm-tools
+          override: true
+      - name: test
+        run: |
+          rustup target add ${{ matrix.target }}
+          rustup component add llvm-tools-preview
 
       - name: Installing needed macOS dependencies
         if: matrix.os == 'macos-latest'
