@@ -26,12 +26,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - run: rm LICENSE.txt
-      - name: Download LICENSE.txt
-        uses: actions/download-artifact@v3
-        with:
-          name: python-wheel-license
-      - run: cat LICENSE.txt
       - name: Build wheels
         run: |
           export RUSTFLAGS='-C target-cpu=skylake'
