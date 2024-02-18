@@ -125,7 +125,7 @@ jobs:
 #          echo "OPENSSL_LIB_DIR=/build/sysroot/usr/lib/arm-linux-gnueabihf" >> $GITHUB_ENV
 #          echo "OPENSSL_INCLUDE_DIR=/build/sysroot/usr/include/arm-linux-gnueabihf" >> $GITHUB_ENV
       - name: Installing needed Ubuntu armhf dependencies (full)
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.target == 'armv7-unknown-linux-gnueabihf'
         run: |
           sudo apt update
           sudo apt-get install alsa-utils libasound2-plugins mpg321 lame
