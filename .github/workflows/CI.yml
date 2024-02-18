@@ -22,7 +22,7 @@ permissions:
 
 jobs:
   linux:
-    name: Build ${{ matrix.build_target }}-python${{python-version}}
+    name: Build ${{ matrix.build_target }}-python${{matrix.python-version}}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -75,11 +75,6 @@ jobs:
           - build_target: linux-armhf
             artifact_type: full
             audio_backend: alsa_backend
-        exclude:
-          - build_target: linux-armv6
-            artifact_type: 'default'            # Raspberry Pi toolchain is too old for dbus/systemd
-          - build_target: linux-armv6
-            artifact_type: 'full'               # Raspberry Pi toolchain is too old for dbus/systemd
 
     steps:
       - uses: actions/checkout@v4
