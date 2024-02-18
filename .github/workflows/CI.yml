@@ -25,18 +25,14 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: ["x86"]
+        arch: [arm, arm64]
         python-version: ["3.10"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
-      - name: install rust stable
-        id: rust-toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: llvm-tools
+
       - name: Install required libraries
         shell: bash
         run: |
