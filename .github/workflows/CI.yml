@@ -169,7 +169,7 @@ jobs:
         with:
           target: x86_64
           command: build
-          args: --release --out dist --find-interpreter
+          args: --release --target ${{ matrix.target }} --out dist --find-interpreter
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
