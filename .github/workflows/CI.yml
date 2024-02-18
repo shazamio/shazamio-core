@@ -119,7 +119,6 @@ jobs:
       - name: Installing needed Ubuntu armhf dependencies (full)
         if: matrix.os == 'ubuntu-latest' && matrix.build_target == 'linux-armhf'
         run: |
-          sudo dpkg --add-architecture armhf
           sudo apt update
           sudo apt-get install alsa-utils
           sudo apt-get install mpg321
