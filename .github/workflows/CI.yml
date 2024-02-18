@@ -144,11 +144,11 @@ jobs:
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
-          target: ${{ matrix.target }}
+          target: x86_64
           command: build
           args: --release --target ${{ matrix.target }} --out dist --find-interpreter
           sccache: 'true'
-          manylinux: auto
+#          manylinux: auto
 
       - name: Upload wheels
         uses: actions/upload-artifact@v3
