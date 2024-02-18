@@ -29,14 +29,11 @@ jobs:
       matrix:
         python-version:
           - "3.8"
-#          - "3.9"
+          - "3.9"
 #          - "3.10"
 #          - "3.11"
 #          - "3.12"
-
-        include:
-          - {os: ubuntu-latest, arch: "x86_64", target: "x86_64-unknown-linux-gnu"}
-          - {os: ubuntu-latest, arch: "x86_64", target: "x86_64-unknown-linux-musl"}
+        target: ["x86_64"]
 
     steps:
       - uses: actions/checkout@v4
@@ -48,16 +45,7 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install -y -qq libasound2-dev libssl-dev libpulse-dev libdbus-1-dev portaudio19-dev pkg-config
-          if [ "${{ matrix.arch }}" = "armv7" ] || [ "${{ matrix.arch }}" = "aarch64" ]; then
-            sudo apt-get install -y crossbuild-essential-armhf crossbuild-essential-arm64
-          fi
-          echo "RUST_BACKTRACE=1" >> $GITHUB_ENV
-      - name: Setup QEMU
-        if: matrix.arch != 'x64'
-        uses: docker/setup-qemu-action@v1
-        with:
-          platforms: all
+          sudo apt-get install -y -qq libasound2-dev libssl-dev pkg-config
 
       - name: Build wheels
         uses: PyO3/maturin-action@v1
