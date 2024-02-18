@@ -36,10 +36,10 @@ jobs:
             feature: 'dbus_keyring,dbus_mpris'  # Default version has all extra features enabled
           - artifact_type: 'full'
             feature: 'dbus_keyring,dbus_mpris'  # Full version has all extra features and audio backends enabled
-          - build_target: macos
-            os: macos-latest
-            artifact_prefix: macos
-            target: x86_64-apple-darwin
+#          - build_target: macos
+#            os: macos-latest
+#            artifact_prefix: macos
+#            target: x86_64-apple-darwin
           - build_target: linux
             os: ubuntu-latest
             artifact_prefix: linux
@@ -52,33 +52,33 @@ jobs:
             os: ubuntu-latest
             artifact_prefix: linux-armv6
             target: arm-unknown-linux-gnueabihf
-          - build_target: macos
-            artifact_type: slim
-            audio_backend: portaudio_backend
-          - build_target: linux
-            artifact_type: slim
-            audio_backend: pulseaudio_backend
+#          - build_target: macos
+#            artifact_type: slim
+#            audio_backend: portaudio_backend
+#          - build_target: linux
+#            artifact_type: slim
+#            audio_backend: pulseaudio_backend
           - build_target: linux-armhf
             artifact_type: slim
             audio_backend: alsa_backend
           - build_target: linux-armv6
             artifact_type: slim
             audio_backend: alsa_backend
-          - build_target: macos
-            artifact_type: default
-            audio_backend: portaudio_backend
-          - build_target: linux
-            artifact_type: default
-            audio_backend: pulseaudio_backend
+#          - build_target: macos
+#            artifact_type: default
+#            audio_backend: portaudio_backend
+#          - build_target: linux
+#            artifact_type: default
+#            audio_backend: pulseaudio_backend
           - build_target: linux-armhf
             artifact_type: default
             audio_backend: alsa_backend
           - build_target: linux
             artifact_type: full
             audio_backend: pulseaudio_backend,alsa_backend,rodio_backend
-          - build_target: macos
-            artifact_type: full
-            audio_backend: portaudio_backend,rodio_backend
+#          - build_target: macos
+#            artifact_type: full
+#            audio_backend: portaudio_backend,rodio_backend
           - build_target: linux-armhf
             artifact_type: full
             audio_backend: alsa_backend
@@ -93,6 +93,12 @@ jobs:
       - uses: actions/setup-python@v4
         with:
             python-version: ${{ matrix.python-version }}
+      - name: install rust stable
+        id: rust-toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          target: ${{ matrix.target }}
+
       - name: Installing needed macOS dependencies
         if: matrix.os == 'macos-latest'
         run: brew install awk dbus pkg-config portaudio
@@ -175,54 +181,6 @@ jobs:
         with:
           name: wheels
           path: dist
-
-#  windows:
-#    runs-on: windows-latest
-#    strategy:
-#      matrix:
-#        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
-#        target: [ x64, x86 ]
-#    steps:
-#      - uses: actions/checkout@v3
-#      - uses: actions/setup-python@v4
-#        with:
-#          python-version: ${{ matrix.python-version }}
-#          architecture: ${{ matrix.target }}
-#      - name: Build wheels
-#        uses: PyO3/maturin-action@v1
-#        with:
-#          target: ${{ matrix.target }}
-#          args: --release --out dist --find-interpreter
-#          sccache: 'true'
-#      - name: Upload wheels
-#        uses: actions/upload-artifact@v3
-#        with:
-#          name: wheels
-#          path: dist
-#
-#  macos:
-#    runs-on: macos-latest
-#    strategy:
-#      matrix:
-#        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
-#        target: [ x86_64, aarch64 ]
-#    steps:
-#      - uses: actions/checkout@v3
-#      - uses: actions/setup-python@v4
-#        with:
-#          python-version: ${{ matrix.python-version }}
-#      - name: Build wheels
-#        uses: PyO3/maturin-action@v1
-#        with:
-#          target: ${{ matrix.target }}
-#          args: --release --out dist --find-interpreter
-#          sccache: 'true'
-#      - name: Upload wheels
-#        uses: actions/upload-artifact@v3
-#        with:
-#          name: wheels
-#          path: dist
-
 
   sdist:
     runs-on: ubuntu-latest
