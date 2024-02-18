@@ -86,7 +86,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           run: rustup target add armv7-unknown-linux-gnueabihf
-#          target: ${{ matrix.target }}
+          target: ${{ matrix.target }}
 
       - name: Installing needed macOS dependencies
         if: matrix.os == 'macos-latest'
