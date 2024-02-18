@@ -110,6 +110,7 @@ jobs:
       - name: Installing needed Ubuntu armhf dependencies
         if: matrix.os == 'ubuntu-latest' && matrix.build_target == 'linux-armhf'
         run: |
+          sudo dpkg --add-architecture armhf
           sudo mkdir -p /build/sysroot
           echo "deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports/ bionic main" | sudo tee -a /etc/apt/sources.list
           sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 3B4FE6ACC0B21F32
