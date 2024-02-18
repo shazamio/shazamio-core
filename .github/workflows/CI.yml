@@ -26,9 +26,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        build_target: [linux-armhf]
+        target: [aarch64]
         python-version: ["3.9"]
-        include:
+#        include:
 #          - build_target: macos
 #            os: macos-latest
 #            artifact_prefix: macos
@@ -37,10 +37,10 @@ jobs:
 #            os: ubuntu-latest
 #            artifact_prefix: linux
 #            target: x86_64-unknown-linux-gnu
-          - build_target: linux-armhf
-            os: ubuntu-latest
-            artifact_prefix: linux-armhf
-            target: arm-unknown-linux-gnueabihf
+#          - build_target: linux-armhf
+#            os: ubuntu-latest
+#            artifact_prefix: linux-armhf
+#            target: arm-unknown-linux-gnueabihf
 #          - build_target: linux-armv6
 #            os: ubuntu-latest
 #            artifact_prefix: linux-armv6
@@ -51,9 +51,9 @@ jobs:
 #          - build_target: linux
 #            artifact_type: slim
 #            audio_backend: pulseaudio_backend
-          - build_target: linux-armhf
-            artifact_type: slim
-            audio_backend: alsa_backend
+#          - build_target: linux-armhf
+#            artifact_type: slim
+#            audio_backend: alsa_backend
 #          - build_target: linux-armv6
 #            artifact_type: slim
 #            audio_backend: alsa_backend
@@ -63,18 +63,18 @@ jobs:
 #          - build_target: linux
 #            artifact_type: default
 #            audio_backend: pulseaudio_backend
-          - build_target: linux-armhf
-            artifact_type: default
-            audio_backend: alsa_backend
+#          - build_target: linux-armhf
+#            artifact_type: default
+#            audio_backend: alsa_backend
 #          - build_target: linux
 #            artifact_type: full
 #            audio_backend: pulseaudio_backend,alsa_backend,rodio_backend
 #          - build_target: macos
 #            artifact_type: full
 #            audio_backend: portaudio_backend,rodio_backend
-          - build_target: linux-armhf
-            artifact_type: full
-            audio_backend: alsa_backend
+#          - build_target: linux-armhf
+#            artifact_type: full
+#            audio_backend: alsa_backend
 
     steps:
       - uses: actions/checkout@v4
