@@ -27,15 +27,8 @@ jobs:
     strategy:
       matrix:
         build_target: [macos, linux, linux-armhf, linux-armv6]
-        artifact_type: ['slim', 'default', 'full']
         python-version: ["3.8"]
         include:
-          - artifact_type: 'slim'               # Slim version has no features enabled by default.
-            feature: ''
-          - artifact_type: 'default'
-            feature: 'dbus_keyring,dbus_mpris'  # Default version has all extra features enabled
-          - artifact_type: 'full'
-            feature: 'dbus_keyring,dbus_mpris'  # Full version has all extra features and audio backends enabled
           - build_target: macos
             os: macos-latest
             artifact_prefix: macos
@@ -110,7 +103,6 @@ jobs:
       - name: Installing needed Ubuntu armhf dependencies
         if: matrix.os == 'ubuntu-latest' && matrix.build_target == 'linux-armhf'
         run: |
-          sudo dpkg --add-architecture armhf
           sudo mkdir -p /build/sysroot
           echo "deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports/ bionic main" | sudo tee -a /etc/apt/sources.list
           sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 3B4FE6ACC0B21F32
@@ -174,7 +166,7 @@ jobs:
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
-          target: ${{ matrix.target }}
+          target: x86_64
           command: build
           args: --release --target ${{ matrix.target }} --out dist --find-interpreter
       - name: Upload wheels
