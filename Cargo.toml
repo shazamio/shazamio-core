@@ -2,15 +2,15 @@
 name = "shazamio-core"
 version = "1.0.2"
 edition = "2021"
+rust-version = "1.62"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
 name = "shazamio_core"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "lib"]
 
 
 [dependencies]
-pyo3 = {version = "0.20.2"}
 tokio = { version = "1.35.0", features = ["full"] }
 tempfile = "3.10.0"
 rodio = {version = "0.17.3"}
@@ -22,6 +22,13 @@ base64 = { version = "0.21.7", features = [] }
 chfft = {version = "0.3.4"}
 futures = { version = "0.3.30", features = [] }
 serde = { version = "1.0.196", features = ["derive"] }
-pyo3-asyncio = {version = "0.20.0", features = ["async-std-runtime", "async-std", "tokio", "tokio-runtime"]}
 bytes = "1.5.0"
 tempdir = "0.3.7"
+
+
+[dependencies.pyo3]
+version = "0.20.2"
+
+[dependencies.pyo3-asyncio]
+version = "0.20.0"
+features = ["async-std-runtime", "async-std", "tokio", "tokio-runtime"]

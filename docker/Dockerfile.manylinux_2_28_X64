@@ -8,7 +8,7 @@ RUN dnf install -y ffmpeg ffmpeg-devel
 RUN dnf install -y clang clang-devel
 RUN dnf install -y alsa-lib-devel
 ENV PATH="/root/.cargo/bin:/opt/python/cp38-cp38m/bin:/opt/python/cp39-cp39/bin:/opt/python/cp310-cp310/bin:/opt/python/cp311-cp311/bin:/opt/python/cp312-cp312/bin:$PATH"
-RUN pip3 install maturin==0.15 patchelf cffi ziglang sccache>=0.4.0
+RUN pip3 install maturin==1.4.0 patchelf cffi ziglang sccache>=0.4.0
 
 WORKDIR /opt
 COPY docker/install-basic-deps-manylinux.sh .
