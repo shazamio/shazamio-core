@@ -26,52 +26,52 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        build_target: [macos, linux, linux-armhf, linux-armv6]
+        build_target: [linux-armhf]
         python-version: ["3.9"]
         include:
-          - build_target: macos
-            os: macos-latest
-            artifact_prefix: macos
-            target: x86_64-apple-darwin
-          - build_target: linux
-            os: ubuntu-latest
-            artifact_prefix: linux
-            target: x86_64-unknown-linux-gnu
+#          - build_target: macos
+#            os: macos-latest
+#            artifact_prefix: macos
+#            target: x86_64-apple-darwin
+#          - build_target: linux
+#            os: ubuntu-latest
+#            artifact_prefix: linux
+#            target: x86_64-unknown-linux-gnu
           - build_target: linux-armhf
             os: ubuntu-latest
             artifact_prefix: linux-armhf
             target: arm-unknown-linux-gnueabihf
-          - build_target: linux-armv6
-            os: ubuntu-latest
-            artifact_prefix: linux-armv6
-            target: arm-unknown-linux-gnueabihf
-          - build_target: macos
-            artifact_type: slim
-            audio_backend: portaudio_backend
-          - build_target: linux
-            artifact_type: slim
-            audio_backend: pulseaudio_backend
+#          - build_target: linux-armv6
+#            os: ubuntu-latest
+#            artifact_prefix: linux-armv6
+#            target: arm-unknown-linux-gnueabihf
+#          - build_target: macos
+#            artifact_type: slim
+#            audio_backend: portaudio_backend
+#          - build_target: linux
+#            artifact_type: slim
+#            audio_backend: pulseaudio_backend
           - build_target: linux-armhf
             artifact_type: slim
             audio_backend: alsa_backend
-          - build_target: linux-armv6
-            artifact_type: slim
-            audio_backend: alsa_backend
-          - build_target: macos
-            artifact_type: default
-            audio_backend: portaudio_backend
-          - build_target: linux
-            artifact_type: default
-            audio_backend: pulseaudio_backend
+#          - build_target: linux-armv6
+#            artifact_type: slim
+#            audio_backend: alsa_backend
+#          - build_target: macos
+#            artifact_type: default
+#            audio_backend: portaudio_backend
+#          - build_target: linux
+#            artifact_type: default
+#            audio_backend: pulseaudio_backend
           - build_target: linux-armhf
             artifact_type: default
             audio_backend: alsa_backend
-          - build_target: linux
-            artifact_type: full
-            audio_backend: pulseaudio_backend,alsa_backend,rodio_backend
-          - build_target: macos
-            artifact_type: full
-            audio_backend: portaudio_backend,rodio_backend
+#          - build_target: linux
+#            artifact_type: full
+#            audio_backend: pulseaudio_backend,alsa_backend,rodio_backend
+#          - build_target: macos
+#            artifact_type: full
+#            audio_backend: portaudio_backend,rodio_backend
           - build_target: linux-armhf
             artifact_type: full
             audio_backend: alsa_backend
@@ -85,7 +85,8 @@ jobs:
         id: rust-toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          target: ${{ matrix.target }}
+          run: rustup target add armv7-unknown-linux-gnueabihf
+#          target: ${{ matrix.target }}
 
       - name: Installing needed macOS dependencies
         if: matrix.os == 'macos-latest'
