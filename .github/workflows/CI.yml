@@ -40,8 +40,10 @@ jobs:
       - name: Install required libraries
         shell: bash
         run: |
-          sudo apt-get update && sudo apt-get install pkg-config libasound2-dev libudev-dev libssl-dev libmp3lame-dev
+          sudo apt-get update && sudo apt-get install -y -qq libasound2-dev libssl-dev libpulse-dev libdbus-1-dev portaudio19-dev
           sudo apt install librust-alsa-sys-dev
+          sudo apt install --reinstall libasound2-dev
+          pkg-config --libs --cflags alsa
           echo "RUST_BACKTRACE=1" >> $GITHUB_ENV
       - name: find alsa.pc
         run: |
