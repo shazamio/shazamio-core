@@ -22,7 +22,8 @@ permissions:
 
 jobs:
   linux:
-    runs-on: ubuntu-latest
+    name: Build ${{ matrix.build_target }}-${{ matrix.artifact_type }}
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         build_target: [macos, linux, linux-armhf, linux-armv6]
