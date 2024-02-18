@@ -22,15 +22,21 @@ permissions:
 
 jobs:
   linux:
+#    name: Build ${{ matrix.build_target }}-python${{matrix.python-version}}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
+        python-version:
+          - "3.8"
+#          - "3.9"
+#          - "3.10"
+#          - "3.11"
+#          - "3.12"
+
         include:
-          - {os: ubuntu-latest, arch: "x86_64", python-version: "3.10"}
-          - {os: ubuntu-latest, arch: "aarch64", python-version: "3.10"} # ARM64
-          - {os: ubuntu-latest, arch: "armv7l", python-version: "3.10"}  # ARMv7
-          - {os: ubuntu-latest, arch: "i386", python-version: "3.10"}    # x86 (32-bit)
+          - {os: ubuntu-latest, arch: "x86_64", target: "x86_64-unknown-linux-gnu"}
+          - {os: ubuntu-latest, arch: "x86_64", target: "x86_64-unknown-linux-musl"}
 
     steps:
       - uses: actions/checkout@v4
@@ -52,10 +58,6 @@ jobs:
         uses: docker/setup-qemu-action@v1
         with:
           platforms: all
-
-      - name: find alsa.pc
-        run: |
-          find /usr -name alsa.pc
 
       - name: Build wheels
         uses: PyO3/maturin-action@v1
