@@ -1,0 +1,29 @@
+FROM ubuntu:20.04 as base
+
+WORKDIR /opt
+COPY docker/install-basic-deps-u2004.sh .
+RUN bash /opt/install-basic-deps-u2004.sh
+
+FROM base as chef
+ENV PATH="/root/.cargo/bin:$PATH"
+RUN rustc -V
+
+FROM chef AS planner
+WORKDIR /opt
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef AS builder
+WORKDIR /opt
+COPY --from=planner /opt/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
+COPY . .
+
+ENV RUSTFLAGS=" -C opt-level=3"
+
+RUN maturin build --release --manylinux off --out dist
+RUN python3 -m pip install --upgrade pip
+RUN python3 -m pip install dist/*.whl
+
+FROM alpine:3.18 as dist
+COPY --from=builder /opt/dist /opt/dist
