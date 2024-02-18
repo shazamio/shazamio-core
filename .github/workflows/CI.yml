@@ -41,20 +41,21 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install required libraries
-        shell: bash
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y -qq libasound2-dev libssl-dev pkg-config
+#      - name: Install required libraries
+#        shell: bash
+#        run: |
+#          sudo apt-get update
+#          sudo apt-get install -y -qq libasound2-dev libssl-dev pkg-config
 
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
           command: build
-          manylinux: 'auto'
+          manylinux: auto
           sccache: 'true'
           args: --release --out dist --interpreter python${{ matrix.python-version }}
+          before-script-linux: test.sh
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
