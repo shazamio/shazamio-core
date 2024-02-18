@@ -40,7 +40,7 @@ jobs:
       - name: Install required libraries
         shell: bash
         run: |
-          sudo apt-get update && sudo apt-get install -y -qq libasound2-dev libssl-dev libpulse-dev libdbus-1-dev portaudio19-dev
+          sudo apt-get update && sudo apt-get install -y -qq libasound2-dev libssl-dev libpulse-dev libdbus-1-dev portaudio19-dev pkg-config
           sudo apt install librust-alsa-sys-dev
           sudo apt install --reinstall libasound2-dev
           pkg-config --libs --cflags alsa
