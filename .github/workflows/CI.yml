@@ -173,7 +173,7 @@ jobs:
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
-          target: x86_64
+          target: ${{ matrix.target }}
           command: build
           args: --release --target ${{ matrix.target }} --out dist --find-interpreter
       - name: Upload wheels
