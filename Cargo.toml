@@ -24,11 +24,8 @@ futures = { version = "0.3.30", features = [] }
 serde = { version = "1.0.196", features = ["derive"] }
 bytes = "1.5.0"
 tempdir = "0.3.7"
+pyo3 = "0.20.2"
+pyo3-asyncio = { version = "0.20.0", features = ["async-std-runtime", "async-std", "tokio", "tokio-runtime"] }
 
-
-[dependencies.pyo3]
-version = "0.20.2"
-
-[dependencies.pyo3-asyncio]
-version = "0.20.0"
-features = ["async-std-runtime", "async-std", "tokio", "tokio-runtime"]
+[features]
+default = ["pyo3/extension-module"]

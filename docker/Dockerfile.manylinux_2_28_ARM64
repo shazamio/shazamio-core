@@ -6,7 +6,7 @@ RUN dnf install -y --nogpgcheck https://download1.rpmfusion.org/free/el/rpmfusio
 RUN dnf install -y --nogpgcheck https://download1.rpmfusion.org/nonfree/el/rpmfusion-nonfree-release-8.noarch.rpm
 RUN dnf install -y clang clang-devel
 RUN dnf install -y alsa-lib-devel
-ENV PATH="/root/.cargo/bin:/opt/python/cp38-cp38m/bin:/opt/python/cp39-cp39/bin:/opt/python/cp310-cp310/bin:/opt/python/cp311-cp311/bin:/opt/python/cp312-cp312/bin:$PATH"
+ENV PATH="/root/.cargo/bin:/opt/python/cp38-cp38/bin:/opt/python/cp39-cp39/bin:/opt/python/cp310-cp310/bin:/opt/python/cp311-cp311/bin:/opt/python/cp312-cp312/bin:$PATH"
 RUN pip3 install maturin==1.4.0 patchelf cffi ziglang sccache>=0.4.0
 
 WORKDIR /opt
