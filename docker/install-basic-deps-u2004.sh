@@ -3,14 +3,11 @@
 set -e
 
 apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y install \
-    liboping0 \
-    liboping-dev \
     clang \
     autoconf \
     automake \
     build-essential \
     cmake \
-    git-core \
     libasound2-dev \
     libass-dev \
     libavutil56 libavutil-dev \
@@ -28,10 +25,7 @@ apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y install \
     libxcb1-dev \
     libxcb-shm0-dev \
     libxcb-xfixes0-dev \
-    meson \
-    ninja-build \
     pkg-config \
-    texinfo \
     wget \
     yasm \
     zlib1g-dev \
@@ -40,7 +34,8 @@ apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y install \
     libsasl2-2 \
     python3-dev \
     python3-pip \
-    curl
+    curl \
+    ffmpeg
 
 curl -o rustup.sh --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs
 sh rustup.sh -y
