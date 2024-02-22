@@ -15,58 +15,58 @@ permissions:
   id-token: write
 
 jobs:
-  windows:
-    runs-on: windows-latest
-    strategy:
-      matrix:
-        python-version: [ "3.8" ]
-        target: [ x64, x86 ]
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
-          architecture: ${{ matrix.target }}
-      - name: Build wheels
-        uses: PyO3/maturin-action@v1
-        with:
-          target: ${{ matrix.target }}
-          args: --release --out dist --find-interpreter
-          sccache: 'true'
-      - name: Upload wheels
-        uses: actions/upload-artifact@v3
-        with:
-          name: wheels
-          path: dist
-
-  macos:
-    runs-on: macos-latest
-    strategy:
-      matrix:
-        include:
-          - name: x86_64
-            target: x86_64-apple-darwin
-            arch: x86_64
-          - name: aarch64
-            target: aarch64-apple-darwin
-            arch: arm64
-        python-version: [ "3.8" ]
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Build wheels
-        uses: PyO3/maturin-action@v1
-        with:
-          target: ${{ matrix.target }}
-          args: --release --out dist --find-interpreter
-          sccache: 'true'
-      - name: Upload wheels
-        uses: actions/upload-artifact@v3
-        with:
-          name: wheels
-          path: dist
+#  windows:
+#    runs-on: windows-latest
+#    strategy:
+#      matrix:
+#        python-version: [ "3.8" ]
+#        target: [ x64, x86 ]
+#    steps:
+#      - uses: actions/checkout@v3
+#      - uses: actions/setup-python@v4
+#        with:
+#          python-version: ${{ matrix.python-version }}
+#          architecture: ${{ matrix.target }}
+#      - name: Build wheels
+#        uses: PyO3/maturin-action@v1
+#        with:
+#          target: ${{ matrix.target }}
+#          args: --release --out dist --find-interpreter
+#          sccache: 'true'
+#      - name: Upload wheels
+#        uses: actions/upload-artifact@v3
+#        with:
+#          name: wheels
+#          path: dist
+#
+#  macos:
+#    runs-on: macos-latest
+#    strategy:
+#      matrix:
+#        include:
+#          - name: x86_64
+#            target: x86_64-apple-darwin
+#            arch: x86_64
+#          - name: aarch64
+#            target: aarch64-apple-darwin
+#            arch: arm64
+#        python-version: [ "3.8" ]
+#    steps:
+#      - uses: actions/checkout@v3
+#      - uses: actions/setup-python@v4
+#        with:
+#          python-version: ${{ matrix.python-version }}
+#      - name: Build wheels
+#        uses: PyO3/maturin-action@v1
+#        with:
+#          target: ${{ matrix.target }}
+#          args: --release --out dist --find-interpreter
+#          sccache: 'true'
+#      - name: Upload wheels
+#        uses: actions/upload-artifact@v3
+#        with:
+#          name: wheels
+#          path: dist
 
   linux:
     runs-on: ubuntu-latest
@@ -133,7 +133,7 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     if: "startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'"
-    needs: [ sdist, windows, macos, linux ]
+    needs: [ sdist, linux ]
     steps:
       - uses: actions/download-artifact@v3
         with:
