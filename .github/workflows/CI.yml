@@ -31,7 +31,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: --release --out dist/ --interpreter python${{ matrix.python-version }}
+          args: --release --out dist/dist --interpreter python${{ matrix.python-version }}
           sccache: 'true'
       - name: Upload wheels
         uses: actions/upload-artifact@v3
@@ -60,7 +60,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: --release --out dist/ --interpreter python${{ matrix.python-version }}
+          args: --release --out dist/dist --interpreter python${{ matrix.python-version }}
           sccache: 'true'
       - name: Upload wheels
         uses: actions/upload-artifact@v3
