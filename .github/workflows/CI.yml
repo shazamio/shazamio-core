@@ -82,9 +82,9 @@ jobs:
 #          - docker_file: docker/Dockerfile.u2004
 #            name: native-arm
 #            arch: linux/arm64
-#          - docker_file: docker/Dockerfile.u2004
-#            name: native-x86
-#            arch: linux/amd64
+          - docker_file: docker/Dockerfile.u2004
+            name: native-x86
+            arch: linux/amd64
 
     steps:
       - uses: actions/checkout@v3
