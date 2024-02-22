@@ -36,7 +36,7 @@ jobs:
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
-          name: wheels-win-${{ matrix.target }}
+          name: wheels
           path: distfiles/dist
 
   macos:
@@ -65,7 +65,7 @@ jobs:
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
-          name: wheels-${{ matrix.target }}
+          name: wheels
           path: distfiles/dist
 #
 #  linux:
@@ -114,6 +114,21 @@ jobs:
 #          name: wheels-${{ matrix.name }}
 #          path: distfiles/dist
 
+  sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist
+      - name: Upload sdist
+        uses: actions/upload-artifact@v3
+        with:
+          name: wheels
+          path: distfiles/dist
+
   release:
     name: Release
     runs-on: ubuntu-latest
@@ -122,21 +137,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v3
         with:
-          name: wheels-manylinux-arm
-
-      - uses: actions/download-artifact@v3
-        with:
-          name: wheels-manylinux-x86
-
-      - name: Download native artifacts ARM
-        uses: actions/download-artifact@v3
-        with:
-          name: wheels-native-arm
-
-      - name: Download native artifacts x86
-        uses: actions/download-artifact@v3
-        with:
-          name: wheels-native-x86
+          name: wheels
 
       - name: Publish to PyPI
         uses: PyO3/maturin-action@v1
