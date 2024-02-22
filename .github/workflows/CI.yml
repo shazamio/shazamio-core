@@ -133,7 +133,7 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     if: "startsWith(github.ref, 'refs/tags/')"
-    needs: [ sdict, windows, macos ]
+    needs: [ sdist, windows, macos ]
     steps:
       - uses: actions/download-artifact@v3
         with:
