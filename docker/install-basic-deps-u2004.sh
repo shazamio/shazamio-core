@@ -34,8 +34,7 @@ apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y install \
     libsasl2-2 \
     python3-dev \
     python3-pip \
-    curl \
-    ffmpeg
+    curl
 
 curl -o rustup.sh --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs
 sh rustup.sh -y
@@ -46,4 +45,4 @@ rustc -V
 cargo install cargo-chef --locked
 
 /usr/bin/python3 -m pip install --upgrade pip
-/usr/bin/python3 -m pip install --upgrade maturin~=0.15
+/usr/bin/python3 -m pip install --upgrade maturin==1.4.0
