@@ -1,0 +1,36 @@
+FROM quay.io/pypa/manylinux_2_28_aarch64 as base
+
+RUN dnf install -y epel-release
+# RUN dnf config-manager --set-enabled crb
+RUN dnf install -y --nogpgcheck https://download1.rpmfusion.org/free/el/rpmfusion-free-release-8.noarch.rpm
+RUN dnf install -y --nogpgcheck https://download1.rpmfusion.org/nonfree/el/rpmfusion-nonfree-release-8.noarch.rpm
+RUN dnf install -y clang clang-devel
+RUN dnf install -y alsa-lib-devel
+ENV PATH="/root/.cargo/bin:/opt/python/cp38-cp38/bin:/opt/python/cp39-cp39/bin:/opt/python/cp310-cp310/bin:/opt/python/cp311-cp311/bin:/opt/python/cp312-cp312/bin:$PATH"
+RUN pip3 install maturin==1.4.0 patchelf cffi ziglang sccache>=0.4.0
+
+WORKDIR /opt
+COPY docker/install-basic-deps-manylinux.sh .
+RUN bash /opt/install-basic-deps-manylinux.sh
+
+FROM base as chef
+ENV PATH="/root/.cargo/bin:$PATH"
+RUN rustc -V
+
+FROM chef AS planner
+WORKDIR /opt
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef AS builder
+WORKDIR /opt
+COPY --from=planner /opt/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
+COPY . .
+ENV LD_LIBRARY_PATH="/usr/lib64/pulseaudio:$LD_LIBRARY_PATH"
+ARG PYTHON_INTERPRETER
+RUN bash /opt/docker/build-manylinux.sh
+RUN rm -rf target
+
+FROM alpine:latest as dist
+COPY --from=builder /opt/dist /opt/dist
