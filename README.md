@@ -100,7 +100,7 @@ except SignatureError as error:
 
 ## Formats
 
-Decoding goes through [`rodio`](https://github.com/RustAudio/rodio) and `symphonia`, with the `flac`, `mp3`, `mp4`, `vorbis` and `wav` features enabled. The test suite covers MP3, Ogg Vorbis and FLAC on Linux, macOS and Windows.
+Decoding goes through [`symphonia`](https://github.com/pdeljanov/Symphonia) with every codec and container it ships enabled, and resampling to mono 16 kHz through [`rubato`](https://github.com/HEnquist/rubato). Nothing is shelled out to, so no external binary has to be installed. Opus is the one common format left out: `symphonia` has no Opus decoder. The test suite covers MP3, Ogg Vorbis and FLAC on Linux, macOS and Windows.
 
 ## Development
 

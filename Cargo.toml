@@ -2,8 +2,8 @@
 name = "shazamio-core"
 version = "1.2.0"
 edition = "2021"
-# `rodio` 0.22 declares 1.87; nothing here needs more.
-rust-version = "1.87"
+# `pyo3` 0.29 declares 1.83 and is the highest floor in the tree; nothing here needs more.
+rust-version = "1.83"
 
 [lib]
 name = "shazamio_core"
@@ -12,15 +12,6 @@ crate-type = ["cdylib", "lib"]
 
 [dependencies]
 tokio = { version = "1.53.1" }
-tempfile = "3.27.0"
-# `default-features = false` drops `playback`, which is the only thing that pulls
-# `cpal` and therefore `alsa-sys`. This crate decodes audio, it never plays it, so
-# the build no longer needs ALSA headers on Linux. Possible only from 0.21 on:
-# 0.20.1 declares `cpal` as a plain dependency, so no feature flag can remove it.
-# https://github.com/RustAudio/rodio/blob/v0.20.1/Cargo.toml#L13
-# The feature list restates 0.22's own defaults minus `playback`, `recording` and
-# `dither`. https://github.com/RustAudio/rodio/blob/v0.22.2/Cargo.toml#L15-L23
-rodio = { version = "0.22.2", default-features = false, features = ["flac", "mp3", "mp4", "vorbis", "wav"] }
 serde_json = "1.0.151"
 blocking = { version = "1.6.2", features = [] }
 byteorder = "1.5.0"
@@ -41,6 +32,8 @@ pyo3 = { version = "=0.29.2", features = ["abi3-py310"] }
 pyo3-async-runtimes = { version = "0.29.0", features = ["tokio-runtime"] }
 pyo3-log = "=0.13.4"
 log = "0.4.33"
+symphonia = { version = "0.5.4", features = ["all"] }
+rubato = "0.15.0"
 
 [profile.release]
 # Measured 2026-09-05 by diffing the CI wheels before and after. On Linux the
