@@ -1,10 +1,11 @@
-use crate::fingerprinting::ffmpeg_wrapper::{decode_with_ffmpeg, decode_with_ffmpeg_from_bytes};
 use crate::fingerprinting::hanning::HANNING_WINDOW_2048_MULTIPLIERS;
 use crate::fingerprinting::signature_format::{DecodedSignature, FrequencyBand, FrequencyPeak};
+use crate::fingerprinting::resample::resample;
+use crate::fingerprinting::decode::samples_from_bytes;
 use chfft::RFft1D;
 use std::collections::HashMap;
 use std::error::Error;
-use std::io::{BufReader, Cursor};
+use std::fs;
 
 pub struct SignatureGenerator {
     ring_buffer_of_samples: Vec<i16>,
@@ -20,32 +21,25 @@ pub struct SignatureGenerator {
 }
 
 impl SignatureGenerator {
+    fn pcm_samples_from_bytes(bytes: Vec<u8>) -> Result<Vec<i16>, Box<dyn Error>> {
+        let (signal_spec, samples) = samples_from_bytes(bytes, usize::MAX, 0)?;
+        let raw_pcm_samples = resample(signal_spec, samples)?;
+        Ok(raw_pcm_samples)
+    }    
     pub fn make_signature_from_bytes(bytes: Vec<u8>) -> Result<DecodedSignature, Box<dyn Error>> {
         // Create a cursor around the byte array for decoding
-        let cursor = Cursor::new(bytes.clone());
-
-        let decoder = rodio::Decoder::new(cursor).or_else(|_decoding_error| {
-            // Use the original bytes vector here
-            decode_with_ffmpeg_from_bytes(&bytes)
-        })?;
-
-        // Convert the decoded samples to 16 kHz mono PCM, similar to make_signature_from_file
-        // Here, we use UniformSourceIterator from rodio to downsample and convert to mono if necessary
-        let converted_file = rodio::source::UniformSourceIterator::new(decoder, 1, 16000);
-        let raw_pcm_samples: Vec<i16> = converted_file.collect();
+        let raw_pcm_samples = SignatureGenerator::pcm_samples_from_bytes(bytes)?;
 
         // Process the PCM samples as in make_signature_from_buffer
         let slice_len = raw_pcm_samples.len().min(12 * 16000);
         let mut raw_pcm_samples_slice = &raw_pcm_samples[..slice_len];
         if raw_pcm_samples_slice.len() > 12 * 16000 {
             let middle = raw_pcm_samples.len() / 2;
-            raw_pcm_samples_slice =
-                &raw_pcm_samples_slice[middle - (6 * 16000)..middle + (6 * 16000)];
+            raw_pcm_samples_slice = &raw_pcm_samples_slice[middle - (6 * 16000)..middle + (6 * 16000)];
         }
 
         // Generate signature from buffer
-        let signature =
-            SignatureGenerator::make_signature_from_buffer(raw_pcm_samples_slice.to_vec());
+        let signature = SignatureGenerator::make_signature_from_buffer(raw_pcm_samples_slice.to_vec());
 
         // Return the generated signature
         Ok(signature)
@@ -53,29 +47,13 @@ impl SignatureGenerator {
     pub fn make_signature_from_file(file_path: &str) -> Result<DecodedSignature, Box<dyn Error>> {
         // Decode the .WAV, .MP3, .OGG or .FLAC file
 
-        let mut decoder = rodio::Decoder::new(BufReader::new(std::fs::File::open(file_path)?));
+        let raw_pcm_samples = SignatureGenerator::pcm_samples_from_bytes(fs::read(file_path)?)?;
 
-        if let Err(ref _decoding_error) = decoder {
-            // Try to decode with FFMpeg, if available, in case of failure with
-            // Rodio (most likely due to the use of a format unsupported by
-            // Rodio, such as .WMA or .MP4/.AAC)
-
-            if let Some(new_decoder) = decode_with_ffmpeg(file_path) {
-                decoder = Ok(new_decoder);
-            }
-        }
-
-        // Downsample the raw PCM samples to 16 KHz, and skip to the middle of the file
-        // in order to increase recognition odds. Take 12 seconds of sample.
-
-        let converted_file = rodio::source::UniformSourceIterator::new(decoder?, 1, 16000);
-        let raw_pcm_samples: Vec<i16> = converted_file.collect();
         let mut raw_pcm_samples_slice: &[i16] = &raw_pcm_samples;
         let slice_len = raw_pcm_samples_slice.len().min(12 * 16000);
         if raw_pcm_samples_slice.len() > 12 * 16000 {
             let middle = raw_pcm_samples.len() / 2;
-            raw_pcm_samples_slice =
-                &raw_pcm_samples_slice[middle - (6 * 16000)..middle + (6 * 16000)];
+            raw_pcm_samples_slice = &raw_pcm_samples_slice[middle - (6 * 16000)..middle + (6 * 16000)];
         }
         // println!("PRE BUF");
         // println!("{} len slice", slice_len);
