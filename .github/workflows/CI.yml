@@ -1,6 +1,7 @@
 name: shazamio-core CI
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - 'master'
