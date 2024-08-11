@@ -11,8 +11,6 @@ crate-type = ["cdylib", "lib"]
 
 [dependencies]
 tokio = { version = "1.36.0" }
-tempfile = "3.10.0"
-rodio = {version = "0.17.3"}
 serde_json = "1.0.114"
 blocking = { version = "1.5.1", features = [] }
 byteorder = "1.5.0"
@@ -22,9 +20,10 @@ chfft = {version = "0.3.4"}
 futures = { version = "0.3.30", features = [] }
 serde = { version = "1.0.196", features = ["derive"] }
 bytes = "1.5.0"
-tempdir = "0.3.7"
 pyo3 = "0.20.2"
 pyo3-asyncio = { version = "0.20.0", features = ["async-std-runtime", "async-std", "tokio", "tokio-runtime"] }
+symphonia = { version = "0.5.4", features = ["all"] }
+rubato = "0.15.0"
 
 [features]
 default = ["pyo3/extension-module"]
