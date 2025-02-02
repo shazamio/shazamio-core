@@ -71,16 +71,18 @@ jobs:
 #          path: dist
 
   linux:
-    runs-on: ubuntu-latest
     strategy:
       matrix:
         include:
-         # - docker_file: docker/Dockerfile.manylinux_2_28_ARM64
-         #   name: manylinux-arm
-         #   arch: linux/arm64
-         - docker_file: docker/Dockerfile.manylinux_2_28_X64
-           name: manylinux-x86
-
+          - docker_file: docker/Dockerfile.manylinux_2_28_ARM64
+            name: manylinux-arm
+            arch: aarch64
+            os: ubuntu-22.04-arm
+          - docker_file: docker/Dockerfile.manylinux_2_28_X64
+            os: ubuntu-latest
+            name: manylinux-x86
+            arch: x86_64
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
