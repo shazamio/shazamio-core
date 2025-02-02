@@ -46,9 +46,9 @@ jobs:
           - name: x86_64
             target: x86_64-apple-darwin
             arch: x86_64
-          # - name: aarch64
-          #   target: aarch64-apple-darwin
-          #   arch: arm64
+          - name: aarch64
+            target: aarch64-apple-darwin
+            arch: arm64
         python-version: [ "3.9", "3.10", "3.11", "3.12" ]
     steps:
       - uses: actions/checkout@v3
@@ -72,11 +72,11 @@ jobs:
     strategy:
       matrix:
         include:
-         #- docker_file: docker/Dockerfile.manylinux_2_28_ARM64
-         #  name: manylinux-arm
-         #  arch: linux/arm64
-          - docker_file: docker/Dockerfile.manylinux_2_28_X64
-            name: manylinux-x86
+         # - docker_file: docker/Dockerfile.manylinux_2_28_ARM64
+         #   name: manylinux-arm
+         #   arch: linux/arm64
+         - docker_file: docker/Dockerfile.manylinux_2_28_X64
+           name: manylinux-x86
 
     steps:
       - uses: actions/checkout@v4
