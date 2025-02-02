@@ -102,13 +102,14 @@ jobs:
           cache-to: type=gha,mode=max
           context: .
 
-      - name: List /opt directory
-        run: docker run --rm shazamio_core ls -la /opt
-
       - name: List /opt/dist directory
         run: docker run --rm shazamio_core ls -la /opt/dist
+
       - name: Copy wheels
-        run: docker run --rm -v $(pwd)/dist:/tmp shazamio_core cp -R /opt/dist/* /tmp/
+        run: docker run --rm -v $(pwd)/dist:/tmp shazamio_core sh -c "cp -R /opt/dist/* /tmp/"
+
+      - name: Debug List files in /tmp after copy
+        run: ls -la dist
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
