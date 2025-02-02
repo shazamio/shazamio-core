@@ -30,7 +30,7 @@ jobs:
        uses: PyO3/maturin-action@v1
        with:
          target: ${{ matrix.target }}
-         args: --release --out dist/dist --interpreter python${{ matrix.python-version }}
+         args: --release --out dist --interpreter python${{ matrix.python-version }}
          sccache: 'true'
      - name: Upload wheels
        uses: actions/upload-artifact@v4
@@ -44,9 +44,11 @@ jobs:
       matrix:
         include:
           - name: x86_64
+            os: macos
             target: x86_64-apple-darwin
             arch: x86_64
           - name: aarch64
+            os: macos
             target: aarch64-apple-darwin
             arch: arm64
         python-version: [ "3.9", "3.10", "3.11", "3.12" ]
@@ -59,7 +61,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: --release --out dist/dist --interpreter python${{ matrix.python-version }}
+          args: --release --out dist --interpreter python${{ matrix.python-version }}
           sccache: 'true'
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -100,7 +102,7 @@ jobs:
           context: .
 
       - name: Copy wheels
-        run: docker run --rm -v $(pwd)/dist:/tmp shazamio_core cp -R /opt/dist /tmp
+        run: docker run --rm -v $(pwd)/dist:/tmp shazamio_core cp -R /opt/dist/* /tmp/
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
