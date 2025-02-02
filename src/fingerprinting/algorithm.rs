@@ -20,7 +20,7 @@ pub struct SignatureGenerator {
 }
 
 impl SignatureGenerator {
-    pub fn make_signature_from_bytes(bytes: Vec<u8>) -> Result<DecodedSignature, Box<dyn Error>> {
+    pub fn make_signature_from_bytes(bytes: Vec<u8>, segment_duration_seconds: Option<u32>) -> Result<DecodedSignature, Box<dyn Error>> {
         // Create a cursor around the byte array for decoding
         let cursor = Cursor::new(bytes.clone());
 
@@ -35,13 +35,21 @@ impl SignatureGenerator {
         let raw_pcm_samples: Vec<i16> = converted_file.collect();
 
         // Process the PCM samples as in make_signature_from_buffer
-        let slice_len = raw_pcm_samples.len().min(12 * 16000);
-        let mut raw_pcm_samples_slice = &raw_pcm_samples[..slice_len];
-        if raw_pcm_samples_slice.len() > 12 * 16000 {
+        let duration_seconds = segment_duration_seconds.unwrap_or(12);
+        let sample_rate = 16000;
+        let segment_samples = (duration_seconds * sample_rate) as usize;
+
+        let raw_pcm_samples_slice: &[i16] = if raw_pcm_samples.len() > segment_samples {
             let middle = raw_pcm_samples.len() / 2;
-            raw_pcm_samples_slice =
-                &raw_pcm_samples_slice[middle - (6 * 16000)..middle + (6 * 16000)];
-        }
+            let half_segment = segment_samples / 2;
+            if middle >= half_segment && middle + half_segment <= raw_pcm_samples.len() {
+                &raw_pcm_samples[middle - half_segment..middle + half_segment]
+            } else {
+                &raw_pcm_samples[..segment_samples]
+            }
+        } else {
+            &raw_pcm_samples[..]
+        };
 
         // Generate signature from buffer
         let signature =
@@ -50,7 +58,7 @@ impl SignatureGenerator {
         // Return the generated signature
         Ok(signature)
     }
-    pub fn make_signature_from_file(file_path: &str) -> Result<DecodedSignature, Box<dyn Error>> {
+    pub fn make_signature_from_file(file_path: &str, segment_duration_seconds: Option<u32>) -> Result<DecodedSignature, Box<dyn Error>> {
         // Decode the .WAV, .MP3, .OGG or .FLAC file
 
         let mut decoder = rodio::Decoder::new(BufReader::new(std::fs::File::open(file_path)?));
@@ -66,25 +74,22 @@ impl SignatureGenerator {
         }
 
         // Downsample the raw PCM samples to 16 KHz, and skip to the middle of the file
-        // in order to increase recognition odds. Take 12 seconds of sample.
+        // in order to increase recognition odds. Take N (12 default) seconds of sample.
+        let duration_seconds = segment_duration_seconds.unwrap_or(12);
+        let sample_rate = 16000;
+        let segment_samples = (duration_seconds * sample_rate) as usize;
 
         let converted_file = rodio::source::UniformSourceIterator::new(decoder?, 1, 16000);
         let raw_pcm_samples: Vec<i16> = converted_file.collect();
-        let mut raw_pcm_samples_slice: &[i16] = &raw_pcm_samples;
-        let slice_len = raw_pcm_samples_slice.len().min(12 * 16000);
-        if raw_pcm_samples_slice.len() > 12 * 16000 {
-            let middle = raw_pcm_samples.len() / 2;
-            raw_pcm_samples_slice =
-                &raw_pcm_samples_slice[middle - (6 * 16000)..middle + (6 * 16000)];
-        }
-        // println!("PRE BUF");
-        // println!("{} len slice", slice_len);
-        // println!("{} len slice 2", raw_pcm_samples_slice.len());
+        let slice_len = raw_pcm_samples.len().min(segment_samples);
+        let mut raw_pcm_samples_slice: &[i16] = &raw_pcm_samples[..slice_len];
 
-        // println!("{:?}",raw_pcm_samples_slice[..slice_len]);
-        let b = &raw_pcm_samples_slice[..slice_len];
-        // unsafe { backtrace_on_stack_overflow::enable() };
-        let res = SignatureGenerator::make_signature_from_buffer(b.to_vec());
+        if raw_pcm_samples.len() > segment_samples {
+            let middle = raw_pcm_samples.len() / 2;
+            raw_pcm_samples_slice = &raw_pcm_samples[middle - segment_samples/2 .. middle + segment_samples/2];
+        }
+
+        let res = SignatureGenerator::make_signature_from_buffer(raw_pcm_samples_slice.to_vec());
         Ok(res)
     }
 
@@ -138,11 +143,11 @@ impl SignatureGenerator {
 
         // Reorder the items (put the latest data at end) and apply Hanning window
 
-        for (index, _) in HANNING_WINDOW_2048_MULTIPLIERS.iter().enumerate() {
+        for (index, multiplier) in HANNING_WINDOW_2048_MULTIPLIERS.iter().enumerate() {
             self.reordered_ring_buffer_of_samples[index] = self.ring_buffer_of_samples
                 [(index + self.ring_buffer_of_samples_index) & 2047]
                 as f32
-                * HANNING_WINDOW_2048_MULTIPLIERS[index];
+                * multiplier;
         }
 
         // Perform Fast Fourier transform
@@ -259,8 +264,9 @@ impl SignatureGenerator {
                             * 32.0
                             / peak_variation_1;
 
-                        let corrected_peak_frequency_bin: u16 =
-                            bin_position as u16 * 64 + peak_variation_2 as u16;
+                        let corrected_peak_frequency_bin: u16 = (
+                            (bin_position as i32 * 64) + (peak_variation_2 as i32)
+                        ) as u16;
 
                         assert!(peak_variation_1 >= 0.0);
 
@@ -297,7 +303,6 @@ impl SignatureGenerator {
                                 fft_pass_number,
                                 peak_magnitude: peak_magnitude as u16,
                                 corrected_peak_frequency_bin,
-                                sample_rate_hz: 16000,
                             });
                     }
                 }

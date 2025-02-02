@@ -28,6 +28,9 @@ class SignatureError(Exception):
         return f"SignatureError({self.message})"
 
 class Recognizer:
+    def __init__(self, segment_duration_seconds: int = 12) -> None:
+        raise NotImplemented
+
     async def recognize_path(self, value: str) -> Signature:
         """
         :param value: path file

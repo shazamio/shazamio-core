@@ -13,7 +13,6 @@ pub struct FrequencyPeak {
     pub fft_pass_number: u32,
     pub peak_magnitude: u16,
     pub corrected_peak_frequency_bin: u16,
-    pub sample_rate_hz: u32,
 }
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Copy)]
