@@ -29,7 +29,6 @@ jobs:
      - name: Build wheels
        uses: PyO3/maturin-action@v1
        with:
-         working-directory: "bindings/python"
          target: ${{ matrix.target }}
          args: --release --out dist/dist --interpreter python${{ matrix.python-version }}
          sccache: 'true'
@@ -37,7 +36,7 @@ jobs:
        uses: actions/upload-artifact@v4
        with:
          name: wheels-${{ runner.os }}-${{ matrix.python-version }}-${{ matrix.target }}
-         path: bindings/python/dist
+         path: dist
 
   macos:
     runs-on: macos-latest
@@ -59,7 +58,6 @@ jobs:
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
-          working-directory: "bindings/python"
           target: ${{ matrix.target }}
           args: --release --out dist/dist --interpreter python${{ matrix.python-version }}
           sccache: 'true'
@@ -67,7 +65,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: wheels-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.target }}
-          path: bindings/python/dist
+          path: dist
 
   linux:
     runs-on: ubuntu-latest
@@ -102,13 +100,13 @@ jobs:
           context: .
 
       - name: Copy wheels
-        run: docker run --rm -v $(pwd)/bindings/python/dist:/tmp shazamio_core cp -R /opt/dist /tmp
+        run: docker run --rm -v $(pwd)/dist:/tmp shazamio_core cp -R /opt/dist /tmp
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
           name: wheels-${{ runner.os }}-${{ matrix.name }}
-          path: bindings/python/dist
+          path: dist
 
   sdist:
     runs-on: ubuntu-latest
@@ -117,14 +115,13 @@ jobs:
       - name: Build sdist
         uses: PyO3/maturin-action@v1
         with:
-          working-directory: "bindings/python"
           command: sdist
           args: --out dist
       - name: Upload sdist
         uses: actions/upload-artifact@v4
         with:
           name: wheels-sdist
-          path: bindings/python/dist
+          path: dist
 
   release:
     name: Release
@@ -136,21 +133,20 @@ jobs:
         with:
           pattern: wheels-*
           merge-multiple: true
-          path: bindings/python/dist
+          path: dist
 
       - name: Publish to PyPI
         uses: PyO3/maturin-action@v1
         env:
           MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
         with:
-          working-directory: "bindings/python"
           command: upload
-          args: --skip-existing bindings/python/dist/*
+          args: --skip-existing dist/*
 
       - name: Attach Artifacts to the release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            bindings/python/dist/*.whl
+            dist/*.whl
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
