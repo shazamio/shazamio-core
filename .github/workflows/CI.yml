@@ -33,7 +33,7 @@ jobs:
   #         args: --release --out dist/dist --interpreter python${{ matrix.python-version }}
   #         sccache: 'true'
   #     - name: Upload wheels
-  #       uses: actions/upload-artifact@v3
+  #       uses: actions/upload-artifact@v4
   #       with:
   #         name: wheels
   #         path: dist
@@ -62,7 +62,7 @@ jobs:
           args: --release --out dist/dist --interpreter python${{ matrix.python-version }}
           sccache: 'true'
       - name: Upload wheels
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: wheels
           path: dist
@@ -103,7 +103,7 @@ jobs:
         run: docker run --rm -v $(pwd)/dist:/tmp shazamio_core cp -R /opt/dist /tmp
 
       - name: Upload wheels
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: wheels
           path: dist
@@ -118,7 +118,7 @@ jobs:
           command: sdist
           args: --out dist
       - name: Upload sdist
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: wheels
           path: dist
