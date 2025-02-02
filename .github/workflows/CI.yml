@@ -127,7 +127,7 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     if: "startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'"
-    needs: [ sdist, macos, linux ]
+    needs: [ sdist, macos, linux, windows ]
     steps:
       - uses: actions/download-artifact@v3
         with:
