@@ -35,7 +35,7 @@ jobs:
      - name: Upload wheels
        uses: actions/upload-artifact@v4
        with:
-         name: wheels-${{ matrix.python-version }}-${{ matrix.target }}
+         name: wheels-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.target }}
          path: dist
 
   macos:
@@ -64,7 +64,7 @@ jobs:
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-${{ matrix.python-version }}-${{ matrix.target }}
+          name: wheels-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.target }}
           path: dist
 
   linux:
@@ -105,7 +105,7 @@ jobs:
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-${{ matrix.python-version }}-${{ matrix.target }}
+          name: wheels-${{ matrix.os }}-${{ matrix.name }}
           path: dist
 
   sdist:
@@ -120,7 +120,7 @@ jobs:
       - name: Upload sdist
         uses: actions/upload-artifact@v4
         with:
-          name: dist
+          name: wheels-sdist
           path: dist
 
   release:
@@ -131,7 +131,9 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: wheels
+          pattern: wheels-*
+          merge-multiple: true
+          path: dist
 
       - name: Publish to PyPI
         uses: PyO3/maturin-action@v1
