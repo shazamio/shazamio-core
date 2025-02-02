@@ -24,18 +24,27 @@ fn shazamio_core(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
 
 #[derive(Clone)]
 #[pyclass]
-struct Recognizer;
+struct Recognizer {
+    #[pyo3(get, set)]
+    segment_duration_seconds: u32,
+}
 
 #[pymethods]
 impl Recognizer {
     #[new]
-    pub fn new() -> PyResult<Self> {
-        Ok(Recognizer {})
+    pub fn new(segment_duration_seconds: Option<u32>) -> Self {
+        let duration = segment_duration_seconds.unwrap_or(12);
+        Recognizer { segment_duration_seconds: duration }
     }
 
     fn recognize_bytes(&self, py: Python, bytes: Vec<u8>) -> PyResult<PyObject> {
+        let segment_duration = self.segment_duration_seconds;
+
         let future = async move {
-            let data = SignatureGenerator::make_signature_from_bytes(bytes).map_err(|e| {
+            let data = SignatureGenerator::make_signature_from_bytes(
+                bytes,
+                Some(segment_duration),
+            ).map_err(|e| {
                 let error_message = format!("{}", e);
                 PyErr::new::<SignatureError, _>(SignatureError::new(error_message))
             })?;
@@ -49,8 +58,13 @@ impl Recognizer {
     }
 
     fn recognize_path(&self, py: Python, value: String) -> PyResult<PyObject> {
+        let segment_duration = self.segment_duration_seconds;
+
         let future = async move {
-            let data = SignatureGenerator::make_signature_from_file(&value).map_err(|e| {
+            let data = SignatureGenerator::make_signature_from_file(
+                &value,
+                Some(segment_duration),
+            ).map_err(|e| {
                 let error_message = format!("{}", e);
                 PyErr::new::<SignatureError, _>(SignatureError::new(error_message))
             })?;

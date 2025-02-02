@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "shazamio_core"
-version = "1.0.7"
+version = "1.1.0-rc.1"
 description = ""
 authors = ["dotX12 <dev@shitposting.team>"]
 readme = "README.md"
@@ -8,6 +8,9 @@ packages = [{include = "shazamio_core"}]
 
 [tool.poetry.dependencies]
 python = "^3.8"
+
+[tool.poetry.group.dev.dependencies]
+maturin = "^1.8.1"
 
 [build-system]
 requires = ["maturin>=1.4.0"]
