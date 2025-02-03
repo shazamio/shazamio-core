@@ -35,7 +35,7 @@ impl SignatureGenerator {
         let raw_pcm_samples: Vec<i16> = converted_file.collect();
 
         // Process the PCM samples as in make_signature_from_buffer
-        let duration_seconds = segment_duration_seconds.unwrap_or(12);
+        let duration_seconds = segment_duration_seconds.unwrap_or(10);
         let sample_rate = 16000;
         let segment_samples = (duration_seconds * sample_rate) as usize;
 
@@ -74,8 +74,8 @@ impl SignatureGenerator {
         }
 
         // Downsample the raw PCM samples to 16 KHz, and skip to the middle of the file
-        // in order to increase recognition odds. Take N (12 default) seconds of sample.
-        let duration_seconds = segment_duration_seconds.unwrap_or(12);
+        // in order to increase recognition odds. Take N (10 default) seconds of sample.
+        let duration_seconds = segment_duration_seconds.unwrap_or(10);
         let sample_rate = 16000;
         let segment_samples = (duration_seconds * sample_rate) as usize;
 
@@ -187,10 +187,8 @@ impl SignatureGenerator {
                 .max(spread_fft_results[position + 2]);
         }
 
-        // Сначала скопируем данные, чтобы избежать одновременной мутации.
         let spread_fft_results_copy = spread_fft_results.clone();
 
-        // Теперь, используя копию, мы можем обновить исходные данные без конфликта мутации.
         for position in 0..=1024 {
             for former_fft_number in &[1, 3, 6] {
                 let former_fft_output = &mut self.spread_fft_outputs
