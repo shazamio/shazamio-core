@@ -4,4 +4,5 @@ from .shazamio_core import (
     Signature,
     SignatureError,
     Recognizer,
+    SearchParams,
 )
