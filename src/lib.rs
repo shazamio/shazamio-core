@@ -2,9 +2,11 @@ mod errors;
 mod fingerprinting;
 mod response;
 mod utils;
+mod params;
 
 use crate::errors::SignatureError;
 use crate::response::{Geolocation, Signature, SignatureSong};
+use crate::params::SearchParams;
 use crate::utils::convert_signature_to_py;
 use crate::utils::get_python_future;
 use crate::utils::unwrap_decoded_signature;
@@ -23,6 +25,7 @@ fn shazamio_core(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<Geolocation>()?;
     m.add_class::<SignatureSong>()?;
     m.add_class::<Signature>()?;
+    m.add_class::<SearchParams>()?;
 
     info!("shazamio_core module initialized successfully");
     Ok(())
@@ -44,18 +47,31 @@ impl Recognizer {
         Recognizer { segment_duration_seconds: duration }
     }
 
-    fn recognize_bytes(&self, py: Python, bytes: Vec<u8>) -> PyResult<PyObject> {
-        debug!("Recognize bytes method called");
-        debug!("Segment duration: {}", self.segment_duration_seconds);
-        debug!("Received {} bytes for recognition", bytes.len());
+    fn recognize_bytes(
+        &self,
+        py: Python,
+        bytes: Vec<u8>,
+        options: Option<SearchParams>,
+    ) -> PyResult<PyObject> {
+        debug!(
+            "recognize_bytes method called with bytes len: {} and options: {:?}",
+            bytes.len(),
+            options,
+        );
 
-        let segment_duration = self.segment_duration_seconds;
+        let search_options = options.unwrap_or_else(|| {
+            debug!(
+                "Options not provided, using default segment duration {}",
+                self.segment_duration_seconds,
+            );
+            SearchParams::new(Option::from(self.segment_duration_seconds))
+        });
 
         let future = async move {
             debug!("Starting async recognition from bytes");
             let data = SignatureGenerator::make_signature_from_bytes(
                 bytes,
-                Some(segment_duration),
+                Some(search_options.segment_duration_seconds),
             ).map_err(|e| {
                 error!("Error in make_signature_from_bytes: {}", e);
                 let error_message = format!("{}", e);
@@ -72,18 +88,31 @@ impl Recognizer {
         python_future.map(|any| any.to_object(py))
     }
 
-    fn recognize_path(&self, py: Python, value: String) -> PyResult<PyObject> {
-        debug!("Recognize path method called");
-        debug!("Segment duration: {}", self.segment_duration_seconds);
-        debug!("File path: {}", value);
+    fn recognize_path(
+        &self,
+        py: Python,
+        value: String,
+        options: Option<SearchParams>,
+    ) -> PyResult<PyObject> {
+        debug!(
+            "recognize_path method called with path: {} and options: {:?}",
+            value,
+            options,
+        );
 
-        let segment_duration = self.segment_duration_seconds;
+        let search_options = options.unwrap_or_else(|| {
+            debug!(
+                "Options not provided, using default segment duration {}",
+                self.segment_duration_seconds,
+            );
+            SearchParams::new(Option::from(self.segment_duration_seconds))
+        });
 
         let future = async move {
             debug!("Starting async recognition from file: {}", value);
             let data = SignatureGenerator::make_signature_from_file(
                 &value,
-                Some(segment_duration),
+                Some(search_options.segment_duration_seconds),
             ).map_err(|e| {
                 debug!("Error in make_signature_from_file: {}", e);
                 let error_message = format!("{}", e);
