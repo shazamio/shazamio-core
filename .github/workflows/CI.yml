@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - 'master'
+      - 'dev'
     tags:
       - '*'
 
@@ -37,21 +38,41 @@ jobs:
        with:
          name: wheels-${{ runner.os }}-${{ matrix.python-version }}-${{ matrix.target }}
          path: dist
-
+#
   macos:
-    runs-on: macos-latest
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - name: x86_64
-            os: macos
+          # macOS 13 (x86_64) со всеми версиями Python
+          - os: macos-13
             target: x86_64-apple-darwin
-            arch: x86_64
-          - name: aarch64
-            os: macos
+            python-version: "3.9"
+          - os: macos-13
+            target: x86_64-apple-darwin
+            python-version: "3.10"
+          - os: macos-13
+            target: x86_64-apple-darwin
+            python-version: "3.11"
+          - os: macos-13
+            target: x86_64-apple-darwin
+            python-version: "3.12"
+
+          # macOS-latest (arm64) со всеми версиями Python
+          - os: macos-latest
             target: aarch64-apple-darwin
-            arch: arm64
-        python-version: [ "3.9", "3.10", "3.11", "3.12" ]
+            python-version: "3.9"
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            python-version: "3.10"
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            python-version: "3.11"
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            python-version: "3.12"
+
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
@@ -70,16 +91,18 @@ jobs:
           path: dist
 
   linux:
-    runs-on: ubuntu-latest
     strategy:
       matrix:
         include:
-         # - docker_file: docker/Dockerfile.manylinux_2_28_ARM64
-         #   name: manylinux-arm
-         #   arch: linux/arm64
-         - docker_file: docker/Dockerfile.manylinux_2_28_X64
-           name: manylinux-x86
-
+          - docker_file: docker/Dockerfile.manylinux_2_28_ARM64
+            name: manylinux-arm
+            arch: aarch64
+            os: ubuntu-22.04-arm
+          - docker_file: docker/Dockerfile.manylinux_2_28_X64
+            os: ubuntu-latest
+            name: manylinux-x86
+            arch: x86_64
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -101,8 +124,14 @@ jobs:
           cache-to: type=gha,mode=max
           context: .
 
+      - name: List /opt/dist directory
+        run: docker run --rm shazamio_core ls -la /opt/dist
+
       - name: Copy wheels
-        run: docker run --rm -v $(pwd)/dist:/tmp shazamio_core cp -R /opt/dist/* /tmp/
+        run: docker run --rm -v $(pwd)/dist:/tmp shazamio_core sh -c "cp -R /opt/dist/* /tmp/"
+
+      - name: Debug List files in /tmp after copy
+        run: ls -la dist
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
