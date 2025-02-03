@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+from typing import Union
+from os import PathLike
 
 
 @dataclass
@@ -35,21 +37,47 @@ class SignatureError(Exception):
 
 
 class Recognizer:
-    def __init__(self, segment_duration_seconds: int = 12) -> None:
+    """
+    Recognizer uses a Rust implementation under the hood.
+
+    This class provides an interface for recognizing audio files, but the actual
+    processing logic is implemented in Rust and accessed via FFI.
+    """
+
+    def __init__(self, segment_duration_seconds: int = 10) -> None:
+        """
+        :param segment_duration_seconds: The duration (in seconds) of the audio segment to analyze.
+            - **Default:** 12 seconds.
+            - **If the audio file is longer than this duration**, a centered segment of the specified duration is selected.
+              - Example: If the audio is **60 seconds** and `segment_duration_seconds = 10`, the extracted segment will be **from 25s to 35s**.
+            - **If the audio file is shorter than this duration**, the entire file is used.
+              - Example: If the audio is **8 seconds** and `segment_duration_seconds = 10`, the entire **8-second file** will be processed.
+            - **Audio is always converted to mono and downsampled to 16 kHz** before analysis.
+            - This parameter determines the number of samples used for frequency analysis and fingerprint generation.
+        """
+        self.segment_duration_seconds = segment_duration_seconds
         raise NotImplemented
 
-    async def recognize_path(self, value: str) -> Signature:
+    async def recognize_path(self, value: Union[str, PathLike]) -> Signature:
         """
-        :param value: path file
-        :return: Signature object
-        :raises SignatureError: if there is any error
+        Recognize audio from a file path.
+
+        This method is a Python wrapper around a Rust implementation.
+
+        :param value: Path to an audio file.
+        :return: Signature object.
+        :raises SignatureError: if an error occurs.
         """
         raise NotImplemented
 
     async def recognize_bytes(self, value: bytes) -> Signature:
         """
-        :param value: bytes file
-        :return: Signature object
-        :raises SignatureError: if there is any error
+        Recognize audio from raw bytes.
+
+        This method is a Python wrapper around a Rust implementation.
+
+        :param value: Raw audio file as bytes.
+        :return: Signature object.
+        :raises SignatureError: if an error occurs.
         """
         raise NotImplemented
