@@ -50,12 +50,12 @@ impl Recognizer {
     fn recognize_bytes(
         &self,
         py: Python,
-        bytes: Vec<u8>,
+        value: Vec<u8>,
         options: Option<SearchParams>,
     ) -> PyResult<PyObject> {
         debug!(
             "recognize_bytes method called with bytes len: {} and options: {:?}",
-            bytes.len(),
+            value.len(),
             options,
         );
 
@@ -70,7 +70,7 @@ impl Recognizer {
         let future = async move {
             debug!("Starting async recognition from bytes");
             let data = SignatureGenerator::make_signature_from_bytes(
-                bytes,
+                value,
                 Some(search_options.segment_duration_seconds),
             ).map_err(|e| {
                 error!("Error in make_signature_from_bytes: {}", e);
