@@ -1,6 +1,6 @@
 [package]
 name = "shazamio-core"
-version = "1.1.0"
+version = "1.1.1"
 edition = "2021"
 rust-version = "1.62"
 
@@ -10,19 +10,18 @@ crate-type = ["cdylib", "lib"]
 
 
 [dependencies]
-tokio = { version = "1.36.0" }
-tempfile = "3.10.0"
-rodio = {version = "0.17.3"}
-serde_json = "1.0.114"
+tokio = { version = "1.43.0" }
+tempfile = "3.16.0"
+rodio = {version = "0.20.1" }
+serde_json = "1.0.138"
 blocking = { version = "1.5.1", features = [] }
 byteorder = "1.5.0"
-crc32fast = "1.4.0"
-base64 = { version = "0.21.7", features = [] }
+crc32fast = "1.4.2"
+base64 = { version = "0.22.1", features = [] }
 chfft = {version = "0.3.4"}
-futures = { version = "0.3.30", features = [] }
-serde = { version = "1.0.196", features = ["derive"] }
-bytes = "1.5.0"
-tempdir = "0.3.7"
+futures = { version = "0.3.31", features = [] }
+serde = { version = "1.0.217", features = ["derive"] }
+bytes = "1.10.0"
 pyo3 = "=0.20.2"
 pyo3-asyncio = { version = "0.20.0", features = ["async-std-runtime", "async-std", "tokio", "tokio-runtime"] }
 pyo3-log = "=0.8.4"
