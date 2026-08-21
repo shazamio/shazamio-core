@@ -15,28 +15,36 @@ permissions:
   id-token: write
 
 jobs:
+  # The wheels below are abi3: one per platform, loading on every CPython from 3.9
+  # up. There is no per-interpreter matrix any more, so a new CPython release
+  # needs no change here and no new release.
   windows:
    runs-on: windows-latest
    strategy:
      matrix:
-       python-version: [ "3.9", "3.10", "3.11", "3.12" ]
        target: [ x64, x86 ]
    steps:
      - uses: actions/checkout@v3
+     # The version is deliberately unpinned: under abi3 the wheel is the same
+     # whichever CPython builds it, and a pinned one would need editing again the
+     # day it goes end-of-life. The step itself has to stay for the x86 target --
+     # pyo3 does not treat 32-bit-on-64-bit Windows as cross-compilation, so it
+     # reads the host interpreter's config and needs a 32-bit one to be present.
+     # https://github.com/PyO3/pyo3/blob/v0.29.2/pyo3-build-config/src/impl_.rs#L1675-L1679
      - uses: actions/setup-python@v4
        with:
-         python-version: ${{ matrix.python-version }}
+         python-version: "3.x"
          architecture: ${{ matrix.target }}
      - name: Build wheels
        uses: PyO3/maturin-action@v1
        with:
          target: ${{ matrix.target }}
-         args: --release --out dist --interpreter python${{ matrix.python-version }}
+         args: --release --out dist
          sccache: 'true'
      - name: Upload wheels
        uses: actions/upload-artifact@v4
        with:
-         name: wheels-${{ runner.os }}-${{ matrix.python-version }}-${{ matrix.target }}
+         name: wheels-${{ runner.os }}-${{ matrix.target }}
          path: dist
 #
   macos:
@@ -44,50 +52,27 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # macOS 13 (x86_64)
           - os: macos-13
             target: x86_64-apple-darwin
-            python-version: "3.9"
-          - os: macos-13
-            target: x86_64-apple-darwin
-            python-version: "3.10"
-          - os: macos-13
-            target: x86_64-apple-darwin
-            python-version: "3.11"
-          - os: macos-13
-            target: x86_64-apple-darwin
-            python-version: "3.12"
-
-          # macOS-latest (arm64)
           - os: macos-latest
             target: aarch64-apple-darwin
-            python-version: "3.9"
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            python-version: "3.10"
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            python-version: "3.11"
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            python-version: "3.12"
 
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.x"
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: --release --out dist --interpreter python${{ matrix.python-version }}
+          args: --release --out dist
           sccache: 'true'
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.target }}
+          name: wheels-${{ matrix.os }}-${{ matrix.target }}
           path: dist
 
   linux:
