@@ -2,7 +2,8 @@
 name = "shazamio-core"
 version = "1.1.2"
 edition = "2021"
-rust-version = "1.62"
+# `rodio` 0.22 declares 1.87; nothing here needs more.
+rust-version = "1.87"
 
 [lib]
 name = "shazamio_core"
@@ -12,7 +13,14 @@ crate-type = ["cdylib", "lib"]
 [dependencies]
 tokio = { version = "1.43.0" }
 tempfile = "3.16.0"
-rodio = {version = "0.20.1" }
+# `default-features = false` drops `playback`, which is the only thing that pulls
+# `cpal` and therefore `alsa-sys`. This crate decodes audio, it never plays it, so
+# the build no longer needs ALSA headers on Linux. Possible only from 0.21 on:
+# 0.20.1 declares `cpal` as a plain dependency, so no feature flag can remove it.
+# https://github.com/RustAudio/rodio/blob/v0.20.1/Cargo.toml#L13
+# The feature list restates 0.22's own defaults minus `playback`, `recording` and
+# `dither`. https://github.com/RustAudio/rodio/blob/v0.22.2/Cargo.toml#L15-L23
+rodio = { version = "0.22.2", default-features = false, features = ["flac", "mp3", "mp4", "vorbis", "wav"] }
 serde_json = "1.0.138"
 blocking = { version = "1.5.1", features = [] }
 byteorder = "1.5.0"

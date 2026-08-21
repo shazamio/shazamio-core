@@ -8,7 +8,6 @@ apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y install \
     automake \
     build-essential \
     cmake \
-    libasound2-dev \
     libass-dev \
     libavutil56 libavutil-dev \
     libavformat58 libavformat-dev \

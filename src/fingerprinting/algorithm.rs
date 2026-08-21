@@ -2,9 +2,86 @@ use crate::fingerprinting::ffmpeg_wrapper::{decode_with_ffmpeg, decode_with_ffmp
 use crate::fingerprinting::hanning::HANNING_WINDOW_2048_MULTIPLIERS;
 use crate::fingerprinting::signature_format::{DecodedSignature, FrequencyBand, FrequencyPeak};
 use chfft::RFft1D;
+use rodio::source::{SeekError, UniformSourceIterator};
+use rodio::{ChannelCount, Sample, SampleRate, Source};
 use std::collections::HashMap;
 use std::error::Error;
 use std::io::{BufReader, Cursor};
+use std::time::Duration;
+
+// The fingerprint is defined over mono 16 kHz PCM; every input is resampled to
+// it before anything else happens.
+const TARGET_CHANNELS: ChannelCount = ChannelCount::new(1).unwrap();
+const TARGET_SAMPLE_RATE: SampleRate = SampleRate::new(16000).unwrap();
+
+// `rodio` handed out `i16` samples until 0.20 and hands out `f32` in
+// [-1.0, 1.0] from 0.21 on, so the scale has to be put back. This is the
+// `f32` -> `i16` conversion of `symphonia`, the decoder behind every format
+// read here, so the samples reaching the fingerprint are the ones it was
+// defined over.
+// https://github.com/pdeljanov/Symphonia/blob/v0.5.5/symphonia-core/src/conv.rs#L606
+fn to_i16(sample: Sample) -> i16 {
+    (sample.clamp(-1.0, 1.0) * 32_768.0) as i16
+}
+
+// `UniformSourceIterator` takes the length of the span it wraps from
+// `current_span_len()`, so `Some(0)` wraps a `Take` of zero samples: it yields
+// nothing, re-bootstraps once, reads zero again because the source never
+// advanced, and ends. `None` is the only answer that makes the wrap unbounded.
+// https://github.com/RustAudio/rodio/blob/v0.22.2/src/source/uniform.rs#L49-L67
+//
+// `symphonia`'s Vorbis decoder answers `Some(0)` for the first packet, so every
+// `.ogg` file resampled to an empty signature. Non-zero spans pass through
+// untouched, which leaves every other decoder exactly as it was -- measured
+// against `rodio` 0.22.2 alone, decoding then resampling to mono 16 kHz:
+//
+//   probe16k.ogg   span=Some(0)     raw=320128   uniform=0
+//   probe16k.flac  span=Some(1152)  raw=320000   uniform=320000
+//   probe.mp3      span=Some(94)    raw=1764000  uniform=320034
+struct NonEmptySpans<S: Source>(S);
+
+impl<S: Source> Iterator for NonEmptySpans<S> {
+    type Item = Sample;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next()
+    }
+}
+
+impl<S: Source> Source for NonEmptySpans<S> {
+    fn current_span_len(&self) -> Option<usize> {
+        match self.0.current_span_len() {
+            Some(0) => None,
+            span => span,
+        }
+    }
+
+    fn channels(&self) -> ChannelCount {
+        self.0.channels()
+    }
+
+    fn sample_rate(&self) -> SampleRate {
+        self.0.sample_rate()
+    }
+
+    fn total_duration(&self) -> Option<Duration> {
+        self.0.total_duration()
+    }
+
+    fn try_seek(&mut self, pos: Duration) -> Result<(), SeekError> {
+        self.0.try_seek(pos)
+    }
+}
+
+// Resample to the mono 16 kHz PCM the fingerprint is defined over.
+fn to_mono_16khz(source: impl Source) -> Vec<i16> {
+    let uniform = UniformSourceIterator::new(
+        NonEmptySpans(source),
+        TARGET_CHANNELS,
+        TARGET_SAMPLE_RATE,
+    );
+    uniform.map(to_i16).collect()
+}
 
 pub struct SignatureGenerator {
     ring_buffer_of_samples: Vec<i16>,
@@ -29,10 +106,7 @@ impl SignatureGenerator {
             decode_with_ffmpeg_from_bytes(&bytes)
         })?;
 
-        // Convert the decoded samples to 16 kHz mono PCM, similar to make_signature_from_file
-        // Here, we use UniformSourceIterator from rodio to downsample and convert to mono if necessary
-        let converted_file = rodio::source::UniformSourceIterator::new(decoder, 1, 16000);
-        let raw_pcm_samples: Vec<i16> = converted_file.collect();
+        let raw_pcm_samples: Vec<i16> = to_mono_16khz(decoder);
 
         // Process the PCM samples as in make_signature_from_buffer
         let duration_seconds = segment_duration_seconds.unwrap_or(10);
@@ -79,8 +153,7 @@ impl SignatureGenerator {
         let sample_rate = 16000;
         let segment_samples = (duration_seconds * sample_rate) as usize;
 
-        let converted_file = rodio::source::UniformSourceIterator::new(decoder?, 1, 16000);
-        let raw_pcm_samples: Vec<i16> = converted_file.collect();
+        let raw_pcm_samples: Vec<i16> = to_mono_16khz(decoder?);
         let slice_len = raw_pcm_samples.len().min(segment_samples);
         let mut raw_pcm_samples_slice: &[i16] = &raw_pcm_samples[..slice_len];
 
