@@ -86,7 +86,7 @@ jobs:
           - docker_file: docker/Dockerfile.manylinux_2_28_ARM64
             name: manylinux-arm
             arch: aarch64
-            os: ubuntu-22.04-arm
+            os: ubuntu-24.04-arm
           - docker_file: docker/Dockerfile.manylinux_2_28_X64
             os: ubuntu-latest
             name: manylinux-x86
