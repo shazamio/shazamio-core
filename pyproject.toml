@@ -1,13 +1,5 @@
 [tool.poetry]
-name = "shazamio_core"
 package-mode = false
-description = ""
-authors = ["dotX12 <dev@shitposting.team>"]
-readme = "README.md"
-packages = [{include = "shazamio_core"}]
-
-[tool.poetry.dependencies]
-python = "^3.9"
 
 [tool.poetry.group.dev.dependencies]
 maturin = "^1.8.1"
@@ -18,6 +10,7 @@ build-backend = "maturin"
 
 [project]
 name = "shazamio_core"
+readme = "README.md"
 requires-python = ">=3.9"
 classifiers = [
     "Programming Language :: Rust",
