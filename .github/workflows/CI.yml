@@ -8,6 +8,10 @@ on:
       - 'dev'
     tags:
       - '*'
+  pull_request:
+    branches:
+      - 'master'
+      - 'dev'
 
 permissions:
   contents: write
