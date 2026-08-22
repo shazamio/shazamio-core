@@ -12,16 +12,17 @@ use crate::utils::get_python_future;
 use crate::utils::unwrap_decoded_signature;
 use fingerprinting::algorithm::SignatureGenerator;
 use pyo3::prelude::*;
-use pyo3::{pyclass, pymethods, pymodule, PyErr, PyObject, PyResult, Python, ToPyObject};
+use pyo3::{pyclass, pymethods, pymodule, Bound, Py, PyAny, PyErr, PyResult, Python};
+use pyo3::types::PyModule;
 use log::{info, debug, error};
 
 #[pymodule]
-fn shazamio_core(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
+fn shazamio_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     pyo3_log::init();
     info!("Initializing shazamio_core module");
 
     m.add_class::<Recognizer>()?;
-    m.add_class::<SignatureError>()?;
+    m.add("SignatureError", m.py().get_type::<SignatureError>())?;
     m.add_class::<Geolocation>()?;
     m.add_class::<SignatureSong>()?;
     m.add_class::<Signature>()?;
@@ -32,7 +33,7 @@ fn shazamio_core(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
 }
 
 #[derive(Clone)]
-#[pyclass]
+#[pyclass(from_py_object)]
 struct Recognizer {
     #[pyo3(get, set)]
     segment_duration_seconds: u32,
@@ -41,18 +42,20 @@ struct Recognizer {
 #[pymethods]
 impl Recognizer {
     #[new]
+    #[pyo3(signature = (segment_duration_seconds=None))]
     pub fn new(segment_duration_seconds: Option<u32>) -> Self {
         let duration = segment_duration_seconds.unwrap_or(10);
         info!("Recognizer created with segment_duration_seconds = {}", duration);
         Recognizer { segment_duration_seconds: duration }
     }
 
+    #[pyo3(signature = (value, options=None))]
     fn recognize_bytes(
         &self,
         py: Python,
         value: Vec<u8>,
         options: Option<SearchParams>,
-    ) -> PyResult<PyObject> {
+    ) -> PyResult<Py<PyAny>> {
         debug!(
             "recognize_bytes method called with bytes len: {} and options: {:?}",
             value.len(),
@@ -75,7 +78,7 @@ impl Recognizer {
             ).map_err(|e| {
                 error!("Error in make_signature_from_bytes: {}", e);
                 let error_message = format!("{}", e);
-                PyErr::new::<SignatureError, _>(SignatureError::new(error_message))
+                PyErr::new::<SignatureError, _>(error_message)
             })?;
 
             debug!("Successfully generated signature from bytes");
@@ -85,15 +88,16 @@ impl Recognizer {
 
         let python_future = get_python_future(py, future);
         debug!("Returning Python future for recognize_bytes");
-        python_future.map(|any| any.to_object(py))
+        python_future.map(|any| any.unbind())
     }
 
+    #[pyo3(signature = (value, options=None))]
     fn recognize_path(
         &self,
         py: Python,
         value: String,
         options: Option<SearchParams>,
-    ) -> PyResult<PyObject> {
+    ) -> PyResult<Py<PyAny>> {
         debug!(
             "recognize_path method called with path: {} and options: {:?}",
             value,
@@ -116,7 +120,7 @@ impl Recognizer {
             ).map_err(|e| {
                 debug!("Error in make_signature_from_file: {}", e);
                 let error_message = format!("{}", e);
-                PyErr::new::<SignatureError, _>(SignatureError::new(error_message))
+                PyErr::new::<SignatureError, _>(error_message)
             })?;
 
             debug!("Successfully generated signature from file");
@@ -126,6 +130,6 @@ impl Recognizer {
 
         let python_future = get_python_future(py, future);
         debug!("Returning Python future for recognize_path");
-        python_future.map(|any| any.to_object(py))
+        python_future.map(|any| any.unbind())
     }
 }
