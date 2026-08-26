@@ -381,3 +381,175 @@ impl SignatureGenerator {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // The probe and its pinned URI are the ones `tests/` uses; `tests/data/generate.sh`
+    //  regenerates the audio. Reading them here rather than restating the expected
+    //  bytes keeps one copy of the golden.
+    const DATA_DIRECTORY: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data");
+
+    fn probe_path() -> String {
+        format!("{DATA_DIRECTORY}/probe.flac")
+    }
+
+    fn golden_uri() -> String {
+        std::fs::read_to_string(format!("{DATA_DIRECTORY}/probe.flac.uri"))
+            .unwrap()
+            .trim()
+            .to_string()
+    }
+
+    // Yields nothing: every test here asks about `current_span_len`, which the
+    //  resampler reads before it takes a single sample.
+    struct FixedSpan {
+        span_length: Option<usize>,
+    }
+
+    impl Iterator for FixedSpan {
+        type Item = Sample;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            None
+        }
+    }
+
+    impl Source for FixedSpan {
+        fn current_span_len(&self) -> Option<usize> {
+            self.span_length
+        }
+
+        fn channels(&self) -> ChannelCount {
+            TARGET_CHANNELS
+        }
+
+        fn sample_rate(&self) -> SampleRate {
+            TARGET_SAMPLE_RATE
+        }
+
+        fn total_duration(&self) -> Option<Duration> {
+            None
+        }
+    }
+
+    #[test]
+    fn a_zero_length_span_is_reported_as_unbounded() {
+        let mut source = NonEmptySpans(FixedSpan {
+            span_length: Some(0),
+        });
+
+        assert_eq!(source.current_span_len(), None);
+        assert_eq!(source.next(), None);
+    }
+
+    #[test]
+    fn every_other_span_passes_through_untouched() {
+        for span_length in [Some(1), Some(94), Some(1152), None] {
+            let source = NonEmptySpans(FixedSpan { span_length });
+
+            assert_eq!(source.current_span_len(), span_length);
+        }
+    }
+
+    #[test]
+    fn the_wrapper_reports_the_channels_and_rate_of_what_it_wraps() {
+        let source = NonEmptySpans(FixedSpan {
+            span_length: Some(1),
+        });
+
+        assert_eq!(source.channels(), TARGET_CHANNELS);
+        assert_eq!(source.sample_rate(), TARGET_SAMPLE_RATE);
+        assert_eq!(source.total_duration(), None);
+    }
+
+    #[test]
+    fn the_whole_pipeline_reproduces_the_golden_uri() {
+        let signature = SignatureGenerator::make_signature_from_file(&probe_path(), None).unwrap();
+
+        // The probe is 8 s, so the default 10 s segment takes all of it and the peaks
+        //  below are every peak the file has.
+        assert_eq!(signature.number_samples, 128013);
+        assert_eq!(signature.encode_to_uri().unwrap(), golden_uri());
+
+        // Peaks landed in every band, so `do_peak_recognition` ran its whole match.
+        let mut bands: Vec<_> = signature.frequency_band_to_sound_peaks.keys().collect();
+        bands.sort();
+        assert_eq!(
+            bands,
+            vec![
+                &FrequencyBand::_250_520,
+                &FrequencyBand::_520_1450,
+                &FrequencyBand::_1450_3500,
+                &FrequencyBand::_3500_5500,
+            ],
+        );
+    }
+
+    #[test]
+    fn a_segment_shorter_than_the_file_is_cut_from_the_middle() {
+        let from_file =
+            SignatureGenerator::make_signature_from_file(&probe_path(), Some(4)).unwrap();
+        let from_bytes = SignatureGenerator::make_signature_from_bytes(
+            std::fs::read(probe_path()).unwrap(),
+            Some(4),
+        )
+        .unwrap();
+
+        assert_eq!(from_file.number_samples, 4 * 16000);
+
+        // Both entry points cut the same window, so they fingerprint the same audio.
+        assert_eq!(
+            from_bytes.encode_to_uri().unwrap(),
+            from_file.encode_to_uri().unwrap(),
+        );
+    }
+
+    #[test]
+    fn the_bytes_of_a_file_fingerprint_the_same_as_its_path() {
+        let probe = std::fs::read(probe_path()).unwrap();
+
+        let from_bytes = SignatureGenerator::make_signature_from_bytes(probe, None).unwrap();
+
+        assert_eq!(from_bytes.encode_to_uri().unwrap(), golden_uri());
+    }
+
+    // Both entry points fall back to `ffmpeg` when `rodio` cannot read the input, and
+    //  `ffmpeg` cannot read this either -- present or not, the answer is an error and
+    //  never a panic or an empty signature.
+    #[test]
+    fn input_no_decoder_understands_is_an_error() {
+        let not_audio = SignatureGenerator::make_signature_from_bytes(b"not audio".to_vec(), None);
+        let script = format!("{DATA_DIRECTORY}/generate.sh");
+        let not_a_sound_file = SignatureGenerator::make_signature_from_file(&script, None);
+
+        assert!(not_audio.is_err());
+        assert!(not_a_sound_file.is_err());
+    }
+
+    #[test]
+    fn a_seek_is_handed_to_the_wrapped_source() {
+        let mut source = NonEmptySpans(FixedSpan {
+            span_length: Some(1),
+        });
+
+        // `FixedSpan` does not override `try_seek`, so this is `Source`'s own refusal
+        //  arriving through the wrapper rather than being answered by it.
+        assert!(source.try_seek(Duration::ZERO).is_err());
+    }
+
+    #[test]
+    fn samples_are_scaled_to_i16_and_saturate_instead_of_wrapping() {
+        assert_eq!(to_i16(0.0), 0);
+        assert_eq!(to_i16(-1.0), -32768);
+
+        // `1.0 * 32_768.0` is one past `i16::MAX`; a float-to-int cast saturates, so
+        //  full scale comes out as the largest sample rather than the smallest.
+        assert_eq!(to_i16(1.0), 32767);
+
+        // Anything beyond full scale is clamped first, so it lands on the same value.
+        assert_eq!(to_i16(4.0), 32767);
+        assert_eq!(to_i16(-4.0), -32768);
+    }
+}

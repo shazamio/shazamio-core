@@ -17,3 +17,14 @@ impl SearchParams {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_segment_duration_defaults_to_ten_seconds() {
+        assert_eq!(SearchParams::new(None).segment_duration_seconds, 10);
+        assert_eq!(SearchParams::new(Some(4)).segment_duration_seconds, 4);
+    }
+}

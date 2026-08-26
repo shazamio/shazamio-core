@@ -133,3 +133,15 @@ impl Recognizer {
         python_future.map(|any| any.unbind())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // The same default `SearchParams` carries, and `shazamio_core.pyi` documents.
+    #[test]
+    fn a_recognizer_defaults_to_a_ten_second_segment() {
+        assert_eq!(Recognizer::new(None).segment_duration_seconds, 10);
+        assert_eq!(Recognizer::new(Some(4)).segment_duration_seconds, 4);
+    }
+}

@@ -46,3 +46,32 @@ pub fn get_signature_json(signature: &DecodedSignature) -> Result<Signature, Box
         timezone: "Europe/Paris".to_string(),
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn the_sample_count_is_reported_as_a_duration_in_milliseconds() {
+        let decoded = DecodedSignature {
+            sample_rate_hz: 16000,
+            number_samples: 24_500,
+            frequency_band_to_sound_peaks: HashMap::new(),
+        };
+        let expected_uri = decoded.encode_to_uri().unwrap();
+
+        let signature = get_signature_json(&decoded).unwrap();
+
+        // `samples` names a duration, not a count: the sample count over the sample
+        //  rate, truncated to whole milliseconds.
+        assert_eq!(signature.signature.samples, 1531);
+
+        assert_eq!(signature.timestamp, signature.signature.timestamp);
+        assert_eq!(signature.timezone, "Europe/Paris");
+        assert_eq!(signature.geolocation.altitude, 300);
+        assert_eq!(signature.geolocation.latitude, 45);
+        assert_eq!(signature.geolocation.longitude, 2);
+        assert_eq!(signature.signature.uri, expected_uri);
+    }
+}
