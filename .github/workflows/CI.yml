@@ -2,10 +2,11 @@ name: shazamio-core CI
 
 on:
   workflow_dispatch:
+  # Every change lands through a PR, so `pull_request` below already builds and
+  #  tests it before merge. Building again on the merge commit itself would just
+  #  repeat that, on code the PR run already covered -- so `push` is left to the
+  #  one case a PR can't cover: publishing a tag.
   push:
-    branches:
-      - 'master'
-      - 'dev'
     tags:
       - '*'
   pull_request:
