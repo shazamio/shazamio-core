@@ -24,6 +24,12 @@ permissions:
   pages: write
   id-token: write
 
+# `maturin-action` installs the latest release unless told otherwise, so without
+# this the Linux wheels and the macOS/Windows wheels of one release come out of
+# different `maturin` versions. Must match `maturin==` in `docker/Dockerfile.manylinux_2_28_*`.
+env:
+  MATURIN_VERSION: v1.14.1
+
 jobs:
   # The wheels below are abi3: one per platform, loading on every CPython from 3.9
   # up. There is no per-interpreter matrix any more, so a new CPython release
@@ -48,6 +54,7 @@ jobs:
      - name: Build wheels
        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
        with:
+         maturin-version: ${{ env.MATURIN_VERSION }}
          target: ${{ matrix.target }}
          args: --release --out dist
          sccache: 'true'
@@ -76,6 +83,7 @@ jobs:
       - name: Build wheels
         uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         with:
+          maturin-version: ${{ env.MATURIN_VERSION }}
           target: ${{ matrix.target }}
           args: --release --out dist
           sccache: 'true'
@@ -141,6 +149,7 @@ jobs:
       - name: Build sdist
         uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         with:
+          maturin-version: ${{ env.MATURIN_VERSION }}
           command: sdist
           args: --out dist
       - name: Upload sdist
@@ -166,6 +175,7 @@ jobs:
         env:
           MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
         with:
+          maturin-version: ${{ env.MATURIN_VERSION }}
           command: upload
           args: --skip-existing dist/*
 
