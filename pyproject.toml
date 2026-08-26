@@ -11,6 +11,8 @@ python = "^3.9"
 
 [tool.poetry.group.dev.dependencies]
 maturin = "^1.8.1"
+pytest = "^8.3.4"
+pytest-asyncio = "^1.2.0"
 
 [build-system]
 requires = ["maturin>=1.4.0"]
@@ -28,3 +30,8 @@ dynamic = ["version"]
 
 [tool.maturin]
 bindings = "pyo3"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Every test here awaits the extension, so marking each one adds nothing.
+asyncio_mode = "auto"
