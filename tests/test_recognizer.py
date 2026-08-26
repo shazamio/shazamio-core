@@ -15,12 +15,14 @@ That is decoder arithmetic, not something a golden file can pin. The two lossy
 formats keep the checks below, which hold on every platform.
 """
 
+import os
+import sys
 from pathlib import Path
 from typing import Final
 
 import pytest
 
-from shazamio_core import Recognizer
+from shazamio_core import Recognizer, SignatureError
 
 DATA_DIRECTORY: Final[Path] = Path(__file__).parent / "data"
 
@@ -87,3 +89,26 @@ async def test_recognize_path_accepts_a_string_too(*, recognizer: Recognizer) ->
     from_path = await recognizer.recognize_path(audio)
 
     assert from_string.signature.uri == from_path.signature.uri
+
+
+@pytest.mark.skipif(
+    sys.platform != "linux",
+    reason="only Linux lets a directory name be invalid UTF-8",
+)
+async def test_a_temp_directory_that_is_not_utf8_raises_instead_of_panicking(
+    tmp_path: Path,
+    *,
+    recognizer: Recognizer,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The ffmpeg fallback builds its scratch paths under `TMPDIR`. Those paths used to
+    #  be forced through `str`, so a directory Linux allows and UTF-8 does not aborted
+    #  the tokio worker with `pyo3_async_runtimes.RustPanic: rust future panicked`,
+    #  which no `except SignatureError` around the call can catch.
+    broken_tmpdir = tmp_path / os.fsdecode(b"\xff")
+    broken_tmpdir.mkdir()
+    monkeypatch.setenv("TMPDIR", str(broken_tmpdir))
+
+    # Not decodable by `rodio`, so the call reaches the ffmpeg fallback.
+    with pytest.raises(SignatureError):
+        await recognizer.recognize_bytes(b"\x00" * 4096)
