@@ -1,4 +1,10 @@
-FROM quay.io/pypa/manylinux_2_28_x86_64 as base
+# Pinned to a dated tag rather than `latest`: this image is what links the wheel --
+#  its `devtoolset` gcc, its system libraries, its `auditwheel`. Nothing downstream
+#  checks the result, so a silent rebuild underneath would land in a release
+#  unnoticed. The tag must be the SAME in both images, or the x86 and arm wheels of
+#  one release come out of different toolchains.
+#  https://quay.io/repository/pypa/manylinux_2_28_x86_64?tab=tags
+FROM quay.io/pypa/manylinux_2_28_x86_64:2026.08.24-1 AS base
 
 RUN dnf install -y epel-release
 # RUN dnf config-manager --set-enabled crb
@@ -6,13 +12,15 @@ RUN dnf install -y --nogpgcheck https://download1.rpmfusion.org/free/el/rpmfusio
 RUN dnf install -y --nogpgcheck https://download1.rpmfusion.org/nonfree/el/rpmfusion-nonfree-release-8.noarch.rpm
 RUN dnf install -y clang clang-devel
 ENV PATH="/root/.cargo/bin:/opt/python/cp39-cp39/bin:/opt/python/cp310-cp310/bin:/opt/python/cp311-cp311/bin:/opt/python/cp312-cp312/bin:$PATH"
-RUN pip3 install maturin==1.4.0 patchelf cffi ziglang sccache>=0.4.0
+# Must match `MATURIN_VERSION` in `.github/workflows/CI.yml`, so every wheel of a
+# release is built by one `maturin`.
+RUN pip3 install maturin==1.14.1 patchelf cffi ziglang sccache>=0.4.0
 
 WORKDIR /opt
 COPY docker/install-basic-deps-manylinux.sh .
 RUN bash /opt/install-basic-deps-manylinux.sh
 
-FROM base as chef
+FROM base AS chef
 ENV PATH="/root/.cargo/bin:$PATH"
 RUN rustc -V
 
@@ -30,5 +38,7 @@ ARG PYTHON_INTERPRETER
 RUN bash /opt/docker/build-manylinux.sh
 RUN rm -rf target
 
-FROM alpine:3.18 as dist
+# Pinned to a stable line, not `latest`: this stage only carries the wheels out,
+# and a silent Alpine major bump underneath them buys nothing.
+FROM alpine:3.24 AS dist
 COPY --from=builder /opt/dist /opt/dist
