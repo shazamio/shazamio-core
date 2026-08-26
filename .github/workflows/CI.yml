@@ -58,14 +58,22 @@ jobs:
       - name: Run the tests
         run: pytest
 
-  # The Rust side has no interpreter in it: byte layout, checksum, band ordering.
-  # None of that varies by platform, so one runner answers for all of them --
-  # whether the fingerprint itself does is what the job above exists for.
+  # Byte layout, checksum, band ordering: none of that varies by platform, so one
+  #  runner answers for all of them -- whether the fingerprint itself does is what
+  #  the job above exists for.
   rust-test:
     name: Rust unit tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The test binary is an executable rather than an extension module, so it
+      #  links `libpython` instead of borrowing the loader's symbols, and needs an
+      #  interpreter built `--enable-shared` -- which is what this action ships.
+      #  https://github.com/actions/python-versions/blob/c2033aa6c313f068f4bde238bfaa5987ad4f2e79/builders/ubuntu-python-builder.psm1#L37
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.x"
 
       - name: Run the unit tests
         run: cargo test
