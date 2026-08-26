@@ -30,5 +30,7 @@ ARG PYTHON_INTERPRETER
 RUN bash /opt/docker/build-manylinux.sh
 RUN rm -rf target
 
-FROM alpine:3.18 as dist
+# Pinned to a stable line, not `latest`: this stage only carries the wheels out,
+# and a silent Alpine major bump underneath them buys nothing.
+FROM alpine:3.24 as dist
 COPY --from=builder /opt/dist /opt/dist
