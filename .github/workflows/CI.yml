@@ -158,6 +158,25 @@ jobs:
           name: wheels-sdist
           path: dist
 
+  # `rust-version` in `Cargo.toml` is a claim nothing else checks: every other job
+  # installs current stable, so a `cargo update` can raise the real floor and stay
+  # green. Whoever builds the sdist on a distro toolchain is the one who finds out.
+  msrv:
+    name: MSRV
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Read from `Cargo.toml` rather than restated here: a second copy would drift
+      # and leave the job checking a floor the crate no longer declares.
+      - name: Read the declared MSRV
+        id: declared
+        run: echo "version=$(grep -oP '^rust-version = "\K[^"]+' Cargo.toml)" >> "$GITHUB_OUTPUT"
+
+      - run: rustup toolchain install ${{ steps.declared.outputs.version }} --profile minimal
+
+      - run: cargo +${{ steps.declared.outputs.version }} check --locked --all-targets
+
   release:
     name: Release
     runs-on: ubuntu-latest
