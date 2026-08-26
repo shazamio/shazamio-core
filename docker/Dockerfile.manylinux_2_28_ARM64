@@ -1,4 +1,4 @@
-FROM quay.io/pypa/manylinux_2_28_aarch64 as base
+FROM quay.io/pypa/manylinux_2_28_aarch64 AS base
 
 RUN dnf install -y epel-release
 # RUN dnf config-manager --set-enabled crb
@@ -12,7 +12,7 @@ WORKDIR /opt
 COPY docker/install-basic-deps-manylinux.sh .
 RUN bash /opt/install-basic-deps-manylinux.sh
 
-FROM base as chef
+FROM base AS chef
 ENV PATH="/root/.cargo/bin:$PATH"
 RUN rustc -V
 
@@ -32,5 +32,5 @@ RUN rm -rf target
 
 # Pinned to a stable line, not `latest`: this stage only carries the wheels out,
 # and a silent Alpine major bump underneath them buys nothing.
-FROM alpine:3.24 as dist
+FROM alpine:3.24 AS dist
 COPY --from=builder /opt/dist /opt/dist
