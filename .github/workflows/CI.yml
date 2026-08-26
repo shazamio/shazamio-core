@@ -13,10 +13,22 @@ on:
       - 'master'
       - 'dev'
 
+# Every `uses:` below is pinned to a commit SHA, with its version in the comment
+#  beside it. A tag is mutable: whoever owns the action can move `v7` onto another
+#  commit, and it then runs with the `contents: write` granted here and with the
+#  PyPI token the `release` job passes in. Dependabot keeps the pins current --
+#  see `.github/dependabot.yml`.
+#  https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions#using-third-party-actions
 permissions:
   contents: write
   pages: write
   id-token: write
+
+# `maturin-action` installs the latest release unless told otherwise, so without
+# this the Linux wheels and the macOS/Windows wheels of one release come out of
+# different `maturin` versions. Must match `maturin==` in `docker/Dockerfile.manylinux_2_28_*`.
+env:
+  MATURIN_VERSION: v1.14.1
 
 jobs:
   # The wheels below are abi3: one per platform, loading on every CPython from 3.9
@@ -28,25 +40,26 @@ jobs:
      matrix:
        target: [ x64, x86 ]
    steps:
-     - uses: actions/checkout@v3
+     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
      # The version is deliberately unpinned: under abi3 the wheel is the same
      # whichever CPython builds it, and a pinned one would need editing again the
      # day it goes end-of-life. The step itself has to stay for the x86 target --
      # pyo3 does not treat 32-bit-on-64-bit Windows as cross-compilation, so it
      # reads the host interpreter's config and needs a 32-bit one to be present.
      # https://github.com/PyO3/pyo3/blob/v0.29.2/pyo3-build-config/src/impl_.rs#L1675-L1679
-     - uses: actions/setup-python@v4
+     - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
        with:
          python-version: "3.x"
          architecture: ${{ matrix.target }}
      - name: Build wheels
-       uses: PyO3/maturin-action@v1
+       uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
        with:
+         maturin-version: ${{ env.MATURIN_VERSION }}
          target: ${{ matrix.target }}
          args: --release --out dist
          sccache: 'true'
      - name: Upload wheels
-       uses: actions/upload-artifact@v4
+       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
        with:
          name: wheels-${{ runner.os }}-${{ matrix.target }}
          path: dist
@@ -63,18 +76,19 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.x"
       - name: Build wheels
-        uses: PyO3/maturin-action@v1
+        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         with:
+          maturin-version: ${{ env.MATURIN_VERSION }}
           target: ${{ matrix.target }}
           args: --release --out dist
           sccache: 'true'
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: wheels-${{ matrix.os }}-${{ matrix.target }}
           path: dist
@@ -86,23 +100,23 @@ jobs:
           - docker_file: docker/Dockerfile.manylinux_2_28_ARM64
             name: manylinux-arm
             arch: aarch64
-            os: ubuntu-22.04-arm
+            os: ubuntu-24.04-arm
           - docker_file: docker/Dockerfile.manylinux_2_28_X64
             os: ubuntu-latest
             name: manylinux-x86
             arch: x86_64
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
 
       - name: Set up docker buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
       - name: Build docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           file: ${{ matrix.docker_file }}
           platforms: ${{ matrix.arch }}
@@ -122,8 +136,24 @@ jobs:
       - name: Debug List files in /tmp after copy
         run: ls -la dist
 
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.x"
+
+      # The build image carries every library the wheel could have linked against;
+      #  this runner carries none of them, and it is the same architecture the wheel
+      #  targets. Installing here is what proves the wheel works where users are --
+      #  nothing else in this workflow ever runs what it publishes.
+      #  `--find-links` rather than a glob: `dist/` holds the PyPy wheel as well, and
+      #  naming both on one `pip install` fails as unsupported on this interpreter.
+      #  Resolving by name also fails if the wheel carries the wrong platform tags.
+      - name: Check the wheel installs and imports outside the build image
+        run: |
+          pip install --no-index --find-links dist shazamio_core
+          python -c "import shazamio_core; print(shazamio_core.__file__)"
+
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: wheels-${{ runner.os }}-${{ matrix.name }}
           path: dist
@@ -131,17 +161,37 @@ jobs:
   sdist:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build sdist
-        uses: PyO3/maturin-action@v1
+        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         with:
+          maturin-version: ${{ env.MATURIN_VERSION }}
           command: sdist
           args: --out dist
       - name: Upload sdist
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: wheels-sdist
           path: dist
+
+  # `rust-version` in `Cargo.toml` is a claim nothing else checks: every other job
+  # installs current stable, so a `cargo update` can raise the real floor and stay
+  # green. Whoever builds the sdist on a distro toolchain is the one who finds out.
+  msrv:
+    name: MSRV
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Read from `Cargo.toml` rather than restated here: a second copy would drift
+      # and leave the job checking a floor the crate no longer declares.
+      - name: Read the declared MSRV
+        id: declared
+        run: echo "version=$(grep -oP '^rust-version = "\K[^"]+' Cargo.toml)" >> "$GITHUB_OUTPUT"
+
+      - run: rustup toolchain install ${{ steps.declared.outputs.version }} --profile minimal
+
+      - run: cargo +${{ steps.declared.outputs.version }} check --locked --all-targets
 
   release:
     name: Release
@@ -149,22 +199,23 @@ jobs:
     if: "startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'"
     needs: [ sdist, macos, linux, windows ]
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: wheels-*
           merge-multiple: true
           path: dist
 
       - name: Publish to PyPI
-        uses: PyO3/maturin-action@v1
+        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         env:
           MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
         with:
+          maturin-version: ${{ env.MATURIN_VERSION }}
           command: upload
           args: --skip-existing dist/*
 
       - name: Attach Artifacts to the release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
           files: |
             dist/*.whl
