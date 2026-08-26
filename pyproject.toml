@@ -12,6 +12,7 @@ build-backend = "maturin"
 name = "shazamio_core"
 readme = "README.md"
 authors = [{name = "dotX12", email = "dev@shitposting.team"}]
+maintainers = [{name = "Danipulok", email = "danipulok@gmail.com"}]
 requires-python = ">=3.9"
 classifiers = [
     "Programming Language :: Rust",
