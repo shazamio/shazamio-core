@@ -1,6 +1,8 @@
 use std::error::Error;
+use std::ffi::OsStr;
 use std::fs::File;
 use std::io::{BufReader, Write};
+use std::path::Path;
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -14,7 +16,7 @@ use tempfile::Builder;
 /// the system, in the case where Rodio can't decode the concerned format
 /// (for example with .WMA, .M4A, etc.).
 
-pub fn decode_with_ffmpeg(file_path: &str) -> Option<Decoder<BufReader<File>>> {
+pub fn decode_with_ffmpeg(file_path: &Path) -> Option<Decoder<BufReader<File>>> {
     // Find the path for FFMpeg, in the case where it is installed
 
     let mut possible_ffmpeg_paths: Vec<&str> = vec!["ffmpeg", "ffmpeg.exe"];
@@ -64,7 +66,15 @@ pub fn decode_with_ffmpeg(file_path: &str) -> Option<Decoder<BufReader<File>>> {
         #[cfg(windows)]
         let command = command.creation_flags(0x08000000);
 
-        let command = command.args(["-y", "-i", file_path, sink_file_path.to_str().unwrap()]);
+        // One array, one element type: the two paths are `OsStr`, so the flags are
+        //  spelled that way too rather than converting the paths to `&str`, which
+        //  would fail on any path that is not valid UTF-8.
+        let command = command.args([
+            OsStr::new("-y"),
+            OsStr::new("-i"),
+            file_path.as_os_str(),
+            sink_file_path.as_os_str(),
+        ]);
 
         // Set "CREATE_NO_WINDOW" on Windows, see
         // https://stackoverflow.com/a/60958956/662399

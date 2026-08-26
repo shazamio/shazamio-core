@@ -7,6 +7,7 @@ use rodio::{ChannelCount, Sample, SampleRate, Source};
 use std::collections::HashMap;
 use std::error::Error;
 use std::io::{BufReader, Cursor};
+use std::path::Path;
 use std::time::Duration;
 
 // The fingerprint is defined over mono 16 kHz PCM; every input is resampled to
@@ -132,7 +133,7 @@ impl SignatureGenerator {
         // Return the generated signature
         Ok(signature)
     }
-    pub fn make_signature_from_file(file_path: &str, segment_duration_seconds: Option<u32>) -> Result<DecodedSignature, Box<dyn Error>> {
+    pub fn make_signature_from_file(file_path: &Path, segment_duration_seconds: Option<u32>) -> Result<DecodedSignature, Box<dyn Error>> {
         // Decode the .WAV, .MP3, .OGG or .FLAC file
 
         let mut decoder = rodio::Decoder::new(BufReader::new(std::fs::File::open(file_path)?));

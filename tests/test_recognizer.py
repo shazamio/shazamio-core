@@ -40,18 +40,13 @@ EXPECTED_DURATION_MS: Final[int] = 8000
 
 
 def _probe(audio_format: str) -> Path:
-    # Callers wrap this in `str()`: `recognize_path` extracts a Rust `String` and
-    #  rejects a `Path` with `TypeError: 'PosixPath' object is not an instance of
-    #  'str'`, even though `shazamio_core/shazamio_core.pyi:80` declares
-    #  `Union[str, PathLike]`. It still returns a `Path` -- `recognize_bytes` needs
-    #  `.read_bytes()`.
     return DATA_DIRECTORY / f"probe.{audio_format}"
 
 
 async def test_the_flac_signature_matches_the_golden_uri(*, recognizer: Recognizer) -> None:
     golden_uri = (DATA_DIRECTORY / f"probe.{LOSSLESS_AUDIO_FORMAT}.uri").read_text().strip()
 
-    signature = await recognizer.recognize_path(str(_probe(LOSSLESS_AUDIO_FORMAT)))
+    signature = await recognizer.recognize_path(_probe(LOSSLESS_AUDIO_FORMAT))
 
     assert signature.signature.uri == golden_uri
 
@@ -65,7 +60,7 @@ async def test_recognize_bytes_matches_recognize_path(
     audio = _probe(audio_format)
 
     from_bytes = await recognizer.recognize_bytes(audio.read_bytes())
-    from_path = await recognizer.recognize_path(str(audio))
+    from_path = await recognizer.recognize_path(audio)
 
     assert from_bytes.signature.uri == from_path.signature.uri
 
@@ -76,6 +71,19 @@ async def test_every_format_decodes_the_whole_file(
     *,
     recognizer: Recognizer,
 ) -> None:
-    signature = await recognizer.recognize_path(str(_probe(audio_format)))
+    signature = await recognizer.recognize_path(_probe(audio_format))
 
     assert signature.signature.samples == EXPECTED_DURATION_MS
+
+
+async def test_recognize_path_accepts_a_string_too(*, recognizer: Recognizer) -> None:
+    # The tests above pass a `Path`. `recognize_path` extracts a Rust `PathBuf`
+    #  through `os.fspath`, so both forms are accepted; before that it extracted a
+    #  `String` and rejected a `Path` with `TypeError: 'PosixPath' object is not an
+    #  instance of 'str'`, contradicting its own type stub.
+    audio = _probe("mp3")
+
+    from_string = await recognizer.recognize_path(str(audio))
+    from_path = await recognizer.recognize_path(audio)
+
+    assert from_string.signature.uri == from_path.signature.uri
