@@ -1,0 +1,13 @@
+version: 2
+
+updates:
+  # Without this the SHA pins in `CI.yml` freeze: nothing else in the repository
+  #  reads them, so an action stays on whatever commit it was pinned to the day it
+  #  was written. Dependabot rewrites both the SHA and the version comment beside it.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: ci
+      include: scope
