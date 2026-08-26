@@ -136,6 +136,22 @@ jobs:
       - name: Debug List files in /tmp after copy
         run: ls -la dist
 
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.x"
+
+      # The build image carries every library the wheel could have linked against;
+      #  this runner carries none of them, and it is the same architecture the wheel
+      #  targets. Installing here is what proves the wheel works where users are --
+      #  nothing else in this workflow ever runs what it publishes.
+      #  `--find-links` rather than a glob: `dist/` holds the PyPy wheel as well, and
+      #  naming both on one `pip install` fails as unsupported on this interpreter.
+      #  Resolving by name also fails if the wheel carries the wrong platform tags.
+      - name: Check the wheel installs and imports outside the build image
+        run: |
+          pip install --no-index --find-links dist shazamio_core
+          python -c "import shazamio_core; print(shazamio_core.__file__)"
+
       - name: Upload wheels
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
