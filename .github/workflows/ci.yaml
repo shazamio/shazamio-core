@@ -196,7 +196,13 @@ jobs:
           push: false
           load: true
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # A pull request's cache is scoped to `refs/pull/N/merge`, which neither `master`
+          #  nor another pull request can read, so each one exported a full image of layers
+          #  nobody could reuse. That held the repository over the 10 GB limit, and eviction
+          #  is oldest-first, so the x86 image lost its layers before the next run read them
+          #  -- 0 cached layers, and 224s of a 441s build step spent re-exporting them.
+          #  https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching
+          cache-to: ${{ github.ref == 'refs/heads/master' && 'type=gha,mode=max' || '' }}
           context: .
 
       - name: List /opt/dist directory
