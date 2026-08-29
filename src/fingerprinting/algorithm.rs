@@ -386,14 +386,15 @@ impl SignatureGenerator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
 
     // The probe and its pinned URI are the ones `tests/` uses; `tests/data/generate.sh`
     //  regenerates the audio. Reading them here rather than restating the expected
     //  bytes keeps one copy of the golden.
     const DATA_DIRECTORY: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data");
 
-    fn probe_path() -> String {
-        format!("{DATA_DIRECTORY}/probe.flac")
+    fn probe_path() -> PathBuf {
+        Path::new(DATA_DIRECTORY).join("probe.flac")
     }
 
     fn golden_uri() -> String {
@@ -522,7 +523,7 @@ mod tests {
     #[test]
     fn input_no_decoder_understands_is_an_error() {
         let not_audio = SignatureGenerator::make_signature_from_bytes(b"not audio".to_vec(), None);
-        let script = format!("{DATA_DIRECTORY}/generate.sh");
+        let script = Path::new(DATA_DIRECTORY).join("generate.sh");
         let not_a_sound_file = SignatureGenerator::make_signature_from_file(&script, None);
 
         assert!(not_audio.is_err());
