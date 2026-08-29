@@ -11,3 +11,36 @@ updates:
     commit-message:
       prefix: ci
       include: scope
+
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: build
+      include: scope
+    groups:
+      # `pyo3-async-runtimes` and `pyo3-log` are released against one `pyo3` minor
+      #  and both currently require 0.29, while `Cargo.toml` pins two of the three
+      #  exactly (`pyo3 = "=0.29.2"`, `pyo3-log = "=0.13.4"`). A pull request moving
+      #  one of them alone cannot resolve, so they travel together or not at all.
+      pyo3:
+        patterns:
+          - pyo3
+          - pyo3-*
+
+  # Poetry is served by the `pip` ecosystem; there is no `poetry` value.
+  #  https://docs.github.com/en/code-security/dependabot/ecosystems-supported-by-dependabot/supported-ecosystems-and-repositories
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: build
+      include: scope
+    ignore:
+      # `maturin` is pinned in four places and Dependabot reaches only this one.
+      #  `MATURIN_VERSION` in `ci.yaml` and `maturin==` in both manylinux Dockerfiles
+      #  are the versions wheels are actually built with, and a bump here alone would
+      #  raise the declared floor above every one of them without touching them.
+      - dependency-name: maturin
