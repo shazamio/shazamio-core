@@ -9,10 +9,10 @@ use tokio::task;
 
 pub fn get_python_future<'py, T>(
     py: Python<'py>,
-    future: impl Future<Output=PyResult<T>> + Send + 'static,
+    future: impl Future<Output = PyResult<T>> + Send + 'static,
 ) -> PyResult<Bound<'py, PyAny>>
-    where
-        T: for<'a> IntoPyObject<'a> + Send + 'static,
+where
+    T: for<'a> IntoPyObject<'a> + Send + 'static,
 {
     return pyo3_async_runtimes::tokio::future_into_py(py, async move {
         task::spawn_blocking(move || futures::executor::block_on(future))

@@ -1,21 +1,21 @@
 mod errors;
 mod fingerprinting;
+mod params;
 mod response;
 mod utils;
-mod params;
 
 use crate::errors::SignatureError;
-use crate::response::{Geolocation, Signature, SignatureSong};
 use crate::params::SearchParams;
+use crate::response::{Geolocation, Signature, SignatureSong};
 use crate::utils::convert_signature_to_py;
 use crate::utils::get_python_future;
 use crate::utils::unwrap_decoded_signature;
 use fingerprinting::algorithm::SignatureGenerator;
+use log::{debug, error, info};
 use pyo3::prelude::*;
-use std::path::PathBuf;
-use pyo3::{pyclass, pymethods, pymodule, Bound, Py, PyAny, PyErr, PyResult, Python};
 use pyo3::types::PyModule;
-use log::{info, debug, error};
+use pyo3::{pyclass, pymethods, pymodule, Bound, Py, PyAny, PyErr, PyResult, Python};
+use std::path::PathBuf;
 
 #[pymodule]
 fn shazamio_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -46,8 +46,13 @@ impl Recognizer {
     #[pyo3(signature = (segment_duration_seconds=None))]
     pub fn new(segment_duration_seconds: Option<u32>) -> Self {
         let duration = segment_duration_seconds.unwrap_or(10);
-        info!("Recognizer created with segment_duration_seconds = {}", duration);
-        Recognizer { segment_duration_seconds: duration }
+        info!(
+            "Recognizer created with segment_duration_seconds = {}",
+            duration
+        );
+        Recognizer {
+            segment_duration_seconds: duration,
+        }
     }
 
     #[pyo3(signature = (value, options=None))]
@@ -76,7 +81,8 @@ impl Recognizer {
             let data = SignatureGenerator::make_signature_from_bytes(
                 value,
                 Some(search_options.segment_duration_seconds),
-            ).map_err(|e| {
+            )
+            .map_err(|e| {
                 error!("Error in make_signature_from_bytes: {}", e);
                 let error_message = format!("{}", e);
                 PyErr::new::<SignatureError, _>(error_message)
@@ -118,7 +124,8 @@ impl Recognizer {
             let data = SignatureGenerator::make_signature_from_file(
                 &value,
                 Some(search_options.segment_duration_seconds),
-            ).map_err(|e| {
+            )
+            .map_err(|e| {
                 debug!("Error in make_signature_from_file: {}", e);
                 let error_message = format!("{}", e);
                 PyErr::new::<SignatureError, _>(error_message)

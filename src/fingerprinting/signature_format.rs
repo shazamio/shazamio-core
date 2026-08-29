@@ -138,7 +138,6 @@ impl DecodedSignature {
             general_purpose::STANDARD.encode(self.encode_to_binary()?)
         ))
     }
-
 }
 
 #[cfg(test)]
@@ -212,9 +211,14 @@ mod tests {
 
     #[test]
     fn every_supported_sample_rate_has_its_own_id() {
-        for (sample_rate_hz, sample_rate_id) in
-            [(8000, 1), (11025, 2), (16000, 3), (32000, 4), (44100, 5), (48000, 6)]
-        {
+        for (sample_rate_hz, sample_rate_id) in [
+            (8000, 1),
+            (11025, 2),
+            (16000, 3),
+            (32000, 4),
+            (44100, 5),
+            (48000, 6),
+        ] {
             let encoded = DecodedSignature {
                 sample_rate_hz,
                 number_samples: 0,
