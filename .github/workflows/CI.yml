@@ -8,14 +8,14 @@ on:
   #  `error[E0308]: mismatched types`. Only a run on the merged result catches that.
   push:
     branches:
-      - 'master'
-      - 'dev'
+      - "master"
+      - "dev"
     tags:
-      - '*'
+      - "*"
   pull_request:
     branches:
-      - 'master'
-      - 'dev'
+      - "master"
+      - "dev"
 
 # Every `uses:` below is pinned to a commit SHA, with its version in the comment
 #  beside it. A tag is mutable: whoever owns the action can move `v7` onto another
@@ -107,7 +107,7 @@ jobs:
          maturin-version: ${{ env.MATURIN_VERSION }}
          target: ${{ matrix.target }}
          args: --release --out dist
-         sccache: 'true'
+         sccache: "true"
      - name: Upload wheels
        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
        with:
@@ -136,7 +136,7 @@ jobs:
           maturin-version: ${{ env.MATURIN_VERSION }}
           target: ${{ matrix.target }}
           args: --release --out dist
-          sccache: 'true'
+          sccache: "true"
       - name: Upload wheels
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
