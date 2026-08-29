@@ -32,7 +32,11 @@ RUN cargo chef prepare --recipe-path recipe.json
 FROM chef AS builder
 WORKDIR /opt
 COPY --from=planner /opt/recipe.json recipe.json
-RUN cargo chef cook --release --recipe-path recipe.json
+# `cargo chef` runs plain `cargo` before `maturin` is ever invoked, so nothing turns
+#  extension-module linking on for it, and no interpreter in this image ships a
+#  `libpython` -- the step died on `could not find native static library python3.9`.
+#  Why the feature went away: the `[build-system]` comment in `pyproject.toml`.
+RUN PYO3_BUILD_EXTENSION_MODULE=1 cargo chef cook --release --recipe-path recipe.json
 COPY . .
 ARG PYTHON_INTERPRETER
 RUN bash /opt/docker/build-manylinux.sh

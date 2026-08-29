@@ -134,3 +134,38 @@ impl Recognizer {
         python_future.map(|any| any.unbind())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // The same default `SearchParams` carries, and `shazamio_core.pyi` documents.
+    #[test]
+    fn a_recognizer_defaults_to_a_ten_second_segment() {
+        assert_eq!(Recognizer::new(None).segment_duration_seconds, 10);
+        assert_eq!(Recognizer::new(Some(4)).segment_duration_seconds, 4);
+    }
+
+    // The module and `shazamio_core.pyi` declare the same six names by hand, so
+    //  nothing but this catches an export that was added to one and not the other.
+    #[test]
+    fn the_module_exports_every_name_the_stub_declares() {
+        Python::initialize();
+
+        Python::attach(|py| {
+            let module = PyModule::new(py, "shazamio_core").unwrap();
+            shazamio_core(&module).unwrap();
+
+            for name in [
+                "Geolocation",
+                "Recognizer",
+                "SearchParams",
+                "Signature",
+                "SignatureError",
+                "SignatureSong",
+            ] {
+                assert!(module.getattr(name).is_ok(), "{name} is not exported");
+            }
+        });
+    }
+}

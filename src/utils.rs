@@ -44,3 +44,44 @@ pub fn unwrap_decoded_signature(data: DecodedSignature) -> Result<communication:
         PyErr::new::<SignatureError, _>(error_message)
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    // `get_python_future` is not here: it needs a running `asyncio` loop, which is
+    //  what the Python suite already gives it.
+
+    // The conversion maps its fields positionally, so every one of them is pinned
+    //  rather than a sample: a swapped `latitude`/`longitude` type-checks.
+    #[test]
+    fn the_response_carries_every_field_of_the_signature_it_converts() {
+        let decoded = DecodedSignature {
+            sample_rate_hz: 16000,
+            number_samples: 24_500,
+            frequency_band_to_sound_peaks: HashMap::new(),
+        };
+
+        let signature = unwrap_decoded_signature(decoded).unwrap();
+
+        let altitude = signature.geolocation.altitude;
+        let latitude = signature.geolocation.latitude;
+        let longitude = signature.geolocation.longitude;
+
+        let samples = signature.signature.samples;
+        let timestamp = signature.timestamp;
+        let timezone = signature.timezone.clone();
+        let uri = signature.signature.uri.clone();
+
+        let converted = convert_signature_to_py(signature).unwrap();
+
+        assert_eq!(converted.geolocation.altitude, altitude);
+        assert_eq!(converted.geolocation.latitude, latitude);
+        assert_eq!(converted.geolocation.longitude, longitude);
+        assert_eq!(converted.signature.samples, samples);
+        assert_eq!(converted.signature.uri, uri);
+        assert_eq!(converted.timestamp, timestamp);
+        assert_eq!(converted.timezone, timezone);
+    }
+}
