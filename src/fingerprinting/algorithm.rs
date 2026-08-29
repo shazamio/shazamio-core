@@ -76,11 +76,8 @@ impl<S: Source> Source for NonEmptySpans<S> {
 
 // Resample to the mono 16 kHz PCM the fingerprint is defined over.
 fn to_mono_16khz(source: impl Source) -> Vec<i16> {
-    let uniform = UniformSourceIterator::new(
-        NonEmptySpans(source),
-        TARGET_CHANNELS,
-        TARGET_SAMPLE_RATE,
-    );
+    let uniform =
+        UniformSourceIterator::new(NonEmptySpans(source), TARGET_CHANNELS, TARGET_SAMPLE_RATE);
     uniform.map(to_i16).collect()
 }
 
@@ -98,7 +95,10 @@ pub struct SignatureGenerator {
 }
 
 impl SignatureGenerator {
-    pub fn make_signature_from_bytes(bytes: Vec<u8>, segment_duration_seconds: Option<u32>) -> Result<DecodedSignature, Box<dyn Error>> {
+    pub fn make_signature_from_bytes(
+        bytes: Vec<u8>,
+        segment_duration_seconds: Option<u32>,
+    ) -> Result<DecodedSignature, Box<dyn Error>> {
         // Create a cursor around the byte array for decoding
         let cursor = Cursor::new(bytes.clone());
 
@@ -133,7 +133,10 @@ impl SignatureGenerator {
         // Return the generated signature
         Ok(signature)
     }
-    pub fn make_signature_from_file(file_path: &Path, segment_duration_seconds: Option<u32>) -> Result<DecodedSignature, Box<dyn Error>> {
+    pub fn make_signature_from_file(
+        file_path: &Path,
+        segment_duration_seconds: Option<u32>,
+    ) -> Result<DecodedSignature, Box<dyn Error>> {
         // Decode the .WAV, .MP3, .OGG or .FLAC file
 
         let mut decoder = rodio::Decoder::new(BufReader::new(std::fs::File::open(file_path)?));
@@ -160,7 +163,8 @@ impl SignatureGenerator {
 
         if raw_pcm_samples.len() > segment_samples {
             let middle = raw_pcm_samples.len() / 2;
-            raw_pcm_samples_slice = &raw_pcm_samples[middle - segment_samples/2 .. middle + segment_samples/2];
+            raw_pcm_samples_slice =
+                &raw_pcm_samples[middle - segment_samples / 2..middle + segment_samples / 2];
         }
 
         let res = SignatureGenerator::make_signature_from_buffer(raw_pcm_samples_slice.to_vec());
@@ -336,9 +340,8 @@ impl SignatureGenerator {
                             * 32.0
                             / peak_variation_1;
 
-                        let corrected_peak_frequency_bin: u16 = (
-                            (bin_position as i32 * 64) + (peak_variation_2 as i32)
-                        ) as u16;
+                        let corrected_peak_frequency_bin: u16 =
+                            ((bin_position as i32 * 64) + (peak_variation_2 as i32)) as u16;
 
                         assert!(peak_variation_1 >= 0.0);
 
@@ -363,7 +366,8 @@ impl SignatureGenerator {
                             }
                         };
 
-                        self.signature.frequency_band_to_sound_peaks
+                        self.signature
+                            .frequency_band_to_sound_peaks
                             .entry(frequency_band)
                             .or_default();
 

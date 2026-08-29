@@ -81,6 +81,28 @@ jobs:
       - name: Run the unit tests
         run: cargo test
 
+  # Neither gate below is provided by anything else here: the wheel jobs compile the
+  #  crate, and a compiler is indifferent to formatting and to every lint `clippy`
+  #  adds on top of it. `clippy` runs at its own default level rather than with a
+  #  curated lint set -- this is a gate against new findings, not a rewrite of code
+  #  that predates it.
+  lint:
+    name: Rust lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - run: rustup component add rustfmt clippy
+
+      - name: Check the formatting
+        run: cargo fmt --all --check
+
+      # `--all-targets` is what reaches the `#[cfg(test)]` modules. The default target
+      #  set stops at the library, so every unit test would go unlinted.
+      #  https://doc.rust-lang.org/cargo/commands/cargo-clippy.html#target-selection
+      - name: Run `clippy`
+        run: cargo clippy --all-targets -- -D warnings
+
   # The wheels below are abi3: one per platform, loading on every CPython from 3.10
   #  up. There is no per-interpreter matrix any more, so a new CPython release
   #  needs no change here and no new release. The floor lives in `Cargo.toml`.
@@ -247,7 +269,7 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     if: "startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'"
-    needs: [ test, rust-test, sdist, macos, linux, windows ]
+    needs: [ test, rust-test, lint, sdist, macos, linux, windows ]
     steps:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
