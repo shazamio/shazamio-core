@@ -11,7 +11,10 @@ RUN dnf install -y epel-release
 RUN dnf install -y --nogpgcheck https://download1.rpmfusion.org/free/el/rpmfusion-free-release-8.noarch.rpm
 RUN dnf install -y --nogpgcheck https://download1.rpmfusion.org/nonfree/el/rpmfusion-nonfree-release-8.noarch.rpm
 RUN dnf install -y clang clang-devel
-ENV PATH="/root/.cargo/bin:/opt/python/cp39-cp39/bin:/opt/python/cp310-cp310/bin:/opt/python/cp311-cp311/bin:/opt/python/cp312-cp312/bin:$PATH"
+# Only the minimum supported interpreter belongs here: the wheel is `abi3`, so one
+#  is emitted whatever builds it, and this entry stays only so `pip3` below exists
+#  at all. Must match the `abi3-py*` feature in `Cargo.toml`.
+ENV PATH="/root/.cargo/bin:/opt/python/cp310-cp310/bin:$PATH"
 # Must match `MATURIN_VERSION` in `.github/workflows/ci.yaml`, so every wheel of a
 # release is built by one `maturin`.
 RUN pip3 install maturin==1.14.1 patchelf cffi ziglang sccache>=0.4.0
@@ -34,7 +37,8 @@ WORKDIR /opt
 COPY --from=planner /opt/recipe.json recipe.json
 # `cargo chef` runs plain `cargo` before `maturin` is ever invoked, so nothing turns
 #  extension-module linking on for it, and no interpreter in this image ships a
-#  `libpython` -- the step died on `could not find native static library python3.9`.
+#  `libpython` -- the step died on `could not find native static library python3.9`,
+#  naming whichever `cpXY` led `PATH` when that was written.
 #  Why the feature went away: the `[build-system]` comment in `pyproject.toml`.
 RUN PYO3_BUILD_EXTENSION_MODULE=1 cargo chef cook --release --recipe-path recipe.json
 COPY . .

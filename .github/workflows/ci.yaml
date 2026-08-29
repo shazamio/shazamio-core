@@ -81,9 +81,9 @@ jobs:
       - name: Run the unit tests
         run: cargo test
 
-  # The wheels below are abi3: one per platform, loading on every CPython from 3.9
-  # up. There is no per-interpreter matrix any more, so a new CPython release
-  # needs no change here and no new release.
+  # The wheels below are abi3: one per platform, loading on every CPython from 3.10
+  #  up. There is no per-interpreter matrix any more, so a new CPython release
+  #  needs no change here and no new release. The floor lives in `Cargo.toml`.
   windows:
    runs-on: windows-latest
    strategy:
