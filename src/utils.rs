@@ -14,11 +14,11 @@ pub fn get_python_future<'py, T>(
 where
     T: for<'a> IntoPyObject<'a> + Send + 'static,
 {
-    return pyo3_async_runtimes::tokio::future_into_py(py, async move {
+    pyo3_async_runtimes::tokio::future_into_py(py, async move {
         task::spawn_blocking(move || futures::executor::block_on(future))
             .await
             .unwrap()
-    });
+    })
 }
 
 pub fn convert_signature_to_py(signature: communication::Signature) -> PyResult<Signature> {

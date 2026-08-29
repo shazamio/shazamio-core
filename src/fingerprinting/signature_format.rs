@@ -31,7 +31,7 @@ impl Ord for FrequencyBand {
 
 impl PartialOrd for FrequencyBand {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some((*self as i32).cmp(&(*other as i32)))
+        Some(self.cmp(other))
     }
 }
 
