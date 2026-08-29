@@ -20,7 +20,10 @@ name = "shazamio_core"
 readme = "README.md"
 authors = [{name = "dotX12", email = "dev@shitposting.team"}]
 maintainers = [{name = "Danipulok", email = "danipulok@gmail.com"}]
-requires-python = ">=3.9"
+# Must match the `abi3-py*` feature in `Cargo.toml`, which is where the floor is
+#  argued: that feature is what the extension links against, this is only what
+#  `pip` refuses to install on.
+requires-python = ">=3.10"
 classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
