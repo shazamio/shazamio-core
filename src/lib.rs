@@ -12,6 +12,7 @@ use crate::utils::get_python_future;
 use crate::utils::unwrap_decoded_signature;
 use fingerprinting::algorithm::SignatureGenerator;
 use pyo3::prelude::*;
+use std::path::PathBuf;
 use pyo3::{pyclass, pymethods, pymodule, Bound, Py, PyAny, PyErr, PyResult, Python};
 use pyo3::types::PyModule;
 use log::{info, debug, error};
@@ -95,12 +96,12 @@ impl Recognizer {
     fn recognize_path(
         &self,
         py: Python,
-        value: String,
+        value: PathBuf,
         options: Option<SearchParams>,
     ) -> PyResult<Py<PyAny>> {
         debug!(
             "recognize_path method called with path: {} and options: {:?}",
-            value,
+            value.display(),
             options,
         );
 
@@ -113,7 +114,7 @@ impl Recognizer {
         });
 
         let future = async move {
-            debug!("Starting async recognition from file: {}", value);
+            debug!("Starting async recognition from file: {}", value.display());
             let data = SignatureGenerator::make_signature_from_file(
                 &value,
                 Some(search_options.segment_duration_seconds),

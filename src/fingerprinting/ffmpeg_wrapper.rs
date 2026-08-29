@@ -1,6 +1,8 @@
 use std::error::Error;
+use std::ffi::OsStr;
 use std::fs::File;
 use std::io::{BufReader, Write};
+use std::path::{Path, PathBuf};
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -14,24 +16,25 @@ use tempfile::Builder;
 /// the system, in the case where Rodio can't decode the concerned format
 /// (for example with .WMA, .M4A, etc.).
 
-pub fn decode_with_ffmpeg(file_path: &str) -> Option<Decoder<BufReader<File>>> {
+pub fn decode_with_ffmpeg(file_path: &Path) -> Option<Decoder<BufReader<File>>> {
     // Find the path for FFMpeg, in the case where it is installed
 
-    let mut possible_ffmpeg_paths: Vec<&str> = vec!["ffmpeg", "ffmpeg.exe"];
+    let mut possible_ffmpeg_paths: Vec<PathBuf> =
+        vec![PathBuf::from("ffmpeg"), PathBuf::from("ffmpeg.exe")];
 
     let mut current_dir_ffmpeg_path =
         std::env::current_exe().expect("failed current_dir_ffmpeg_path");
     current_dir_ffmpeg_path.pop();
     current_dir_ffmpeg_path.push("ffmpeg.exe");
-    possible_ffmpeg_paths.push(current_dir_ffmpeg_path.to_str().unwrap());
-    let mut actual_ffmpeg_path: Option<&str> = None;
+    possible_ffmpeg_paths.push(current_dir_ffmpeg_path);
+    let mut actual_ffmpeg_path: Option<PathBuf> = None;
 
     for possible_path in possible_ffmpeg_paths {
         // Use .output() to execute the subprocess testing for FFMpeg
         // presence and correct execution, so that it does not pollute
         // the standard or error output in any way
 
-        let mut command = Command::new(possible_path);
+        let mut command = Command::new(&possible_path);
         #[cfg(windows)]
         let command = command.creation_flags(0x08000000);
         let command = command.arg("-version");
@@ -64,17 +67,23 @@ pub fn decode_with_ffmpeg(file_path: &str) -> Option<Decoder<BufReader<File>>> {
         #[cfg(windows)]
         let command = command.creation_flags(0x08000000);
 
-        let command = command.args(["-y", "-i", file_path, sink_file_path.to_str().unwrap()]);
+        // One array, one element type: the two paths are `OsStr`, so the flags are
+        //  spelled that way too rather than converting the paths to `&str`, which
+        //  would fail on any path that is not valid UTF-8.
+        let command = command.args([
+            OsStr::new("-y"),
+            OsStr::new("-i"),
+            file_path.as_os_str(),
+            sink_file_path.as_os_str(),
+        ]);
 
         // Set "CREATE_NO_WINDOW" on Windows, see
         // https://stackoverflow.com/a/60958956/662399
 
         if let Ok(process) = command.output() {
             if process.status.success() {
-                let res = Decoder::new(BufReader::new(
-                    File::open(sink_file_path.to_str().unwrap()).unwrap(),
-                ))
-                .expect("failed to decode with ffmpeg");
+                let res = Decoder::new(BufReader::new(File::open(&sink_file_path).unwrap()))
+                    .expect("failed to decode with ffmpeg");
                 return Some(res);
             }
         } else {
@@ -90,26 +99,27 @@ pub fn decode_with_ffmpeg_from_bytes(
     // Create a temporary file for the input
     let mut temp_file = Builder::new().suffix(".tmp").tempfile()?;
     temp_file.write_all(bytes)?;
-    let file_path = temp_file.path().to_str().unwrap().to_string();
+    let file_path = temp_file.path().to_path_buf();
 
     // Find the FFmpeg path
-    let mut possible_ffmpeg_paths = vec!["ffmpeg", "ffmpeg.exe"];
+    let mut possible_ffmpeg_paths: Vec<PathBuf> =
+        vec![PathBuf::from("ffmpeg"), PathBuf::from("ffmpeg.exe")];
     let mut current_dir_ffmpeg_path =
         std::env::current_exe().expect("failed current_dir_ffmpeg_path");
     current_dir_ffmpeg_path.pop();
     current_dir_ffmpeg_path.push("ffmpeg.exe");
-    possible_ffmpeg_paths.push(current_dir_ffmpeg_path.to_str().unwrap());
+    possible_ffmpeg_paths.push(current_dir_ffmpeg_path);
 
-    let mut actual_ffmpeg_path = None;
-    for possible_path in &possible_ffmpeg_paths {
-        let mut command = Command::new(possible_path);
+    let mut actual_ffmpeg_path: Option<PathBuf> = None;
+    for possible_path in possible_ffmpeg_paths {
+        let mut command = Command::new(&possible_path);
         #[cfg(windows)]
         let command = command.creation_flags(0x08000000);
         let command = command.arg("-version");
 
         if let Ok(process) = command.output() {
             if process.status.success() {
-                actual_ffmpeg_path = Some(*possible_path);
+                actual_ffmpeg_path = Some(possible_path);
                 break;
             }
         }
@@ -118,18 +128,25 @@ pub fn decode_with_ffmpeg_from_bytes(
     if let Some(ffmpeg_path) = actual_ffmpeg_path {
         // Create a temporary file for the output
         let sink_file = Builder::new().suffix(".wav").tempfile()?;
-        let sink_file_path = sink_file.path().to_str().unwrap().to_string();
+        let sink_file_path = sink_file.path().to_path_buf();
 
         // Convert to WAV format
         let mut command = Command::new(ffmpeg_path);
         #[cfg(windows)]
         let command = command.creation_flags(0x08000000);
-        let command = command.args(["-y", "-i", &file_path, &sink_file_path]);
+        // Same as above: one array, one element type, and no path forced through
+        //  `&str`.
+        let command = command.args([
+            OsStr::new("-y"),
+            OsStr::new("-i"),
+            file_path.as_os_str(),
+            sink_file_path.as_os_str(),
+        ]);
 
         if let Ok(process) = command.output() {
             if process.status.success() {
                 // Read the converted file into a Vec<u8>
-                let converted_bytes = std::fs::read(sink_file_path)?;
+                let converted_bytes = std::fs::read(&sink_file_path)?;
 
                 // Create a Cursor around the converted bytes and create a Decoder
                 let cursor = Cursor::new(converted_bytes);

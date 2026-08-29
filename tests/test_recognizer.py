@@ -15,12 +15,14 @@ That is decoder arithmetic, not something a golden file can pin. The two lossy
 formats keep the checks below, which hold on every platform.
 """
 
+import os
+import sys
 from pathlib import Path
 from typing import Final
 
 import pytest
 
-from shazamio_core import Recognizer
+from shazamio_core import Recognizer, SignatureError
 
 DATA_DIRECTORY: Final[Path] = Path(__file__).parent / "data"
 
@@ -40,18 +42,13 @@ EXPECTED_DURATION_MS: Final[int] = 8000
 
 
 def _probe(audio_format: str) -> Path:
-    # Callers wrap this in `str()`: `recognize_path` extracts a Rust `String` and
-    #  rejects a `Path` with `TypeError: 'PosixPath' object is not an instance of
-    #  'str'`, even though `shazamio_core/shazamio_core.pyi:80` declares
-    #  `Union[str, PathLike]`. It still returns a `Path` -- `recognize_bytes` needs
-    #  `.read_bytes()`.
     return DATA_DIRECTORY / f"probe.{audio_format}"
 
 
 async def test_the_flac_signature_matches_the_golden_uri(*, recognizer: Recognizer) -> None:
     golden_uri = (DATA_DIRECTORY / f"probe.{LOSSLESS_AUDIO_FORMAT}.uri").read_text().strip()
 
-    signature = await recognizer.recognize_path(str(_probe(LOSSLESS_AUDIO_FORMAT)))
+    signature = await recognizer.recognize_path(_probe(LOSSLESS_AUDIO_FORMAT))
 
     assert signature.signature.uri == golden_uri
 
@@ -65,7 +62,7 @@ async def test_recognize_bytes_matches_recognize_path(
     audio = _probe(audio_format)
 
     from_bytes = await recognizer.recognize_bytes(audio.read_bytes())
-    from_path = await recognizer.recognize_path(str(audio))
+    from_path = await recognizer.recognize_path(audio)
 
     assert from_bytes.signature.uri == from_path.signature.uri
 
@@ -76,6 +73,42 @@ async def test_every_format_decodes_the_whole_file(
     *,
     recognizer: Recognizer,
 ) -> None:
-    signature = await recognizer.recognize_path(str(_probe(audio_format)))
+    signature = await recognizer.recognize_path(_probe(audio_format))
 
     assert signature.signature.samples == EXPECTED_DURATION_MS
+
+
+async def test_recognize_path_accepts_a_string_too(*, recognizer: Recognizer) -> None:
+    # The tests above pass a `Path`. `recognize_path` extracts a Rust `PathBuf`
+    #  through `os.fspath`, so both forms are accepted; before that it extracted a
+    #  `String` and rejected a `Path` with `TypeError: 'PosixPath' object is not an
+    #  instance of 'str'`, contradicting its own type stub.
+    audio = _probe("mp3")
+
+    from_string = await recognizer.recognize_path(str(audio))
+    from_path = await recognizer.recognize_path(audio)
+
+    assert from_string.signature.uri == from_path.signature.uri
+
+
+@pytest.mark.skipif(
+    sys.platform != "linux",
+    reason="only Linux lets a directory name be invalid UTF-8",
+)
+async def test_a_temp_directory_that_is_not_utf8_raises_instead_of_panicking(
+    tmp_path: Path,
+    *,
+    recognizer: Recognizer,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The ffmpeg fallback builds its scratch paths under `TMPDIR`. Those paths used to
+    #  be forced through `str`, so a directory Linux allows and UTF-8 does not aborted
+    #  the tokio worker with `pyo3_async_runtimes.RustPanic: rust future panicked`,
+    #  which no `except SignatureError` around the call can catch.
+    broken_tmpdir = tmp_path / os.fsdecode(b"\xff")
+    broken_tmpdir.mkdir()
+    monkeypatch.setenv("TMPDIR", str(broken_tmpdir))
+
+    # Not decodable by `rodio`, so the call reaches the ffmpeg fallback.
+    with pytest.raises(SignatureError):
+        await recognizer.recognize_bytes(b"\x00" * 4096)
