@@ -2,17 +2,20 @@ name: shazamio-core CI
 
 on:
   workflow_dispatch:
-  # Every change lands through a PR, so `pull_request` below already builds and
-  #  tests it before merge. Building again on the merge commit itself would just
-  #  repeat that, on code the PR run already covered -- so `push` is left to the
-  #  one case a PR can't cover: publishing a tag.
+  # `pull_request` builds the branch merged with `master` as it stood when the run
+  #  started, so two branches that are each green can still land a tree nobody ever
+  #  compiled -- which is how `d743ebb` reached `master` failing `cargo test` with
+  #  `error[E0308]: mismatched types`. Only a run on the merged result catches that.
   push:
+    branches:
+      - "master"
+      - "dev"
     tags:
-      - '*'
+      - "*"
   pull_request:
     branches:
-      - 'master'
-      - 'dev'
+      - "master"
+      - "dev"
 
 # Every `uses:` below is pinned to a commit SHA, with its version in the comment
 #  beside it. A tag is mutable: whoever owns the action can move `v7` onto another
@@ -104,7 +107,7 @@ jobs:
          maturin-version: ${{ env.MATURIN_VERSION }}
          target: ${{ matrix.target }}
          args: --release --out dist
-         sccache: 'true'
+         sccache: "true"
      - name: Upload wheels
        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
        with:
@@ -133,7 +136,7 @@ jobs:
           maturin-version: ${{ env.MATURIN_VERSION }}
           target: ${{ matrix.target }}
           args: --release --out dist
-          sccache: 'true'
+          sccache: "true"
       - name: Upload wheels
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
