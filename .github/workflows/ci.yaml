@@ -56,8 +56,8 @@ jobs:
         run: pip install . pytest pytest-asyncio
 
       # `pytest`, never `python -m pytest`: the latter puts the repository root on
-      #  `sys.path`, where `shazamio_core/shazamio_core.py` shadows the extension just
-      #  installed. `tests/conftest.py` fails loudly if that happens anyway.
+      #  `sys.path`, where the unbuilt `shazamio_core/` package shadows the one just
+      #  installed, so the extension import fails.
       - name: Run the tests
         run: pytest
 

@@ -73,7 +73,6 @@ class Recognizer:
             - This parameter determines the number of samples used for frequency analysis and fingerprint generation.
         """
         self.segment_duration_seconds = segment_duration_seconds
-        raise NotImplemented
 
     async def recognize_path(
             self,
@@ -90,7 +89,6 @@ class Recognizer:
         :return: Signature object.
         :raises SignatureError: if an error occurs.
         """
-        raise NotImplemented
 
     async def recognize_bytes(
             self,
@@ -107,4 +105,3 @@ class Recognizer:
         :return: Signature object.
         :raises SignatureError: if an error occurs.
         """
-        raise NotImplemented
