@@ -228,6 +228,13 @@ jobs:
       - name: Check the wheel installs and imports outside the build image
         run: |
           pip install --no-index --find-links dist shazamio_core
+
+          # `python -c` puts the working directory first on `sys.path`, so from the
+          #  repository root this imported `shazamio_core/` out of the source tree
+          #  instead of the wheel just installed -- and passed, for as long as that
+          #  directory held a Python stub next to the extension. `$RUNNER_TEMP` keeps
+          #  the source tree off the path, so the import can only resolve to the wheel.
+          cd "$RUNNER_TEMP"
           python -c "import shazamio_core; print(shazamio_core.__file__)"
 
       - name: Upload wheels
