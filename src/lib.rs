@@ -153,8 +153,8 @@ mod tests {
         assert_eq!(Recognizer::new(Some(4)).segment_duration_seconds, 4);
     }
 
-    // The module and `shazamio_core.pyi` declare the same six names by hand, so
-    //  nothing but this catches an export that was added to one and not the other.
+    // `stubtest` and `tests/test_init.py` compare the same list against the `.pyi`
+    //  and the package root; this one needs neither a wheel nor a Python environment.
     #[test]
     fn the_module_exports_every_name_the_stub_declares() {
         Python::initialize();
