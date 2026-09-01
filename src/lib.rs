@@ -34,7 +34,7 @@ fn shazamio_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
 }
 
 #[derive(Clone)]
-#[pyclass(from_py_object)]
+#[pyclass(from_py_object, module = "shazamio_core")]
 struct Recognizer {
     #[pyo3(get, set)]
     segment_duration_seconds: u32,

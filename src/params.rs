@@ -2,7 +2,7 @@ use pyo3::{pyclass, pymethods};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[pyclass(from_py_object)]
+#[pyclass(from_py_object, module = "shazamio_core")]
 pub(crate) struct SearchParams {
     #[pyo3(get, set)]
     pub(crate) segment_duration_seconds: u32,
