@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Regenerates the three probe files the golden fingerprint tests read.
+# Regenerates the four probe files the golden fingerprint tests read.
 #
 # They are synthetic: two linear chirps plus four fixed tones, so they carry no
 # third-party licence and no attribution. Real music would carry both, and no
@@ -9,9 +9,9 @@
 # bands the fingerprint peaks in, and the fixed tones give every band a peak that
 # stays put. A plain sine wave yields a near-empty signature.
 #
-# Re-running this reproduces `probe.mp3` and `probe.flac` byte for byte. It does
-# not reproduce `probe.ogg`: an Ogg stream carries a random serial number, so 80
-# of its 48330 bytes change per run. The decoded audio does not, and neither does
+# Re-running this reproduces `probe.mp3`, `probe.flac` and `probe.m4a` byte for
+# byte. It does not reproduce `probe.ogg`: an Ogg stream carries a random serial
+# number, so 80 of its 48330 bytes change per run. The decoded audio does not, and neither does
 # the fingerprint -- so `probe.flac.uri`, the one golden left, survives a
 # regeneration. Checked on ffmpeg 8.0.1; another build may re-encode differently,
 # and then the golden has to be rewritten alongside the audio.
@@ -27,5 +27,6 @@ ffmpeg -y -f lavfi -i "aevalsrc=\
 ffmpeg -y -i probe.wav -c:a libmp3lame -b:a 128k probe.mp3
 ffmpeg -y -i probe.wav -c:a libvorbis -b:a 96k probe.ogg
 ffmpeg -y -i probe.wav -c:a flac -compression_level 8 probe.flac
+ffmpeg -y -i probe.wav -c:a aac -b:a 128k probe.m4a
 
 rm probe.wav
