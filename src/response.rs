@@ -2,7 +2,7 @@ use pyo3::{pyclass, pymethods, PyResult};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
-#[pyclass(from_py_object)]
+#[pyclass(from_py_object, module = "shazamio_core")]
 pub(crate) struct Geolocation {
     #[pyo3(get)]
     pub(crate) altitude: i16,
@@ -13,7 +13,7 @@ pub(crate) struct Geolocation {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-#[pyclass(from_py_object)]
+#[pyclass(from_py_object, module = "shazamio_core")]
 pub(crate) struct SignatureSong {
     #[pyo3(get)]
     pub(crate) samples: u32,
@@ -24,7 +24,7 @@ pub(crate) struct SignatureSong {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-#[pyclass(from_py_object)]
+#[pyclass(from_py_object, module = "shazamio_core")]
 pub(crate) struct Signature {
     #[pyo3(get)]
     pub(crate) geolocation: Geolocation,
