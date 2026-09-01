@@ -6,7 +6,7 @@ use rodio::source::{SeekError, UniformSourceIterator};
 use rodio::{ChannelCount, Sample, SampleRate, Source};
 use std::collections::HashMap;
 use std::error::Error;
-use std::io::{BufReader, Cursor};
+use std::io::{BufReader, Cursor, Read, Seek};
 use std::path::Path;
 use std::time::Duration;
 
@@ -74,6 +74,23 @@ impl<S: Source> Source for NonEmptySpans<S> {
     }
 }
 
+// `symphonia` identifies a stream by probing it, and an mp4 keeps the `moov` atom
+//  naming its tracks at the end of the file unless the encoder was asked for
+//  `+faststart`, so a source that reports itself unseekable never reaches it.
+//  Every `.m4a` failed with "the format of the data has not been recognized"
+//  until the byte length was passed here; passing it also marks the source
+//  seekable, which is why `with_seekable` on top of it would be redundant.
+//  https://github.com/RustAudio/rodio/blob/a352fb53846b47523d828b276b6d625f251aabb2/src/decoder/builder.rs#L168
+fn decode<R: Read + Seek + Send + Sync + 'static>(
+    data: R,
+    byte_len: u64,
+) -> Result<rodio::Decoder<R>, Box<dyn Error>> {
+    Ok(rodio::Decoder::builder()
+        .with_data(data)
+        .with_byte_len(byte_len)
+        .build()?)
+}
+
 // Resample to the mono 16 kHz PCM the fingerprint is defined over.
 fn to_mono_16khz(source: impl Source) -> Vec<i16> {
     let uniform =
@@ -100,12 +117,11 @@ impl SignatureGenerator {
         segment_duration_seconds: Option<u32>,
     ) -> Result<DecodedSignature, Box<dyn Error>> {
         // Create a cursor around the byte array for decoding
+        let byte_len = bytes.len() as u64;
         let cursor = Cursor::new(bytes.clone());
 
-        let decoder = rodio::Decoder::new(cursor).or_else(|_decoding_error| {
-            // Use the original bytes vector here
-            decode_with_ffmpeg_from_bytes(&bytes)
-        })?;
+        let decoder = decode(cursor, byte_len)
+            .or_else(|_decoding_error| decode_with_ffmpeg_from_bytes(&bytes))?;
 
         let raw_pcm_samples: Vec<i16> = to_mono_16khz(decoder);
 
@@ -139,7 +155,9 @@ impl SignatureGenerator {
     ) -> Result<DecodedSignature, Box<dyn Error>> {
         // Decode the .WAV, .MP3, .OGG or .FLAC file
 
-        let mut decoder = rodio::Decoder::new(BufReader::new(std::fs::File::open(file_path)?));
+        let file = std::fs::File::open(file_path)?;
+        let byte_len = file.metadata()?.len();
+        let mut decoder = decode(BufReader::new(file), byte_len);
 
         if let Err(ref _decoding_error) = decoder {
             // Try to decode with FFMpeg, if available, in case of failure with
@@ -401,6 +419,17 @@ mod tests {
         Path::new(DATA_DIRECTORY).join("probe.flac")
     }
 
+    // The same open-and-measure the path entry point does, so a test here cannot
+    //  prove something that entry point does not.
+    fn decode_probe(
+        name: &str,
+    ) -> Result<rodio::Decoder<BufReader<std::fs::File>>, Box<dyn Error>> {
+        let file = std::fs::File::open(Path::new(DATA_DIRECTORY).join(name))?;
+        let byte_len = file.metadata()?.len();
+
+        decode(BufReader::new(file), byte_len)
+    }
+
     fn golden_uri() -> String {
         std::fs::read_to_string(format!("{DATA_DIRECTORY}/probe.flac.uri"))
             .unwrap()
@@ -532,6 +561,14 @@ mod tests {
 
         assert!(not_audio.is_err());
         assert!(not_a_sound_file.is_err());
+    }
+
+    // `decode_probe` rather than an entry point, so the answer cannot come from
+    //  anywhere else: this is the one format that needs the byte length to be
+    //  identified.
+    #[test]
+    fn an_mp4_container_decodes_from_the_builder_alone() {
+        assert!(decode_probe("probe.m4a").is_ok());
     }
 
     #[test]
