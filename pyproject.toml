@@ -20,7 +20,10 @@ build-backend = "maturin"
 
 [project]
 name = "shazamio_core"
+description = "Audio fingerprinting for Shazam, written in Rust and exposed to Python"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{name = "dotX12", email = "dev@shitposting.team"}]
 maintainers = [{name = "Danipulok", email = "danipulok@gmail.com"}]
 # Must match the `abi3-py*` feature in `Cargo.toml`, which is where the floor is
@@ -33,6 +36,10 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dynamic = ["version"]
+
+[project.urls]
+Repository = "https://github.com/shazamio/shazamio-core"
+Issues = "https://github.com/shazamio/shazamio-core/issues"
 
 [tool.maturin]
 bindings = "pyo3"
