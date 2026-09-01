@@ -1,11 +1,11 @@
-[tool.poetry]
-package-mode = false
-
-[tool.poetry.group.dev.dependencies]
-# Canonical floor: `build-system.requires` below.
-maturin = "^1.9.4"
-pytest = "^9.1.1"
-pytest-asyncio = "^1.4.0"
+# `maturin` is deliberately absent: its backend implements the PEP 660 editable
+#  hooks, so `uv sync` fetches it from `build-system.requires` below and builds the
+#  extension into the environment without it being named twice.
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+]
 
 [build-system]
 # `pyo3/extension-module` is deprecated and this crate no longer enables it: the
