@@ -64,6 +64,14 @@ jobs:
       - name: Run the tests
         run: uv run pytest
 
+      # Nothing else compares the hand-written `.pyi` with the extension, and it had
+      #  drifted: `Recognizer.__init__` declared a parameter the runtime carries on
+      #  `__new__`, and three classes claimed to be `@dataclass`. The stub does not
+      #  vary by platform, so one runner answers for all three.
+      - name: Check the type stub against the built extension
+        if: matrix.os == 'ubuntu-latest'
+        run: uv run python -m mypy.stubtest shazamio_core.shazamio_core
+
   # Byte layout, checksum, band ordering: none of that varies by platform, so one
   #  runner answers for all of them -- whether the fingerprint itself does is what
   #  the job above exists for.

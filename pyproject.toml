@@ -3,6 +3,9 @@
 #  extension into the environment without it being named twice.
 [dependency-groups]
 dev = [
+    # For `mypy.stubtest` alone, which checks `shazamio_core.pyi` against the built
+    #  extension in CI. Nothing here is type-checked with `mypy` itself.
+    "mypy>=2.3.1",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
 ]
