@@ -28,9 +28,10 @@ permissions:
   pages: write
   id-token: write
 
-# `maturin-action` installs the latest release unless told otherwise, so without
-# this the Linux wheels and the macOS/Windows wheels of one release come out of
-# different `maturin` versions. Must match `maturin==` in `docker/Dockerfile.manylinux_2_28_*`.
+# The one place the built-with version is stated. `maturin-action` installs the
+#  latest release unless told otherwise, and the manylinux images take this as a
+#  build argument, so without it the Linux wheels and the macOS/Windows wheels of
+#  one release come out of different `maturin` versions.
 env:
   MATURIN_VERSION: v1.14.1
 
@@ -192,6 +193,8 @@ jobs:
         with:
           file: ${{ matrix.docker_file }}
           platforms: ${{ matrix.arch }}
+          build-args: |
+            MATURIN_VERSION=${{ env.MATURIN_VERSION }}
           tags: shazamio_core
           push: false
           load: true

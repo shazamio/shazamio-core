@@ -39,8 +39,8 @@ updates:
       prefix: build
       include: scope
     ignore:
-      # `maturin` is pinned in four places and Dependabot reaches only this one.
-      #  `MATURIN_VERSION` in `ci.yaml` and `maturin==` in both manylinux Dockerfiles
-      #  are the versions wheels are actually built with, and a bump here alone would
-      #  raise the declared floor above every one of them without touching them.
+      # `maturin` is pinned in three places and Dependabot reaches only this one.
+      #  `MATURIN_VERSION` in `ci.yaml` is the version every wheel is actually built
+      #  with, and `build-system.requires` is the floor an sdist builder must meet.
+      #  A bump here alone moves neither, so the three drift apart silently.
       - dependency-name: maturin
