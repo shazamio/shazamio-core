@@ -55,9 +55,6 @@ jobs:
 
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
 
-      # The test dependencies come from `uv.lock` rather than from a second,
-      #  unversioned list written here, and `maturin` comes from
-      #  `build-system.requires`, so the extension is built without naming it twice.
       - name: Install the project and its test dependencies
         run: uv sync
 

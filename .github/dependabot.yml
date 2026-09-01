@@ -29,9 +29,6 @@ updates:
           - pyo3
           - pyo3-*
 
-  # `uv` has an ecosystem value of its own; poetry was served by `pip`, and keeping
-  #  that entry as well would point two ecosystems at one `pyproject.toml`.
-  #  https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference#package-ecosystem-
   - package-ecosystem: uv
     directory: /
     schedule:
