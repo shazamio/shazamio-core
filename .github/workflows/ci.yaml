@@ -53,14 +53,16 @@ jobs:
         with:
           python-version: "3.x"
 
-      - name: Install the extension and the test dependencies
-        run: pip install . pytest pytest-asyncio
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
 
-      # `pytest`, never `python -m pytest`: the latter puts the repository root on
-      #  `sys.path`, where the unbuilt `shazamio_core/` package shadows the one just
-      #  installed, so the extension import fails.
+      # The test dependencies come from `uv.lock` rather than from a second,
+      #  unversioned list written here, and `maturin` comes from
+      #  `build-system.requires`, so the extension is built without naming it twice.
+      - name: Install the project and its test dependencies
+        run: uv sync
+
       - name: Run the tests
-        run: pytest
+        run: uv run pytest
 
   # Byte layout, checksum, band ordering: none of that varies by platform, so one
   #  runner answers for all of them -- whether the fingerprint itself does is what
