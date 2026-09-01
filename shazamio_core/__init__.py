@@ -6,3 +6,12 @@ from .shazamio_core import (
     Recognizer,
     SearchParams,
 )
+
+__all__ = [
+    "Geolocation",
+    "Recognizer",
+    "SearchParams",
+    "Signature",
+    "SignatureError",
+    "SignatureSong",
+]
