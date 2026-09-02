@@ -563,6 +563,24 @@ mod tests {
         assert!(not_a_sound_file.is_err());
     }
 
+    // The byte length is also what lets `symphonia` trim an encoder's padding back
+    //  off. Without it `probe.ogg` decoded 352832 frames against the 352800 of the
+    //  source, so every `.ogg` fingerprint carried 0.7 ms of padding the audio
+    //  never had. `probe.m4a` is not in this list: AAC prepends 1504 priming
+    //  frames that the ISO-MP4 reader does not trim, and no setting here changes
+    //  that.
+    #[test]
+    fn a_probe_decodes_to_exactly_the_length_of_the_source() {
+        const SOURCE_FRAMES: usize = 8 * 44100;
+
+        for name in ["probe.flac", "probe.mp3", "probe.ogg"] {
+            let decoder = decode_probe(name).unwrap();
+            let channels = decoder.channels().get() as usize;
+
+            assert_eq!(decoder.count() / channels, SOURCE_FRAMES, "{name}");
+        }
+    }
+
     // `decode_probe` rather than an entry point, so the answer cannot come from
     //  anywhere else: this is the one format that needs the byte length to be
     //  identified.
