@@ -206,14 +206,19 @@ jobs:
           tags: shazamio_core
           push: false
           load: true
-          cache-from: type=gha
+          # Both matrix entries share the buildx default scope otherwise, so the
+          #  repository holds one index and whichever job finishes last on `master`
+          #  overwrites the other's. One run measured 12 cached layers on x86 against 0
+          #  on ARM64, and 8.72 GB of blobs behind four surviving indexes.
+          #  https://github.com/moby/buildkit/blob/703866e5f2e4af295b485b181b447a7755d5099c/README.md#L544
+          cache-from: type=gha,scope=${{ matrix.name }}
           # A pull request's cache is scoped to `refs/pull/N/merge`, which neither `master`
           #  nor another pull request can read, so each one exported a full image of layers
           #  nobody could reuse. That held the repository over the 10 GB limit, and eviction
           #  is oldest-first, so the x86 image lost its layers before the next run read them
           #  -- 0 cached layers, and 224s of a 441s build step spent re-exporting them.
           #  https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching
-          cache-to: ${{ github.ref == 'refs/heads/master' && 'type=gha,mode=max' || '' }}
+          cache-to: ${{ github.ref == 'refs/heads/master' && format('type=gha,mode=max,scope={0}', matrix.name) || '' }}
           context: .
 
       - name: List /opt/dist directory
