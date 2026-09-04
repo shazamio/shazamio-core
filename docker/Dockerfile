@@ -46,7 +46,6 @@ COPY --from=planner /opt/recipe.json recipe.json
 #  Why the feature went away: the `[build-system]` comment in `pyproject.toml`.
 RUN PYO3_BUILD_EXTENSION_MODULE=1 cargo chef cook --release --recipe-path recipe.json
 COPY . .
-ARG PYTHON_INTERPRETER
 RUN bash /opt/docker/build-manylinux.sh
 RUN rm -rf target
 
