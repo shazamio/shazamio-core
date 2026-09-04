@@ -49,7 +49,7 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-`recognize_path` accepts a `str` or any `os.PathLike`.
+`recognize_path` accepts a `str` or an `os.PathLike[str]`. A `__fspath__` returning `bytes` is rejected.
 
 ### What comes back
 
