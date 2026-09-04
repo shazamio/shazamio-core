@@ -108,11 +108,13 @@ Every check CI runs is a [`just`](https://github.com/casey/just) recipe, so the 
 
 ```sh
 just --list      # what there is
-just sync        # builds the extension and installs the test dependencies
+just install     # builds the extension, installs the test dependencies and the commit hooks
 just all         # everything CI gates on
 ```
 
-`just sync` needs a Rust toolchain; `maturin` comes from `pyproject.toml` and is fetched automatically. `just` itself is packaged for most systems, listed under [Packages](https://github.com/casey/just#packages).
+`just install` also wires the same recipes into `git commit` through [`pre-commit`](https://pre-commit.com), each one scoped to the files it gates, so a change to the `README` runs none of them and a change to the crate runs all of them.
+
+`just install` needs a Rust toolchain; `maturin` comes from `pyproject.toml` and is fetched automatically. `just` itself is packaged for most systems, listed under [Packages](https://github.com/casey/just#packages).
 
 `just rust-test` links `libpython`, so on Debian and Ubuntu the development package of the interpreter `cargo` picks up has to be present, or the build stops at `rust-lld: error: unable to find library -lpython3.14`:
 

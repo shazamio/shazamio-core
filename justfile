@@ -14,6 +14,13 @@ default:
 sync:
     uv sync
 
+# `--install-hooks` builds the hook environments now instead of during whichever
+#  commit happens to be the first, which otherwise stalls for a minute with no
+#  indication that it is downloading rather than checking.
+[doc("Everything a checkout needs: the dependencies and the `pre-commit` hooks")]
+install: sync
+    uv run pre-commit install --install-hooks
+
 [doc("Run the Python test suite")]
 test:
     uv run pytest

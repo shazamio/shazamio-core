@@ -1,0 +1,76 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+      - id: check-case-conflict
+      - id: check-executables-have-shebangs
+      - id: check-illegal-windows-names
+      - id: check-merge-conflict
+      - id: check-shebang-scripts-are-executable
+      - id: check-symlinks
+      - id: check-toml
+      - id: check-vcs-permalinks
+      - id: check-yaml
+      - id: destroyed-symlinks
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: fix-byte-order-marker
+      - id: forbid-submodules
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: check-ast
+      - id: debug-statements
+      - id: name-tests-test
+        args: [--pytest-test-first]
+
+  # Each hook below is one of the gating jobs in `.github/workflows/ci.yaml`,
+  #  calling the same recipe that job calls. Its `files:` regex is what keeps a
+  #  commit from paying for a check nothing in it could have broken.
+  - repo: local
+    hooks:
+      - id: lint
+        name: rust · fmt and clippy
+        entry: just
+        args: [lint]
+        language: system
+        files: ^(src/.*\.rs|Cargo\.(toml|lock))$
+        pass_filenames: false
+
+      - id: rust-test
+        name: rust · unit tests
+        entry: just
+        args: [rust-test]
+        language: system
+        files: ^(src/.*\.rs|Cargo\.(toml|lock))$
+        pass_filenames: false
+
+      # On the lockfile as well as on the crate: what a `cargo update` can do to
+      #  the floor is argued above the `msrv` recipe.
+      - id: msrv
+        name: rust · check against the declared MSRV
+        entry: just
+        args: [msrv]
+        language: system
+        files: ^(src/.*\.rs|Cargo\.(toml|lock))$
+        pass_filenames: false
+
+      # The Rust sources are in scope because the tests exercise the built
+      #  extension; `tool.uv.cache-keys` in `pyproject.toml` is what rebuilds it.
+      - id: test
+        name: python · pytest
+        entry: just
+        args: [test]
+        language: system
+        files: ^(src/.*\.rs|tests/.*|Cargo\.(toml|lock)|pyproject\.toml|uv\.lock)$
+        pass_filenames: false
+
+      - id: stubtest
+        name: python · stub against the built extension
+        entry: just
+        args: [stubtest]
+        language: system
+        files: ^(src/.*\.rs|shazamio_core/.*|Cargo\.(toml|lock)|pyproject\.toml)$
+        pass_filenames: false
