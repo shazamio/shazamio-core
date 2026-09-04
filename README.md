@@ -112,7 +112,7 @@ just install     # builds the extension, installs the test dependencies and the 
 just all         # everything CI gates on
 ```
 
-`just install` also wires the same recipes into `git commit` through [`pre-commit`](https://pre-commit.com), each one scoped to the files it gates, so a change to the `README` runs none of them and a change to the crate runs all of them.
+`just install` also wires the same recipes into `git commit` through [`pre-commit`](https://pre-commit.com), each one scoped to the files it gates, so a change to the `README` runs none of them and a change to the crate runs all of them. CI scopes its jobs the same way, from the same sets: `.github/path-filters.yaml`.
 
 `just install` needs a Rust toolchain; `maturin` comes from `pyproject.toml` and is fetched automatically. `just` itself is packaged for most systems, listed under [Packages](https://github.com/casey/just#packages).
 

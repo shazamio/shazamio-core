@@ -41,11 +41,42 @@ env:
 #  `.github/actions/setup-just`.
 
 jobs:
+  # A `paths:` filter on the trigger skips the whole workflow, and a required check
+  #  belonging to a run that never happened stays pending forever. A job skipped by
+  #  `if:` reports `skipped`, which counts as success, so the gate lives here.
+  #  https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/collaborating-on-repositories-with-code-quality-features/troubleshooting-required-status-checks
+  changes:
+    name: Changed paths
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # The workflow grants three scopes, which sets every other one to `none`, and
+      #  this action reads the pull request's file list through the API.
+      #  https://github.com/dorny/paths-filter/blob/ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d/README.md#L23
+      pull-requests: read
+    outputs:
+      rust: ${{ steps.filter.outcome == 'skipped' || steps.filter.outputs.rust == 'true' }}
+      python: ${{ steps.filter.outcome == 'skipped' || steps.filter.outputs.python == 'true' }}
+      dist: ${{ steps.filter.outcome == 'skipped' || steps.filter.outputs.dist == 'true' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # A tag push carries no diff to filter on, and `workflow_dispatch` is somebody
+      #  asking for the whole matrix. The step then does not run and leaves its
+      #  outputs empty, which the three above read as `true`.
+      - id: filter
+        if: github.event_name != 'workflow_dispatch' && !startsWith(github.ref, 'refs/tags/')
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: .github/path-filters.yaml
+
   # Builds its own wheel rather than taking one from `linux`: the goldens are a claim
   #  about the algorithm, and the claim has to hold on every platform the wheels
   #  target. `release` waits on this job, so a changed fingerprint stops a publish.
   test:
     name: Test (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -77,6 +108,8 @@ jobs:
   #  the job above exists for.
   rust-test:
     name: Rust unit tests
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -101,6 +134,8 @@ jobs:
   #  rewrite of code that predates it.
   lint:
     name: Rust lint
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -116,6 +151,8 @@ jobs:
   #  up. There is no per-interpreter matrix any more, so a new CPython release
   #  needs no change here and no new release. The floor lives in `Cargo.toml`.
   windows:
+   needs: changes
+   if: needs.changes.outputs.dist == 'true'
    runs-on: windows-latest
    strategy:
      matrix:
@@ -146,6 +183,8 @@ jobs:
          path: dist
 #
   macos:
+    needs: changes
+    if: needs.changes.outputs.dist == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -175,6 +214,8 @@ jobs:
           path: dist
 
   linux:
+    needs: changes
+    if: needs.changes.outputs.dist == 'true'
     strategy:
       matrix:
         include:
@@ -260,6 +301,8 @@ jobs:
           path: dist
 
   sdist:
+    needs: changes
+    if: needs.changes.outputs.dist == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -279,6 +322,8 @@ jobs:
   #  other job installs current stable. Why that matters: the `msrv` recipe.
   msrv:
     name: MSRV
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

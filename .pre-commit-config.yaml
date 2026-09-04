@@ -26,9 +26,12 @@ repos:
       - id: name-tests-test
         args: [--pytest-test-first]
 
-  # Each hook below is one of the gating jobs in `.github/workflows/ci.yaml`,
-  #  calling the same recipe that job calls. Its `files:` regex is what keeps a
-  #  commit from paying for a check nothing in it could have broken.
+  # Each hook runs the recipe its namesake job in `.github/workflows/ci.yaml` runs,
+  #  over the same paths: the `rust` and `python` sets of
+  #  `.github/path-filters.yaml`, which neither format can read from the other.
+
+  # Deliberately not identical to that file: each config lists whatever decides for
+  #  it, so the workflow carries `.github/**` and this one carries itself.
   - repo: local
     hooks:
       - id: lint
@@ -36,7 +39,7 @@ repos:
         entry: just
         args: [lint]
         language: system
-        files: ^(src/.*\.rs|Cargo\.(toml|lock))$
+        files: ^(\.pre-commit-config\.yaml|justfile|src/.*|Cargo\.(toml|lock))$
         pass_filenames: false
 
       - id: rust-test
@@ -44,7 +47,7 @@ repos:
         entry: just
         args: [rust-test]
         language: system
-        files: ^(src/.*\.rs|Cargo\.(toml|lock))$
+        files: ^(\.pre-commit-config\.yaml|justfile|src/.*|Cargo\.(toml|lock))$
         pass_filenames: false
 
       # On the lockfile as well as on the crate: what a `cargo update` can do to
@@ -54,17 +57,17 @@ repos:
         entry: just
         args: [msrv]
         language: system
-        files: ^(src/.*\.rs|Cargo\.(toml|lock))$
+        files: ^(\.pre-commit-config\.yaml|justfile|src/.*|Cargo\.(toml|lock))$
         pass_filenames: false
 
-      # The Rust sources are in scope because the tests exercise the built
-      #  extension; `tool.uv.cache-keys` in `pyproject.toml` is what rebuilds it.
+      # The crate is in scope for both because they exercise the built extension;
+      #  `tool.uv.cache-keys` in `pyproject.toml` is what rebuilds it.
       - id: test
         name: python · pytest
         entry: just
         args: [test]
         language: system
-        files: ^(src/.*\.rs|tests/.*|Cargo\.(toml|lock)|pyproject\.toml|uv\.lock)$
+        files: ^(\.pre-commit-config\.yaml|justfile|src/.*|Cargo\.(toml|lock)|tests/.*|shazamio_core/.*|pyproject\.toml|uv\.lock)$
         pass_filenames: false
 
       - id: stubtest
@@ -72,5 +75,5 @@ repos:
         entry: just
         args: [stubtest]
         language: system
-        files: ^(src/.*\.rs|shazamio_core/.*|Cargo\.(toml|lock)|pyproject\.toml)$
+        files: ^(\.pre-commit-config\.yaml|justfile|src/.*|Cargo\.(toml|lock)|tests/.*|shazamio_core/.*|pyproject\.toml|uv\.lock)$
         pass_filenames: false
