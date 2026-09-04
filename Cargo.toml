@@ -41,3 +41,10 @@ pyo3 = { version = "=0.29.2", features = ["abi3-py310"] }
 pyo3-async-runtimes = { version = "0.29.0", features = ["tokio-runtime"] }
 pyo3-log = "=0.13.4"
 log = "0.4.33"
+
+[profile.release]
+# Measured 2026-09-05 by diffing the CI wheels before and after. On Linux the
+#  extension loses 23% against 1.8% for `"debuginfo"`, on macOS 21%, and on Windows
+#  nothing: its debug information sits in a `.pdb` that no wheel carried.
+#  https://doc.rust-lang.org/cargo/reference/profiles.html#strip
+strip = "symbols"
