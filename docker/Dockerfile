@@ -1,10 +1,9 @@
-# Pinned to a dated tag rather than `latest`: this image is what links the wheel --
-#  its `devtoolset` gcc, its system libraries, its `auditwheel`. Nothing downstream
-#  checks the result, so a silent rebuild underneath would land in a release
-#  unnoticed. The tag must be the SAME in both images, or the x86 and arm wheels of
-#  one release come out of different toolchains.
-#  https://quay.io/repository/pypa/manylinux_2_28_x86_64?tab=tags
-FROM quay.io/pypa/manylinux_2_28_x86_64:2026.08.24-1 AS base
+# The tag names no architecture on purpose: it is a manifest list, so buildx pulls the
+#  entry matching `platforms` in the workflow and one file serves both runners. The date
+#  is pinned because a silent rebuild of the toolchain that links the wheel would ship
+#  unnoticed.
+#  https://docs.docker.com/build/building/multi-platform/
+FROM quay.io/pypa/manylinux_2_28:2026.08.24-1 AS base
 
 RUN dnf install -y epel-release
 # RUN dnf config-manager --set-enabled crb
@@ -47,7 +46,6 @@ COPY --from=planner /opt/recipe.json recipe.json
 #  Why the feature went away: the `[build-system]` comment in `pyproject.toml`.
 RUN PYO3_BUILD_EXTENSION_MODULE=1 cargo chef cook --release --recipe-path recipe.json
 COPY . .
-ARG PYTHON_INTERPRETER
 RUN bash /opt/docker/build-manylinux.sh
 RUN rm -rf target
 
