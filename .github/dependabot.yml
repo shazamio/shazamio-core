@@ -34,6 +34,14 @@ updates:
           - pyo3
           - pyo3-*
 
+  - package-ecosystem: pre-commit
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: build
+      include: scope
+
   - package-ecosystem: uv
     directory: /
     schedule:
