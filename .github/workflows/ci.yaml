@@ -36,10 +36,9 @@ env:
   MATURIN_VERSION: v1.14.1
 
 # Every command below lives in the `justfile`, so a local check and a CI job are one
-#  string rather than two copies that drift. `just` is a Rust binary no runner ships;
-#  it is on PyPI as `rust-just`, and installing it with `uv` keeps it off the list of
-#  pinned actions above: there is no third-party action here to grant `contents:
-#  write` to.
+#  string rather than two copies that drift. Four jobs need `just`, so getting it is
+#  a local composite action rather than four copies of the same two commands:
+#  `.github/actions/setup-just`.
 
 jobs:
   # Builds its own wheel rather than taking one from `linux`: the goldens are a claim
@@ -59,12 +58,7 @@ jobs:
         with:
           python-version: "3.x"
 
-      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-
-      - name: Install `just`
-        run: |
-          uv tool install rust-just
-          uv tool dir --bin >> "$GITHUB_PATH"
+      - uses: ./.github/actions/setup-just
 
       - name: Install the project and its test dependencies
         run: just sync
@@ -95,12 +89,7 @@ jobs:
         with:
           python-version: "3.x"
 
-      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-
-      - name: Install `just`
-        run: |
-          uv tool install rust-just
-          uv tool dir --bin >> "$GITHUB_PATH"
+      - uses: ./.github/actions/setup-just
 
       - name: Run the unit tests
         run: just rust-test
@@ -118,12 +107,7 @@ jobs:
 
       - run: rustup component add rustfmt clippy
 
-      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-
-      - name: Install `just`
-        run: |
-          uv tool install rust-just
-          uv tool dir --bin >> "$GITHUB_PATH"
+      - uses: ./.github/actions/setup-just
 
       - name: Check the formatting and run `clippy`
         run: just lint
@@ -294,12 +278,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-
-      - name: Install `just`
-        run: |
-          uv tool install rust-just
-          uv tool dir --bin >> "$GITHUB_PATH"
+      - uses: ./.github/actions/setup-just
 
       - name: Check the crate against the declared MSRV
         run: just msrv
