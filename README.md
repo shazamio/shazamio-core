@@ -104,13 +104,21 @@ Decoding goes through [`rodio`](https://github.com/RustAudio/rodio) and `symphon
 
 ## Development
 
+Every check CI runs is a [`just`](https://github.com/casey/just) recipe, so the two cannot drift apart:
+
 ```sh
-uv sync          # builds the extension and installs the test dependencies
-uv run pytest
-cargo test       # the Rust unit tests
+just --list      # what there is
+just sync        # builds the extension and installs the test dependencies
+just all         # everything CI gates on
 ```
 
-`uv sync` needs a Rust toolchain; `maturin` comes from `pyproject.toml` and is fetched automatically.
+`just sync` needs a Rust toolchain; `maturin` comes from `pyproject.toml` and is fetched automatically. `just` itself is packaged for most systems, listed under [Packages](https://github.com/casey/just#packages).
+
+`just rust-test` links `libpython`, so on Debian and Ubuntu the development package of the interpreter `cargo` picks up has to be present, or the build stops at `rust-lld: error: unable to find library -lpython3.14`:
+
+```sh
+sudo apt install libpython3.14-dev
+```
 
 ## License
 

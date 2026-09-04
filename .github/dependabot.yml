@@ -4,8 +4,13 @@ updates:
   # Without this the SHA pins in `ci.yaml` freeze: nothing else in the repository
   #  reads them, so an action stays on whatever commit it was pinned to the day it
   #  was written. Dependabot rewrites both the SHA and the version comment beside it.
+  #  `/` reaches `.github/workflows` and a root `action.yml` and nothing deeper, so
+  #  the actions we write ourselves are named separately; only `directories` globs.
+  #  https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference#directories-or-directory--
   - package-ecosystem: github-actions
-    directory: /
+    directories:
+      - /
+      - /.github/actions/*
     schedule:
       interval: monthly
     commit-message:

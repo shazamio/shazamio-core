@@ -35,6 +35,11 @@ permissions:
 env:
   MATURIN_VERSION: v1.14.1
 
+# Every command below lives in the `justfile`, so a local check and a CI job are one
+#  string rather than two copies that drift. Four jobs need `just`, so getting it is
+#  a local composite action rather than four copies of the same two commands:
+#  `.github/actions/setup-just`.
+
 jobs:
   # Builds its own wheel rather than taking one from `linux`: the goldens are a claim
   #  about the algorithm, and the claim has to hold on every platform the wheels
@@ -53,21 +58,19 @@ jobs:
         with:
           python-version: "3.x"
 
-      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - uses: ./.github/actions/setup-just
 
       - name: Install the project and its test dependencies
-        run: uv sync
+        run: just sync
 
       - name: Run the tests
-        run: uv run pytest
+        run: just test
 
-      # Nothing else compares the hand-written `.pyi` with the extension, and it had
-      #  drifted: `Recognizer.__init__` declared a parameter the runtime carries on
-      #  `__new__`, and three classes claimed to be `@dataclass`. The stub does not
-      #  vary by platform, so one runner answers for all three.
+      # The stub does not vary by platform, so one runner answers for all three. Why
+      #  the check exists at all: the `stubtest` recipe.
       - name: Check the type stub against the built extension
         if: matrix.os == 'ubuntu-latest'
-        run: uv run python -m mypy.stubtest shazamio_core.shazamio_core
+        run: just stubtest
 
   # Byte layout, checksum, band ordering: none of that varies by platform, so one
   #  runner answers for all of them -- whether the fingerprint itself does is what
@@ -80,20 +83,22 @@ jobs:
 
       # The test binary is an executable rather than an extension module, so it
       #  links `libpython` instead of borrowing the loader's symbols, and needs an
-      #  interpreter built `--enable-shared` -- which is what this action ships.
+      #  interpreter built `--enable-shared`, which is what this action ships.
       #  https://github.com/actions/python-versions/blob/c2033aa6c313f068f4bde238bfaa5987ad4f2e79/builders/ubuntu-python-builder.psm1#L37
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.x"
 
-      - name: Run the unit tests
-        run: cargo test
+      - uses: ./.github/actions/setup-just
 
-  # Neither gate below is provided by anything else here: the wheel jobs compile the
-  #  crate, and a compiler is indifferent to formatting and to every lint `clippy`
-  #  adds on top of it. `clippy` runs at its own default level rather than with a
-  #  curated lint set -- this is a gate against new findings, not a rewrite of code
-  #  that predates it.
+      - name: Run the unit tests
+        run: just rust-test
+
+  # Neither of the two gates the recipe runs is provided by anything else here: the
+  #  wheel jobs compile the crate, and a compiler is indifferent to formatting and to
+  #  every lint `clippy` adds on top of it. `clippy` runs at its own default level
+  #  rather than with a curated lint set: it is a gate against new findings, not a
+  #  rewrite of code that predates it.
   lint:
     name: Rust lint
     runs-on: ubuntu-latest
@@ -102,14 +107,10 @@ jobs:
 
       - run: rustup component add rustfmt clippy
 
-      - name: Check the formatting
-        run: cargo fmt --all --check
+      - uses: ./.github/actions/setup-just
 
-      # `--all-targets` is what reaches the `#[cfg(test)]` modules. The default target
-      #  set stops at the library, so every unit test would go unlinted.
-      #  https://doc.rust-lang.org/cargo/commands/cargo-clippy.html#target-selection
-      - name: Run `clippy`
-        run: cargo clippy --all-targets -- -D warnings
+      - name: Check the formatting and run `clippy`
+        run: just lint
 
   # The wheels below are abi3: one per platform, loading on every CPython from 3.10
   #  up. There is no per-interpreter matrix any more, so a new CPython release
@@ -269,24 +270,18 @@ jobs:
           name: wheels-sdist
           path: dist
 
-  # `rust-version` in `Cargo.toml` is a claim nothing else checks: every other job
-  # installs current stable, so a `cargo update` can raise the real floor and stay
-  # green. Whoever builds the sdist on a distro toolchain is the one who finds out.
+  # `rust-version` in `Cargo.toml` is a claim nothing else checks, because every
+  #  other job installs current stable. Why that matters: the `msrv` recipe.
   msrv:
     name: MSRV
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Read from `Cargo.toml` rather than restated here: a second copy would drift
-      # and leave the job checking a floor the crate no longer declares.
-      - name: Read the declared MSRV
-        id: declared
-        run: echo "version=$(grep -oP '^rust-version = "\K[^"]+' Cargo.toml)" >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/setup-just
 
-      - run: rustup toolchain install ${{ steps.declared.outputs.version }} --profile minimal
-
-      - run: cargo +${{ steps.declared.outputs.version }} check --locked --all-targets
+      - name: Check the crate against the declared MSRV
+        run: just msrv
 
   release:
     name: Release
