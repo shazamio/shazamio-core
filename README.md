@@ -112,7 +112,7 @@ just sync        # builds the extension and installs the test dependencies
 just all         # everything CI gates on
 ```
 
-`just sync` needs a Rust toolchain; `maturin` comes from `pyproject.toml` and is fetched automatically. `just` itself is on PyPI, so `uv tool install rust-just` is one way to get it.
+`just sync` needs a Rust toolchain; `maturin` comes from `pyproject.toml` and is fetched automatically. `just` itself is packaged for most systems, listed under [Packages](https://github.com/casey/just#packages).
 
 `just rust-test` links `libpython`, so on Debian and Ubuntu the development package of the interpreter `cargo` picks up has to be present, or the build stops at `rust-lld: error: unable to find library -lpython3.14`:
 

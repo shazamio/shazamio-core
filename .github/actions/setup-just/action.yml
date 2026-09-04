@@ -1,16 +1,14 @@
 name: Set up `just`
-description: Install `uv` and the `just` runner, and put `just` on `PATH`.
+description: Install `uv` and the `just` runner.
 
 runs:
   using: composite
   steps:
     - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
 
-    # On PyPI `just` is `rust-just`; the name `just` there is an unrelated package.
-    #  The version is exact so every runner gets the same one, and nothing bumps it:
-    #  Dependabot reads `uses:` and lockfiles, never a version inside a `run:`.
-    #  https://pypi.org/project/rust-just/
-    - shell: bash
-      run: |
-        uv tool install rust-just==1.58.0
-        uv tool dir --bin >> "$GITHUB_PATH"
+    # The version is pinned rather than left to float, so a `just` release cannot turn
+    #  CI red on its own. Dependabot bumps the two action pins here but not this
+    #  version, which is an input rather than a `uses:`, so a new `just` is taken by hand.
+    - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
+      with:
+        just-version: "1.58.0"
