@@ -7,8 +7,10 @@ runs:
     - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
 
     # The version is pinned rather than left to float, so a `just` release cannot turn
-    #  CI red on its own. Dependabot bumps the two action pins here but not this
-    #  version, which is an input rather than a `uses:`, so a new `just` is taken by hand.
+    #  CI red on its own. Dependabot bumps the two action pins here but not this one: its
+    #  parser collects `uses:` values and reads no `with:` block at all, so a new `just`
+    #  is taken by hand.
+    #  https://github.com/dependabot/dependabot-core/blob/9eb8675fc93584540fcde661811d38507bb9458b/github_actions/lib/dependabot/github_actions/file_parser.rb#L59
     - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
       with:
         just-version: "1.58.0"
