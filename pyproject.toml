@@ -3,11 +3,20 @@
 #  extension into the environment without it being named twice.
 [dependency-groups]
 dev = [
+    { include-group = "tests" },
+    { include-group = "lint" },
+]
+tests = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+]
+lint = [
     # For `mypy.stubtest` alone, which checks `shazamio_core.pyi` against the built
     #  extension in CI. Nothing here is type-checked with `mypy` itself.
     "mypy>=2.3.1",
-    "pytest>=9.1.1",
-    "pytest-asyncio>=1.4.0",
+    # Locked here rather than left to each machine, which is what `just` itself
+    #  has to be.
+    "pre-commit>=4.6.0",
 ]
 
 [build-system]
@@ -43,6 +52,18 @@ Issues = "https://github.com/shazamio/shazamio-core/issues"
 
 [tool.maturin]
 bindings = "pyo3"
+
+# `uv` rebuilds the editable install only when `pyproject.toml` changes, so a
+#  Rust edit left the old extension in place and `pytest` went on testing the
+#  previous build. Naming keys replaces that default, so `pyproject.toml` stays.
+#  https://docs.astral.sh/uv/concepts/cache/#dependency-caching
+[tool.uv]
+cache-keys = [
+    { file = "pyproject.toml" },
+    { file = "Cargo.toml" },
+    { file = "Cargo.lock" },
+    { file = "src/**/*.rs" },
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
