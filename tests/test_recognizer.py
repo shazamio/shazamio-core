@@ -37,8 +37,7 @@ DATA_DIRECTORY: Final[Path] = Path(__file__).parent / "data"
 
 AUDIO_FORMATS: Final[tuple[str, ...]] = ("mp3", "ogg", "opus", "flac")
 
-# The one format whose signature is byte-identical across platforms -- see above.
-LOSSLESS_AUDIO_FORMAT: Final[str] = "flac"
+GOLDEN_AUDIO_FORMAT: Final[str] = "flac"
 
 # All three files encode the same 8-second source. `.samples` names a duration, not
 #  a count: `src/fingerprinting/communication.rs` divides the sample count by the
@@ -58,9 +57,9 @@ def _probe(audio_format: str) -> Path:
 
 @pytest.mark.skipif(sys.platform != "linux", reason="the golden URI is pinned on Linux")
 async def test_the_flac_signature_matches_the_golden_uri(*, recognizer: Recognizer) -> None:
-    golden_uri = (DATA_DIRECTORY / f"probe.{LOSSLESS_AUDIO_FORMAT}.uri").read_text().strip()
+    golden_uri = (DATA_DIRECTORY / f"probe.{GOLDEN_AUDIO_FORMAT}.uri").read_text().strip()
 
-    signature = await recognizer.recognize_path(_probe(LOSSLESS_AUDIO_FORMAT))
+    signature = await recognizer.recognize_path(_probe(GOLDEN_AUDIO_FORMAT))
 
     assert signature.signature.uri == golden_uri
 
