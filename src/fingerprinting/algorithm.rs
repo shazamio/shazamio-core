@@ -306,17 +306,17 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
 
-    // The probe and its pinned URI are the ones `tests/` uses; `tests/data/generate.sh`
-    //  regenerates the audio. Reading them here rather than restating the expected
-    //  bytes keeps one copy of the golden.
+    // The probes and their pinned URIs are the ones `tests/` uses;
+    //  `tests/data/generate.sh` regenerates the audio. Reading them here rather than
+    //  restating the expected bytes keeps one copy of each golden.
     const DATA_DIRECTORY: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data");
 
-    fn probe_path() -> PathBuf {
-        Path::new(DATA_DIRECTORY).join("probe.flac")
+    fn probe_path(name: &str) -> PathBuf {
+        Path::new(DATA_DIRECTORY).join(name)
     }
 
-    fn golden_uri() -> String {
-        std::fs::read_to_string(format!("{DATA_DIRECTORY}/probe.flac.uri"))
+    fn golden_uri(name: &str) -> String {
+        std::fs::read_to_string(format!("{DATA_DIRECTORY}/{name}.uri"))
             .unwrap()
             .trim()
             .to_string()
@@ -325,7 +325,7 @@ mod tests {
     // The same read-and-decode the path entry point does, so a test here cannot prove
     //  something that entry point does not.
     fn decode_probe(name: &str) -> Result<(usize, usize), Box<dyn Error>> {
-        let bytes = std::fs::read(Path::new(DATA_DIRECTORY).join(name))?;
+        let bytes = std::fs::read(probe_path(name))?;
         let (spec, samples) = samples_from_bytes(bytes, usize::MAX, 0)?;
 
         Ok((samples.len() / spec.channels.count(), spec.channels.count()))
@@ -364,9 +364,10 @@ mod tests {
 
     #[test]
     fn the_whole_pipeline_reproduces_the_golden_uri() {
-        let signature = SignatureGenerator::make_signature_from_file(&probe_path(), None).unwrap();
+        let signature =
+            SignatureGenerator::make_signature_from_file(&probe_path("probe.flac"), None).unwrap();
 
-        assert_eq!(signature.encode_to_uri().unwrap(), golden_uri());
+        assert_eq!(signature.encode_to_uri().unwrap(), golden_uri("probe.flac"));
 
         // Peaks landed in every band, so `do_peak_recognition` ran its whole match.
         let mut bands: Vec<_> = signature.frequency_band_to_sound_peaks.keys().collect();
@@ -383,11 +384,31 @@ mod tests {
     }
 
     #[test]
+    fn the_chord_probe_reproduces_its_golden_uri() {
+        let signature =
+            SignatureGenerator::make_signature_from_file(&probe_path("chord.flac"), None).unwrap();
+
+        assert_eq!(signature.encode_to_uri().unwrap(), golden_uri("chord.flac"));
+
+        // `probe.flac` holds nothing above 3.2 kHz, so its 7 peaks between 3500 and
+        //  5500 Hz are resampling artifacts, against 36 here. That is what makes this
+        //  the probe a decoding or resampling change is judged on.
+        let top_band = &signature.frequency_band_to_sound_peaks[&FrequencyBand::_3500_5500];
+
+        assert!(
+            top_band.len() > 20,
+            "top band holds {} peaks",
+            top_band.len()
+        );
+    }
+
+    #[test]
     fn a_segment_shorter_than_the_file_is_cut_from_the_middle() {
         let from_file =
-            SignatureGenerator::make_signature_from_file(&probe_path(), Some(4)).unwrap();
+            SignatureGenerator::make_signature_from_file(&probe_path("probe.flac"), Some(4))
+                .unwrap();
         let from_bytes = SignatureGenerator::make_signature_from_bytes(
-            std::fs::read(probe_path()).unwrap(),
+            std::fs::read(probe_path("probe.flac")).unwrap(),
             Some(4),
         )
         .unwrap();
@@ -403,11 +424,14 @@ mod tests {
 
     #[test]
     fn the_bytes_of_a_file_fingerprint_the_same_as_its_path() {
-        let probe = std::fs::read(probe_path()).unwrap();
+        let probe = std::fs::read(probe_path("probe.flac")).unwrap();
 
         let from_bytes = SignatureGenerator::make_signature_from_bytes(probe, None).unwrap();
 
-        assert_eq!(from_bytes.encode_to_uri().unwrap(), golden_uri());
+        assert_eq!(
+            from_bytes.encode_to_uri().unwrap(),
+            golden_uri("probe.flac")
+        );
     }
 
     #[test]
