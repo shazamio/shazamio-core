@@ -343,6 +343,21 @@ mod tests {
     }
 
     #[test]
+    fn an_opus_stream_decodes() {
+        // Opus always decodes at 48 kHz whatever the encoder was fed, so the frame
+        //  count is against that rate rather than against the source's 44.1 kHz.
+        const OPUS_RATE: usize = 48_000;
+        const SOURCE_FRAMES: usize = 8 * OPUS_RATE;
+
+        let bytes = std::fs::read(Path::new(DATA_DIRECTORY).join("probe.opus")).unwrap();
+        let (spec, samples) = samples_from_bytes(bytes, usize::MAX, 0).unwrap();
+        let frames = samples.len() / spec.channels.count();
+
+        assert_eq!(spec.rate as usize, OPUS_RATE);
+        assert!(frames >= SOURCE_FRAMES, "decoded {frames} frames");
+    }
+
+    #[test]
     fn an_mp4_container_decodes() {
         assert!(decode_probe("probe.m4a").is_ok());
     }

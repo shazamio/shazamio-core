@@ -11,8 +11,8 @@ file then yields a handful of peaks one quantisation step apart per target: agai
 goldens taken on x86_64 Linux, `[ogg]` failed on `windows-latest` and `[mp3]` and
 `[ogg]` on `macos-latest`, while the sample counts matched everywhere.
 https://github.com/shazamio/shazamio-core/actions/runs/32988035458
-That is decoder arithmetic, not something a golden file can pin. The two lossy
-formats keep the checks below, which hold on every platform.
+That is decoder arithmetic, not something a golden file can pin. The lossy formats
+keep the checks below, which hold on every platform.
 """
 
 from pathlib import Path
@@ -24,7 +24,7 @@ from shazamio_core import Recognizer
 
 DATA_DIRECTORY: Final[Path] = Path(__file__).parent / "data"
 
-AUDIO_FORMATS: Final[tuple[str, ...]] = ("mp3", "ogg", "flac")
+AUDIO_FORMATS: Final[tuple[str, ...]] = ("mp3", "ogg", "opus", "flac")
 
 # The one format whose signature is byte-identical across platforms -- see above.
 LOSSLESS_AUDIO_FORMAT: Final[str] = "flac"

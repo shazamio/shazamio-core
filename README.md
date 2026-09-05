@@ -100,7 +100,7 @@ except SignatureError as error:
 
 ## Formats
 
-Decoding goes through [`symphonia`](https://github.com/pdeljanov/Symphonia) with every codec and container it ships enabled, and resampling to mono 16 kHz through [`rubato`](https://github.com/HEnquist/rubato). Nothing is shelled out to, so no external binary has to be installed. Opus is the one common format left out: `symphonia` has no Opus decoder. The test suite covers MP3, Ogg Vorbis and FLAC on Linux, macOS and Windows.
+Decoding goes through [`symphonia`](https://github.com/pdeljanov/Symphonia) with every codec and container it ships enabled, and resampling to mono 16 kHz through [`rubato`](https://github.com/HEnquist/rubato). Opus is the one codec `symphonia` has no decoder for, so it goes through [`libopus`](https://github.com/SpaceManiac/opus-rs), which is compiled into the wheel rather than loaded from the system. Nothing is shelled out to, so no external binary has to be installed. The test suite covers MP3, Ogg Vorbis, Opus and FLAC on Linux, macOS and Windows.
 
 ## Development
 

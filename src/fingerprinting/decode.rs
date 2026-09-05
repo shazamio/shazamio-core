@@ -1,12 +1,27 @@
 use std::io::Cursor;
+use std::sync::OnceLock;
 
 use symphonia::core::audio::{SampleBuffer, SignalSpec};
-use symphonia::core::codecs::{DecoderOptions, CODEC_TYPE_NULL};
+use symphonia::core::codecs::{CodecRegistry, DecoderOptions, CODEC_TYPE_NULL};
 use symphonia::core::errors::Error;
 use symphonia::core::formats::FormatOptions;
 use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
 use symphonia::core::probe::Hint;
+
+use crate::fingerprinting::opus_decoder::OpusDecoder;
+
+/// Every codec `symphonia` enables, plus the Opus decoder it does not ship.
+fn codec_registry() -> &'static CodecRegistry {
+    static REGISTRY: OnceLock<CodecRegistry> = OnceLock::new();
+
+    REGISTRY.get_or_init(|| {
+        let mut registry = CodecRegistry::new();
+        symphonia::default::register_enabled_codecs(&mut registry);
+        registry.register_all::<OpusDecoder>();
+        registry
+    })
+}
 
 pub fn samples_from_bytes(
     bytes: Vec<u8>,
@@ -31,8 +46,7 @@ pub fn samples_from_bytes(
         .ok_or(Error::Unsupported("codec"))?;
 
     let track_id = track.id;
-    let mut decoder =
-        symphonia::default::get_codecs().make(&track.codec_params, &DecoderOptions::default())?;
+    let mut decoder = codec_registry().make(&track.codec_params, &DecoderOptions::default())?;
 
     // The spec comes from the packets rather than from the container, because the
     //  decoder is the authority on what it produced. Nothing is assumed before the
