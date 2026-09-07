@@ -34,7 +34,7 @@ impl SignatureGenerator {
     ) -> Result<DecodedSignature, Box<dyn Error>> {
         let raw_pcm_samples = SignatureGenerator::pcm_samples_from_bytes(bytes)?;
 
-        // Process the PCM samples as in make_signature_from_buffer
+        // Process the PCM samples as in `make_signature_from_buffer`.
         let duration_seconds = segment_duration_seconds.unwrap_or(10);
         let sample_rate = 16000;
         let segment_samples = (duration_seconds * sample_rate) as usize;
@@ -67,7 +67,7 @@ impl SignatureGenerator {
         let raw_pcm_samples = SignatureGenerator::pcm_samples_from_bytes(fs::read(file_path)?)?;
 
         // Downsample the raw PCM samples to 16 KHz, and skip to the middle of the file
-        // in order to increase recognition odds. Take N (10 default) seconds of sample.
+        //  to increase recognition odds. Take N (10 by default) seconds of sample.
         let duration_seconds = segment_duration_seconds.unwrap_or(10);
         let sample_rate = 16000;
         let segment_samples = (duration_seconds * sample_rate) as usize;
@@ -81,8 +81,10 @@ impl SignatureGenerator {
                 &raw_pcm_samples[middle - segment_samples / 2..middle + segment_samples / 2];
         }
 
-        let res = SignatureGenerator::make_signature_from_buffer(raw_pcm_samples_slice.to_vec());
-        Ok(res)
+        let signature =
+            SignatureGenerator::make_signature_from_buffer(raw_pcm_samples_slice.to_vec());
+
+        Ok(signature)
     }
 
     pub fn make_signature_from_buffer(s16_mono_16khz_buffer: Vec<i16>) -> DecodedSignature {
@@ -196,8 +198,8 @@ impl SignatureGenerator {
     }
 
     fn do_peak_recognition(&mut self) {
-        // Note: when substracting an array index, casting to signed is needed
-        // to avoid underflow panics at runtime.
+        // Subtracting an array index needs a cast to signed, or it underflows and
+        //  panics at runtime.
 
         let fft_minus_46 = &self.fft_outputs[((self.fft_outputs_index as i32 - 46) & 255) as usize];
         let fft_minus_49 =
@@ -259,16 +261,15 @@ impl SignatureGenerator {
 
                         assert!(peak_variation_1 >= 0.0);
 
-                        // Convert back a FFT bin to a frequency, given a 16 KHz sample
-                        // rate, 1024 useful bins and the multiplication by 64 made before
-                        // storing the information
+                        // Convert a FFT bin back to a frequency, given a 16 KHz sample
+                        //  rate, 1024 useful bins and the multiplication by 64 made
+                        //  before storing the information.
 
                         let frequency_hz: f32 =
                             corrected_peak_frequency_bin as f32 * (16000.0 / 2.0 / 1024.0 / 64.0);
 
-                        // Ignore peaks outside the 250 Hz-5.5 KHz range, store them into
-                        // a lookup table that will be used to generate the binary fingerprint
-                        // otherwise
+                        // Ignore peaks outside the 250 Hz to 5.5 KHz range, and store the
+                        //  rest in the lookup table the binary fingerprint is built from.
 
                         let frequency_band = match frequency_hz as i32 {
                             250..=519 => FrequencyBand::_250_520,
@@ -376,10 +377,9 @@ mod tests {
 
     #[test]
     fn an_opus_stream_in_matroska_decodes() {
-        // Matroska describes an Opus track with neither a channel count nor a
-        //  pre-skip, and the decoder used to refuse it with "declares no channel
-        //  layout". 648 frames longer than the source because the container signals
-        //  no end padding either, so only the header's pre-skip can be trimmed.
+        // Matroska describes an Opus track with no channel count, and the decoder
+        //  used to refuse it with "declares no channel layout". It signals no end
+        //  padding either, so 648 frames of it survive the header's pre-skip.
         let (frames, channels) = decode_probe("matroska.webm").unwrap();
 
         assert_eq!(channels, 2);
@@ -410,6 +410,17 @@ mod tests {
         };
 
         assert!(matches!(error, SymphoniaError::Unsupported(_)), "{error}");
+    }
+
+    #[test]
+    fn a_link_that_decodes_into_a_wider_buffer_decodes() {
+        // A decoder sizes its buffer once, so only a chained stream makes the sample
+        //  buffer grow. Vorbis holds 1024 frames here and the FLAC link after it 1152,
+        //  so 2304 samples land in a buffer of 2048 and `copy_interleaved_ref` panicked.
+        let (frames, channels) = decode_probe("chained_capacity.ogg").unwrap();
+
+        assert_eq!(channels, 2);
+        assert_eq!(frames, 32_000);
     }
 
     #[test]

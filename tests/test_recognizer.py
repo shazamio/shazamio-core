@@ -83,11 +83,31 @@ async def test_every_format_decodes_the_whole_file(
     assert signature.signature.samples == EXPECTED_DURATION_MS
 
 
+@pytest.mark.parametrize(
+    ("file_name", "expected_duration_ms"),
+    [
+        pytest.param("matroska.webm", 8013, id="opus-in-matroska"),
+        pytest.param("surround.opus", 8000, id="six-channel-opus"),
+    ],
+)
+async def test_a_wider_opus_stream_decodes(
+    file_name: str,
+    expected_duration_ms: int,
+    *,
+    recognizer: Recognizer,
+) -> None:
+    # Neither file is in the matrix above, and both were refused outright until the
+    #  decoder started reading `OpusHead`: Matroska declares no channel count, and six
+    #  channels need the multistream API. Matroska signals no end padding, hence 8013.
+    signature = await recognizer.recognize_path(DATA_DIRECTORY / file_name)
+
+    assert signature.signature.samples == expected_duration_ms
+
+
 async def test_recognize_path_accepts_a_string_too(*, recognizer: Recognizer) -> None:
-    # The tests above pass a `Path`. `recognize_path` extracts a Rust `PathBuf`
-    #  through `os.fspath`, so both forms are accepted; before that it extracted a
-    #  `String` and rejected a `Path` with `TypeError: 'PosixPath' object is not an
-    #  instance of 'str'`, contradicting its own type stub.
+    # `recognize_path` extracts a Rust `PathBuf` through `os.fspath`, so a `str` and
+    #  a `Path` both work. It used to extract a `String` and reject a `Path` with
+    #  `TypeError: 'PosixPath' object is not an instance of 'str'`, against its stub.
     audio = _probe("mp3")
 
     from_string = await recognizer.recognize_path(str(audio))

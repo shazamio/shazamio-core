@@ -51,6 +51,16 @@ ffmpeg -y -i probe.wav -c:a libopus -b:a 96k -vbr constrained matroska.webm
 #  channels `OpusHead` carries mapping family 1 and a table of streams to channels.
 ffmpeg -y -i probe.wav -ac 6 -c:a libopus -b:a 128k -vbr constrained surround.opus
 
+# A chained Ogg whose links agree on rate and channel count but decode into buffers
+#  of different widths: Vorbis holds 1024 frames at 16 kHz, the FLAC link after it
+#  1152. A decoder sizes its buffer once, so only a chain makes the buffer grow.
+ffmpeg -y -f lavfi -i "sine=frequency=440:sample_rate=16000:duration=1" \
+  -ac 2 -c:a libvorbis chained_capacity_link1.ogg
+ffmpeg -y -f lavfi -i "sine=frequency=660:sample_rate=16000:duration=1" \
+  -ac 2 -c:a flac -f ogg chained_capacity_link2.ogg
+cat chained_capacity_link1.ogg chained_capacity_link2.ogg > chained_capacity.ogg
+rm chained_capacity_link1.ogg chained_capacity_link2.ogg
+
 rm probe.wav
 
 # One expression per channel of the chord. The right channel is phase shifted and

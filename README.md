@@ -102,7 +102,7 @@ except SignatureError as error:
 
 Decoding goes through [`symphonia`](https://github.com/pdeljanov/Symphonia) with every codec and container it ships enabled, and resampling to mono 16 kHz through [`rubato`](https://github.com/HEnquist/rubato). Opus is the one codec `symphonia` has no decoder for, so it goes through [`libopus`](https://github.com/SpaceManiac/opus-rs), which is compiled into the wheel rather than loaded from the system. Nothing is shelled out to, so no external binary has to be installed. The test suite covers MP3, Ogg Vorbis, Opus and FLAC on Linux, macOS and Windows.
 
-One input is outside that set and raises `SignatureError`: Windows Media Audio in an ASF container, which `symphonia` does not read and no Rust decoder covers. It decoded in earlier releases through an `ffmpeg` fallback that has since been removed.
+One input is outside that set and raises `SignatureError`: Windows Media Audio in an ASF container. `symphonia` ships no ASF demuxer, and the `CODEC_TYPE_WMA` it declares has no decoder behind it. The format decoded in earlier releases through an `ffmpeg` fallback that has since been removed.
 
 ## Development
 
