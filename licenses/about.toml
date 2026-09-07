@@ -1,0 +1,57 @@
+# Every licence the shipped dependency tree is allowed to carry. `cargo about`
+#  errors on one that is absent, so a new statically linked crate cannot arrive
+#  without somebody reading its terms first.
+accepted = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-3-Clause",
+    "MPL-2.0",
+    "Zlib",
+    "0BSD",
+    "Unicode-3.0",
+    "Unlicense",
+]
+
+# Build and dev dependencies never reach a user, so their terms are not ours to
+#  reproduce. This is what drops `target-lexicon`, whose
+#  `Apache-2.0 WITH LLVM-exception` `pyo3-build-config` only needs at build time.
+ignore-build-dependencies = true
+ignore-dev-dependencies = true
+
+# The six targets the wheels are built for, so a crate pulled in by a `cfg()`
+#  none of them match stays out of the notices. Canonical list:
+#  `.github/workflows/ci.yaml`.
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-apple-darwin",
+    "aarch64-apple-darwin",
+    "x86_64-pc-windows-msvc",
+    "i686-pc-windows-msvc",
+]
+
+# `opusic-sys` vendors `libopus`, whose C sources repeat the notice in every
+#  header, so harvesting reports sixteen near-identical texts and buries the one
+#  that matters: the crate's own `LICENSE`, byte-identical to `opus/COPYING`.
+[opusic-sys.clarify]
+license = "BSD-3-Clause"
+
+[[opusic-sys.clarify.files]]
+path = "LICENSE"
+checksum = "01e1167d54a096d123cf6dfbbeb19587278845c6481d2d66d545669846079551"
+
+# Same shape: harvesting also picks the WHATWG notice out of the crate's own
+#  `gb18030_2022.rs`, where it sits as a source header. `LICENSE-MIT` is taken
+#  over `LICENSE-APACHE` because MIT is higher in `accepted` above.
+[encoding_rs.clarify]
+license = "(Apache-2.0 OR MIT) AND BSD-3-Clause"
+
+[[encoding_rs.clarify.files]]
+path = "LICENSE-MIT"
+license = "MIT"
+checksum = "3fa4ca83dcc9237839b1bdeb2e6d16bdfb5ec0c5ce42b24694d8bbf0dcbef72c"
+
+[[encoding_rs.clarify.files]]
+path = "LICENSE-WHATWG"
+license = "BSD-3-Clause"
+checksum = "838118388fe5c2e7f1dbbaeed13e1c7f3ebf88be91319c7c1d77c18e987d1a50"
