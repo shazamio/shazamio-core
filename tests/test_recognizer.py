@@ -5,16 +5,27 @@ That is either a bug or a deliberate algorithm change; in the second case
 `probe.flac.uri` is rewritten by hand, in the same commit, with the reason in the
 message. The audio itself comes from `tests/data/generate.sh`.
 
-Only the `.flac` signature is pinned, because only FLAC decodes to identical
-samples everywhere. `symphonia` decodes `.mp3` and `.ogg` in `f32`, and the same
-file then yields a handful of peaks one quantisation step apart per target: against
+Only the `.flac` signature is pinned, and only on Linux. Two separate things put a
+URI beyond what a golden file can hold.
+
+For `.mp3` and `.ogg` it is the decoder. `symphonia` decodes them in `f32`, so the
+same file yields a handful of peaks one quantisation step apart per target: against
 goldens taken on x86_64 Linux, `[ogg]` failed on `windows-latest` and `[mp3]` and
-`[ogg]` on `macos-latest`, while the sample counts matched everywhere.
+`[ogg]` on `macos-latest`.
 https://github.com/shazamio/shazamio-core/actions/runs/32988035458
-That is decoder arithmetic, not something a golden file can pin. The lossy formats
-keep the checks below, which hold on every platform.
+
+For `.flac`, which decodes to identical samples everywhere, it is the resampler.
+`rubato` builds its sinc table from `sin` and `cos`, so its last bits follow the
+platform's libm. On `windows-latest` this file produced 162 peaks against 161, the
+extra one sitting on the detection threshold in the 520 to 1450 Hz band and every
+other peak identical.
+https://github.com/shazamio/shazamio-core/actions/runs/33940712799
+
+Neither is a decode error: the sample counts match on every platform, and that is
+what the checks below assert, on every platform.
 """
 
+import sys
 from pathlib import Path
 from typing import Final
 
@@ -26,8 +37,7 @@ DATA_DIRECTORY: Final[Path] = Path(__file__).parent / "data"
 
 AUDIO_FORMATS: Final[tuple[str, ...]] = ("mp3", "ogg", "opus", "flac")
 
-# The one format whose signature is byte-identical across platforms -- see above.
-LOSSLESS_AUDIO_FORMAT: Final[str] = "flac"
+GOLDEN_AUDIO_FORMAT: Final[str] = "flac"
 
 # All three files encode the same 8-second source. `.samples` names a duration, not
 #  a count: `src/fingerprinting/communication.rs` divides the sample count by the
@@ -45,10 +55,11 @@ def _probe(audio_format: str) -> Path:
     return DATA_DIRECTORY / f"probe.{audio_format}"
 
 
+@pytest.mark.skipif(sys.platform != "linux", reason="the golden URI is pinned on Linux")
 async def test_the_flac_signature_matches_the_golden_uri(*, recognizer: Recognizer) -> None:
-    golden_uri = (DATA_DIRECTORY / f"probe.{LOSSLESS_AUDIO_FORMAT}.uri").read_text().strip()
+    golden_uri = (DATA_DIRECTORY / f"probe.{GOLDEN_AUDIO_FORMAT}.uri").read_text().strip()
 
-    signature = await recognizer.recognize_path(_probe(LOSSLESS_AUDIO_FORMAT))
+    signature = await recognizer.recognize_path(_probe(GOLDEN_AUDIO_FORMAT))
 
     assert signature.signature.uri == golden_uri
 
