@@ -94,6 +94,15 @@ pub fn samples_from_bytes(bytes: Vec<u8>) -> Result<(SignalSpec, Vec<f32>), Erro
         let audio_buffer = decoder.decode(&packet)?;
         let packet_spec = *audio_buffer.spec();
 
+        // A chained stream may open its next link at another rate or channel count, and
+        //  samples of two shapes cannot share one buffer. Appended regardless, a 2 s
+        //  mono link followed by a 2 s stereo one came out as 3000 ms of a 4000 ms file.
+        if spec.is_some_and(|established| established != packet_spec) {
+            return Err(Error::Unsupported(
+                "the stream changes format part-way through",
+            ));
+        }
+
         // `SampleBuffer::capacity` counts samples and `AudioBufferRef::capacity`
         //  frames, so comparing them raw let a stereo packet reuse a buffer half the
         //  size it needed, and `copy_interleaved_ref` panicked on its own assertion.

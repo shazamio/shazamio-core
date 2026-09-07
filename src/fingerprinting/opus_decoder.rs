@@ -1,6 +1,6 @@
-use opus::{Channels as OpusChannels, Decoder as LibopusDecoder};
+use opus::MSDecoder as LibopusDecoder;
 use symphonia::core::audio::{
-    AsAudioBufferRef, AudioBuffer, AudioBufferRef, Layout, Signal, SignalSpec,
+    AsAudioBufferRef, AudioBuffer, AudioBufferRef, Channels, Signal, SignalSpec,
 };
 use symphonia::core::codecs::{
     CodecDescriptor, CodecParameters, Decoder, DecoderOptions, FinalizeResult, CODEC_TYPE_OPUS,
@@ -21,29 +21,71 @@ const MAX_FRAMES_PER_PACKET: usize = 120 * OPUS_SAMPLE_RATE as usize / 1000;
 const OPUS_HEAD_MAGIC: &[u8] = b"OpusHead";
 const OPUS_HEAD_MIN_LENGTH: usize = 19;
 
+// `Channels` is a 32-bit mask of named positions, so a wider stream cannot be
+//  described to `symphonia` at all. Families 0 and 1 stop at 8 either way.
+const MAX_CHANNELS: usize = 32;
+
 /// The fields of the `OpusHead` identification header the decoder needs.
 struct OpusHead {
     channel_count: usize,
     pre_skip: usize,
     output_gain: f32,
+    stream_count: u8,
+    coupled_count: u8,
+    channel_mapping: Vec<u8>,
 }
 
 impl OpusHead {
-    /// Reads the fixed part of the header, whose layout is
+    /// Reads the header, whose layout is
     /// https://www.rfc-editor.org/rfc/rfc7845#section-5.1
     fn parse(data: &[u8]) -> Result<Self> {
         if data.len() < OPUS_HEAD_MIN_LENGTH || !data.starts_with(OPUS_HEAD_MAGIC) {
             return unsupported_error("opus: the stream carries no `OpusHead` header");
         }
 
+        let channel_count = usize::from(data[9]);
+
+        if channel_count == 0 || channel_count > MAX_CHANNELS {
+            return unsupported_error("opus: the stream declares an unusable channel count");
+        }
+
         let pre_skip = u16::from_le_bytes([data[10], data[11]]);
         let output_gain_db = i16::from_le_bytes([data[16], data[17]]);
 
+        let (stream_count, coupled_count, channel_mapping) =
+            Self::parse_channel_mapping(data, channel_count)?;
+
         Ok(Self {
-            channel_count: usize::from(data[9]),
+            channel_count,
             pre_skip: usize::from(pre_skip),
             output_gain: 10.0f32.powf(f32::from(output_gain_db) / (20.0 * 256.0)),
+            stream_count,
+            coupled_count,
+            channel_mapping,
         })
+    }
+
+    /// Reads the mapping table, whose layout is
+    /// https://www.rfc-editor.org/rfc/rfc7845#section-5.1.1
+    fn parse_channel_mapping(data: &[u8], channel_count: usize) -> Result<(u8, u8, Vec<u8>)> {
+        // Family 0 codes no table: one stream, coupled for stereo, channels in order.
+        //  `libopus` wants the array either way, so the implied one is written out.
+        if data[18] == 0 {
+            let coupled_count = u8::from(channel_count == 2);
+            let mapping = (0..channel_count as u8).collect();
+
+            return Ok((1, coupled_count, mapping));
+        }
+
+        let table_end = OPUS_HEAD_MIN_LENGTH + 2 + channel_count;
+
+        if data.len() < table_end {
+            return decode_error("opus: the `OpusHead` mapping table is cut short");
+        }
+
+        let mapping = data[OPUS_HEAD_MIN_LENGTH + 2..table_end].to_vec();
+
+        Ok((data[19], data[20], mapping))
     }
 }
 
@@ -63,10 +105,10 @@ pub struct OpusDecoder {
     frames_to_skip: usize,
 }
 
-// `opus::Decoder` is `Send` but not `Sync`, and `symphonia`'s `Decoder` wants both.
+// `opus::MSDecoder` is `Send` but not `Sync`, and `symphonia`'s `Decoder` wants both.
 //  Everything reaching the `libopus` pointer takes `&mut self`, so a shared reference
 //  cannot get at it: the two `&self` methods below read the other fields only.
-//  https://github.com/SpaceManiac/opus-rs/blob/31e8ba1ae8abfa31bbe37817dbf0a8ebdeffc31c/src/lib.rs#L692
+//  https://github.com/SpaceManiac/opus-rs/blob/31e8ba1ae8abfa31bbe37817dbf0a8ebdeffc31c/src/lib.rs#L1203
 unsafe impl Sync for OpusDecoder {}
 
 impl Decoder for OpusDecoder {
@@ -80,19 +122,22 @@ impl Decoder for OpusDecoder {
 
         let head = OpusHead::parse(extra_data)?;
 
-        // `libopus` decodes mono and stereo directly; anything wider is a multistream
-        //  layout needing the mapping table from `OpusHead` and a different decoder.
-        //  Music files are never that, so the case is refused rather than guessed at.
-        let (opus_channels, layout) = match head.channel_count {
-            1 => (OpusChannels::Mono, Layout::Mono),
-            2 => (OpusChannels::Stereo, Layout::Stereo),
-            _ => return unsupported_error("opus: only mono and stereo streams are supported"),
-        };
+        // Every stream goes through the multistream decoder, mono and stereo included:
+        //  family 0 is the one-stream case of the same API, so the wider layouts cost
+        //  no second decoding path. A `.opus` with 6 channels used to be refused here.
+        let decoder = LibopusDecoder::new(
+            OPUS_SAMPLE_RATE,
+            head.stream_count,
+            head.coupled_count,
+            &head.channel_mapping,
+        )
+        .map_err(|_| Error::Unsupported("opus: libopus refused the stream"))?;
 
-        let decoder = LibopusDecoder::new(OPUS_SAMPLE_RATE, opus_channels)
-            .map_err(|_| Error::Unsupported("opus: libopus refused the stream"))?;
-
-        let spec = SignalSpec::new_with_layout(OPUS_SAMPLE_RATE, layout);
+        // Only the count is read downstream, where every channel is averaged into mono,
+        //  so the mask names as many positions as the stream has rather than the ones
+        //  the Opus channel order actually assigns.
+        let channels = Channels::from_bits_truncate((1u32 << head.channel_count) - 1);
+        let spec = SignalSpec::new(OPUS_SAMPLE_RATE, channels);
 
         Ok(Self {
             decoder,
@@ -169,6 +214,13 @@ impl Decoder for OpusDecoder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use opus::{Application, Channels as OpusChannels, Encoder};
+
+    // 20 ms, the frame size the encoder is asked for below. Any Opus frame size works;
+    //  this one is the default and leaves 648 frames once the pre-skip is dropped.
+    const TONE_FRAMES: usize = 960;
+
+    const TONE_AMPLITUDE: f32 = 0.25;
 
     /// The fixed 19 bytes of an `OpusHead`, with the two fields a test varies.
     fn opus_head(channel_count: u8, output_gain_db: i16) -> Box<[u8]> {
@@ -209,6 +261,65 @@ mod tests {
             (head.output_gain - 1.995_262).abs() < 1e-5,
             "{}",
             head.output_gain
+        );
+    }
+
+    /// One stereo packet holding a tone, so a decode of it has something to measure.
+    fn tone_packet() -> Vec<u8> {
+        let mut encoder =
+            Encoder::new(OPUS_SAMPLE_RATE, OpusChannels::Stereo, Application::Audio).unwrap();
+
+        let mut tone = vec![0f32; TONE_FRAMES * 2];
+
+        for (index, sample) in tone.iter_mut().enumerate() {
+            let frame = (index / 2) as f32;
+            *sample = TONE_AMPLITUDE
+                * (std::f32::consts::TAU * 1000.0 * frame / OPUS_SAMPLE_RATE as f32).sin();
+        }
+
+        let mut encoded = vec![0u8; 4000];
+        let written = encoder.encode_float(&tone, &mut encoded).unwrap();
+        encoded.truncate(written);
+
+        encoded
+    }
+
+    /// The loudest sample the decoder produces for that packet under a given gain.
+    fn decoded_peak(output_gain_db: i16) -> f32 {
+        let mut codec_parameters = CodecParameters::new();
+        codec_parameters
+            .for_codec(CODEC_TYPE_OPUS)
+            .with_extra_data(opus_head(2, output_gain_db));
+
+        let mut decoder =
+            OpusDecoder::try_new(&codec_parameters, &DecoderOptions::default()).unwrap();
+
+        decoder
+            .decode(&Packet::new_from_slice(
+                0,
+                0,
+                TONE_FRAMES as u64,
+                &tone_packet(),
+            ))
+            .unwrap();
+
+        decoder
+            .buffer
+            .chan(0)
+            .iter()
+            .fold(0f32, |peak, sample| peak.max(sample.abs()))
+    }
+
+    #[test]
+    fn the_output_gain_reaches_the_samples() {
+        // The gain is a field of the header that nothing else carries, so a decoder
+        //  reading only the container ignored it and returned the stream 6 dB quiet.
+        let plain = decoded_peak(0);
+        let amplified = decoded_peak(1536);
+
+        assert!(
+            (amplified / plain - 1.995_262).abs() < 1e-3,
+            "{plain} against {amplified}"
         );
     }
 

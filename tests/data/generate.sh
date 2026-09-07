@@ -42,6 +42,15 @@ ffmpeg -y -i probe.wav -c:a aac -b:a 128k probe.m4a
 #  signal and writes 185 kbps, four times the size of every other probe.
 ffmpeg -y -i probe.wav -c:a libopus -b:a 96k -vbr constrained probe.opus
 
+# The same Opus in Matroska rather than in Ogg. Matroska signals neither the
+#  pre-skip nor the end padding, so the two containers exercise different halves of
+#  the trimming: the header carries the pre-skip and nothing carries the padding.
+ffmpeg -y -i probe.wav -c:a libopus -b:a 96k -vbr constrained matroska.webm
+
+# Six channels, which `libopus` decodes only through its multistream API: above two
+#  channels `OpusHead` carries mapping family 1 and a table of streams to channels.
+ffmpeg -y -i probe.wav -ac 6 -c:a libopus -b:a 128k -vbr constrained surround.opus
+
 rm probe.wav
 
 # One expression per channel of the chord. The right channel is phase shifted and

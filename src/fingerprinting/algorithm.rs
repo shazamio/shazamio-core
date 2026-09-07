@@ -305,6 +305,7 @@ impl SignatureGenerator {
 mod tests {
     use super::*;
     use std::path::PathBuf;
+    use symphonia::core::errors::Error as SymphoniaError;
 
     // The probes and their pinned URIs are the ones `tests/` uses;
     //  `tests/data/generate.sh` regenerates the audio. Reading them here rather than
@@ -371,6 +372,44 @@ mod tests {
         let (spec, samples) = samples_from_bytes(chained).unwrap();
 
         assert_eq!(samples.len() / spec.channels.count(), 2 * 8 * 48_000);
+    }
+
+    #[test]
+    fn an_opus_stream_in_matroska_decodes() {
+        // Matroska describes an Opus track with neither a channel count nor a
+        //  pre-skip, and the decoder used to refuse it with "declares no channel
+        //  layout". 648 frames longer than the source because the container signals
+        //  no end padding either, so only the header's pre-skip can be trimmed.
+        let (frames, channels) = decode_probe("matroska.webm").unwrap();
+
+        assert_eq!(channels, 2);
+        assert_eq!(frames, 8 * 48_000 + 648);
+    }
+
+    #[test]
+    fn a_surround_opus_stream_decodes() {
+        // Above two channels `OpusHead` carries a mapping table and `libopus` decodes
+        //  the stream only through its multistream API. The single-stream decoder used
+        //  to refuse this file with "only mono and stereo streams are supported".
+        let (frames, channels) = decode_probe("surround.opus").unwrap();
+
+        assert_eq!(channels, 6);
+        assert_eq!(frames, 8 * 48_000);
+    }
+
+    #[test]
+    fn a_chained_stream_that_changes_format_is_refused() {
+        // The links of a chained file need not agree on rate or channel count, and
+        //  samples of two shapes cannot share one buffer. Appended regardless, these
+        //  two came out as 10666 ms of 16 s of audio and reported success.
+        let mut chained = std::fs::read(probe_path("probe.opus")).unwrap();
+        chained.extend_from_slice(&std::fs::read(probe_path("surround.opus")).unwrap());
+
+        let Err(error) = samples_from_bytes(chained) else {
+            panic!("a stream that changes format decoded");
+        };
+
+        assert!(matches!(error, SymphoniaError::Unsupported(_)), "{error}");
     }
 
     #[test]
