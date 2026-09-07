@@ -11,6 +11,12 @@ use symphonia::core::probe::Hint;
 
 use crate::fingerprinting::opus_decoder::OpusDecoder;
 
+/// Samples interleaved by channel, and the spec they were decoded under.
+pub struct DecodedAudio {
+    pub spec: SignalSpec,
+    pub samples: Vec<f32>,
+}
+
 /// Every codec `symphonia` enables, plus the Opus decoder it does not ship.
 fn codec_registry() -> &'static CodecRegistry {
     static REGISTRY: OnceLock<CodecRegistry> = OnceLock::new();
@@ -23,8 +29,14 @@ fn codec_registry() -> &'static CodecRegistry {
     })
 }
 
+/// The track a packet has to belong to, and the decoder that reads it.
+struct TrackDecoder {
+    track_id: u32,
+    decoder: Box<dyn Decoder>,
+}
+
 /// Picks the first track carrying audio and builds a decoder for it.
-fn decoder_for(format: &dyn FormatReader) -> Result<(u32, Box<dyn Decoder>), Error> {
+fn decoder_for(format: &dyn FormatReader) -> Result<TrackDecoder, Error> {
     let track = format
         .tracks()
         .iter()
@@ -33,10 +45,13 @@ fn decoder_for(format: &dyn FormatReader) -> Result<(u32, Box<dyn Decoder>), Err
 
     let decoder = codec_registry().make(&track.codec_params, &DecoderOptions::default())?;
 
-    Ok((track.id, decoder))
+    Ok(TrackDecoder {
+        track_id: track.id,
+        decoder,
+    })
 }
 
-pub fn samples_from_bytes(bytes: Vec<u8>) -> Result<(SignalSpec, Vec<f32>), Error> {
+pub fn samples_from_bytes(bytes: Vec<u8>) -> Result<DecodedAudio, Error> {
     let media_source = MediaSourceStream::new(Box::new(Cursor::new(bytes)), Default::default());
 
     // A lossy encoder pads the stream it writes, and the padding is silence the
@@ -56,7 +71,7 @@ pub fn samples_from_bytes(bytes: Vec<u8>) -> Result<(SignalSpec, Vec<f32>), Erro
     )?;
 
     let mut format = probe_result.format;
-    let (mut track_id, mut decoder) = decoder_for(format.as_ref())?;
+    let mut track_decoder = decoder_for(format.as_ref())?;
 
     // The spec comes from the packets rather than from the container, because the
     //  decoder is the authority on what it produced. Nothing is assumed before the
@@ -79,7 +94,7 @@ pub fn samples_from_bytes(bytes: Vec<u8>) -> Result<(SignalSpec, Vec<f32>), Erro
             //  four-second chained file decoded to 2013 ms and reported success.
             //  https://www.rfc-editor.org/rfc/rfc7845#section-2
             Err(Error::ResetRequired) => {
-                (track_id, decoder) = decoder_for(format.as_ref())?;
+                track_decoder = decoder_for(format.as_ref())?;
                 continue;
             }
 
@@ -87,11 +102,11 @@ pub fn samples_from_bytes(bytes: Vec<u8>) -> Result<(SignalSpec, Vec<f32>), Erro
         };
 
         // If the packet does not belong to the selected track, skip it.
-        if packet.track_id() != track_id {
+        if packet.track_id() != track_decoder.track_id {
             continue;
         }
 
-        let audio_buffer = decoder.decode(&packet)?;
+        let audio_buffer = track_decoder.decoder.decode(&packet)?;
         let packet_spec = *audio_buffer.spec();
 
         // A chained stream may open its next link at another rate or channel count, and
@@ -130,5 +145,8 @@ pub fn samples_from_bytes(bytes: Vec<u8>) -> Result<(SignalSpec, Vec<f32>), Erro
         return Err(Error::DecodeError("the stream carries no decodable audio"));
     };
 
-    Ok((spec, aggregate_samples))
+    Ok(DecodedAudio {
+        spec,
+        samples: aggregate_samples,
+    })
 }

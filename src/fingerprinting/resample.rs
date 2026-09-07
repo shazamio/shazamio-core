@@ -1,7 +1,7 @@
+use crate::fingerprinting::decode::DecodedAudio;
 use rubato::audioadapter_buffers::direct::InterleavedSlice;
 use rubato::{Async, FixedAsync, Resampler, SincInterpolationParameters};
 use std::error::Error;
-use symphonia::core::audio::SignalSpec;
 
 /// The sample rate the fingerprinting algorithm is defined against.
 const TARGET_RATE: u32 = 16_000;
@@ -13,12 +13,12 @@ const MAX_RATIO_RELATIVE: f64 = 1.0;
 //  resampler's own buffers.
 const CHUNK_FRAMES: usize = 1024;
 
-pub fn resample(spec: SignalSpec, samples: Vec<f32>) -> Result<Vec<i16>, Box<dyn Error>> {
-    let channel_count = spec.channels.count();
-    let frame_count = samples.len() / channel_count;
+pub fn resample(decoded_audio: DecodedAudio) -> Result<Vec<i16>, Box<dyn Error>> {
+    let channel_count = decoded_audio.spec.channels.count();
+    let frame_count = decoded_audio.samples.len() / channel_count;
 
     let mut mono_samples = vec![0f32; frame_count];
-    for (index, sample) in samples.iter().enumerate() {
+    for (index, sample) in decoded_audio.samples.iter().enumerate() {
         mono_samples[index / channel_count] += sample / channel_count as f32;
     }
 
@@ -26,7 +26,7 @@ pub fn resample(spec: SignalSpec, samples: Vec<f32>) -> Result<Vec<i16>, Box<dyn
     //  the cutoff follows `sinc_len` and the window instead of being pinned at 0.95, and
     //  `oversampling_factor` is 128 rather than 160. Neither old number was explained.
     let mut resampler = Async::<f32>::new_sinc(
-        f64::from(TARGET_RATE) / f64::from(spec.rate),
+        f64::from(TARGET_RATE) / f64::from(decoded_audio.spec.rate),
         MAX_RATIO_RELATIVE,
         &SincInterpolationParameters::default(),
         CHUNK_FRAMES,

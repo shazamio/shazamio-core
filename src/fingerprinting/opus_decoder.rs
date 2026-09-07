@@ -25,14 +25,19 @@ const OPUS_HEAD_MIN_LENGTH: usize = 19;
 //  described to `symphonia` at all. Families 0 and 1 stop at 8 either way.
 const MAX_CHANNELS: usize = 32;
 
+/// How the channels are packed into Opus streams, which is what `libopus` opens on.
+struct StreamLayout {
+    stream_count: u8,
+    coupled_count: u8,
+    channel_mapping: Vec<u8>,
+}
+
 /// The fields of the `OpusHead` identification header the decoder needs.
 struct OpusHead {
     channel_count: usize,
     pre_skip: usize,
     output_gain: f32,
-    stream_count: u8,
-    coupled_count: u8,
-    channel_mapping: Vec<u8>,
+    stream_layout: StreamLayout,
 }
 
 impl OpusHead {
@@ -52,29 +57,25 @@ impl OpusHead {
         let pre_skip = u16::from_le_bytes([data[10], data[11]]);
         let output_gain_db = i16::from_le_bytes([data[16], data[17]]);
 
-        let (stream_count, coupled_count, channel_mapping) =
-            Self::parse_channel_mapping(data, channel_count)?;
-
         Ok(Self {
             channel_count,
             pre_skip: usize::from(pre_skip),
             output_gain: 10.0f32.powf(f32::from(output_gain_db) / (20.0 * 256.0)),
-            stream_count,
-            coupled_count,
-            channel_mapping,
+            stream_layout: Self::parse_stream_layout(data, channel_count)?,
         })
     }
 
     /// Reads the mapping table, whose layout is
     /// https://www.rfc-editor.org/rfc/rfc7845#section-5.1.1
-    fn parse_channel_mapping(data: &[u8], channel_count: usize) -> Result<(u8, u8, Vec<u8>)> {
+    fn parse_stream_layout(data: &[u8], channel_count: usize) -> Result<StreamLayout> {
         // Family 0 codes no table: one stream, coupled for stereo, channels in order.
         //  `libopus` wants the array either way, so the implied one is written out.
         if data[18] == 0 {
-            let coupled_count = u8::from(channel_count == 2);
-            let mapping = (0..channel_count as u8).collect();
-
-            return Ok((1, coupled_count, mapping));
+            return Ok(StreamLayout {
+                stream_count: 1,
+                coupled_count: u8::from(channel_count == 2),
+                channel_mapping: (0..channel_count as u8).collect(),
+            });
         }
 
         let table_end = OPUS_HEAD_MIN_LENGTH + 2 + channel_count;
@@ -83,9 +84,11 @@ impl OpusHead {
             return decode_error("opus: the `OpusHead` mapping table is cut short");
         }
 
-        let mapping = data[OPUS_HEAD_MIN_LENGTH + 2..table_end].to_vec();
-
-        Ok((data[19], data[20], mapping))
+        Ok(StreamLayout {
+            stream_count: data[19],
+            coupled_count: data[20],
+            channel_mapping: data[OPUS_HEAD_MIN_LENGTH + 2..table_end].to_vec(),
+        })
     }
 }
 
@@ -127,9 +130,9 @@ impl Decoder for OpusDecoder {
         //  no second decoding path. A `.opus` with 6 channels used to be refused here.
         let decoder = LibopusDecoder::new(
             OPUS_SAMPLE_RATE,
-            head.stream_count,
-            head.coupled_count,
-            &head.channel_mapping,
+            head.stream_layout.stream_count,
+            head.stream_layout.coupled_count,
+            &head.stream_layout.channel_mapping,
         )
         .map_err(|_| Error::Unsupported("opus: libopus refused the stream"))?;
 

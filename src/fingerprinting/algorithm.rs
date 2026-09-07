@@ -23,9 +23,7 @@ pub struct SignatureGenerator {
 
 impl SignatureGenerator {
     fn pcm_samples_from_bytes(bytes: Vec<u8>) -> Result<Vec<i16>, Box<dyn Error>> {
-        let (signal_spec, samples) = samples_from_bytes(bytes)?;
-        let raw_pcm_samples = resample(signal_spec, samples)?;
-        Ok(raw_pcm_samples)
+        resample(samples_from_bytes(bytes)?)
     }
 
     pub fn make_signature_from_bytes(
@@ -328,13 +326,22 @@ mod tests {
             .to_string()
     }
 
+    struct ProbeShape {
+        frames: usize,
+        channels: usize,
+    }
+
     // The same read-and-decode the path entry point does, so a test here cannot prove
     //  something that entry point does not.
-    fn decode_probe(name: &str) -> Result<(usize, usize), Box<dyn Error>> {
+    fn decode_probe(name: &str) -> Result<ProbeShape, Box<dyn Error>> {
         let bytes = std::fs::read(probe_path(name))?;
-        let (spec, samples) = samples_from_bytes(bytes)?;
+        let decoded_audio = samples_from_bytes(bytes)?;
+        let channels = decoded_audio.spec.channels.count();
 
-        Ok((samples.len() / spec.channels.count(), spec.channels.count()))
+        Ok(ProbeShape {
+            frames: decoded_audio.samples.len() / channels,
+            channels,
+        })
     }
 
     #[test]
@@ -342,9 +349,9 @@ mod tests {
         const SOURCE_FRAMES: usize = 8 * 44100;
 
         for name in ["probe.flac", "probe.mp3", "probe.ogg"] {
-            let (frames, _) = decode_probe(name).unwrap();
+            let probe = decode_probe(name).unwrap();
 
-            assert_eq!(frames, SOURCE_FRAMES, "{name}");
+            assert_eq!(probe.frames, SOURCE_FRAMES, "{name}");
         }
     }
 
@@ -355,10 +362,10 @@ mod tests {
         const OPUS_RATE: usize = 48_000;
 
         let bytes = std::fs::read(Path::new(DATA_DIRECTORY).join("probe.opus")).unwrap();
-        let (spec, samples) = samples_from_bytes(bytes).unwrap();
-        let frames = samples.len() / spec.channels.count();
+        let decoded_audio = samples_from_bytes(bytes).unwrap();
+        let frames = decoded_audio.samples.len() / decoded_audio.spec.channels.count();
 
-        assert_eq!(spec.rate as usize, OPUS_RATE);
+        assert_eq!(decoded_audio.spec.rate as usize, OPUS_RATE);
         assert_eq!(frames, 8 * OPUS_RATE);
     }
 
@@ -370,9 +377,10 @@ mod tests {
         let mut chained = std::fs::read(probe_path("probe.opus")).unwrap();
         chained.extend_from_slice(&chained.clone());
 
-        let (spec, samples) = samples_from_bytes(chained).unwrap();
+        let decoded_audio = samples_from_bytes(chained).unwrap();
+        let frames = decoded_audio.samples.len() / decoded_audio.spec.channels.count();
 
-        assert_eq!(samples.len() / spec.channels.count(), 2 * 8 * 48_000);
+        assert_eq!(frames, 2 * 8 * 48_000);
     }
 
     #[test]
@@ -380,10 +388,10 @@ mod tests {
         // Matroska describes an Opus track with no channel count, and the decoder
         //  used to refuse it with "declares no channel layout". It signals no end
         //  padding either, so 648 frames of it survive the header's pre-skip.
-        let (frames, channels) = decode_probe("matroska.webm").unwrap();
+        let probe = decode_probe("matroska.webm").unwrap();
 
-        assert_eq!(channels, 2);
-        assert_eq!(frames, 8 * 48_000 + 648);
+        assert_eq!(probe.channels, 2);
+        assert_eq!(probe.frames, 8 * 48_000 + 648);
     }
 
     #[test]
@@ -391,10 +399,10 @@ mod tests {
         // Above two channels `OpusHead` carries a mapping table and `libopus` decodes
         //  the stream only through its multistream API. The single-stream decoder used
         //  to refuse this file with "only mono and stereo streams are supported".
-        let (frames, channels) = decode_probe("surround.opus").unwrap();
+        let probe = decode_probe("surround.opus").unwrap();
 
-        assert_eq!(channels, 6);
-        assert_eq!(frames, 8 * 48_000);
+        assert_eq!(probe.channels, 6);
+        assert_eq!(probe.frames, 8 * 48_000);
     }
 
     #[test]
@@ -417,10 +425,10 @@ mod tests {
         // A decoder sizes its buffer once, so only a chained stream makes the sample
         //  buffer grow. Vorbis holds 1024 frames here and the FLAC link after it 1152,
         //  so 2304 samples land in a buffer of 2048 and `copy_interleaved_ref` panicked.
-        let (frames, channels) = decode_probe("chained_capacity.ogg").unwrap();
+        let probe = decode_probe("chained_capacity.ogg").unwrap();
 
-        assert_eq!(channels, 2);
-        assert_eq!(frames, 32_000);
+        assert_eq!(probe.channels, 2);
+        assert_eq!(probe.frames, 32_000);
     }
 
     #[test]
@@ -428,9 +436,9 @@ mod tests {
         // 1504 frames longer than the source: AAC pads the front of the stream and
         //  the container does not signal by how much, so nothing can trim it. Same
         //  gap before the decoder was swapped, so it is not a regression to fix here.
-        let (frames, _) = decode_probe("probe.m4a").unwrap();
+        let probe = decode_probe("probe.m4a").unwrap();
 
-        assert_eq!(frames, 8 * 44100 + 1504);
+        assert_eq!(probe.frames, 8 * 44100 + 1504);
     }
 
     #[test]
