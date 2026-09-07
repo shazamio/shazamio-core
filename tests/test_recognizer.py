@@ -31,7 +31,7 @@ from typing import Final
 
 import pytest
 
-from shazamio_core import Recognizer
+from shazamio_core import Recognizer, SearchParams
 
 DATA_DIRECTORY: Final[Path] = Path(__file__).parent / "data"
 
@@ -102,6 +102,23 @@ async def test_a_wider_opus_stream_decodes(
     signature = await recognizer.recognize_path(DATA_DIRECTORY / file_name)
 
     assert signature.signature.samples == expected_duration_ms
+
+
+@pytest.mark.parametrize("segment_duration_seconds", [268_436, 4_294_967_295])
+async def test_a_segment_longer_than_the_file_analyses_it_whole(
+    segment_duration_seconds: int,
+    *,
+    recognizer: Recognizer,
+) -> None:
+    # The window was computed in a type too narrow to hold it, so 268436 seconds
+    #  selected 544 ms of this 8-second file and the largest accepted value nothing
+    #  at all, both reporting success.
+    signature = await recognizer.recognize_path(
+        _probe(GOLDEN_AUDIO_FORMAT),
+        SearchParams(segment_duration_seconds),
+    )
+
+    assert signature.signature.samples == EXPECTED_DURATION_MS
 
 
 async def test_recognize_path_accepts_a_string_too(*, recognizer: Recognizer) -> None:

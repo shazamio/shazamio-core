@@ -8,6 +8,12 @@ use std::error::Error;
 use std::fs;
 use std::path::Path;
 
+// The rate every entry point resamples to before fingerprinting, and the rate the
+//  signature declares.
+pub(crate) const SAMPLE_RATE_HZ: u32 = 16000;
+
+pub(crate) const DEFAULT_SEGMENT_DURATION_SECONDS: u32 = 10;
+
 pub struct SignatureGenerator {
     ring_buffer_of_samples: Vec<i16>,
     reordered_ring_buffer_of_samples: Vec<f32>,
@@ -26,63 +32,48 @@ impl SignatureGenerator {
         resample(samples_from_bytes(bytes)?)
     }
 
+    // A file no longer than the requested segment is fingerprinted whole; a longer one
+    //  is cut from its middle, where recognition odds are best.
+    fn middle_segment(samples: &[i16], segment_duration_seconds: Option<u32>) -> &[i16] {
+        let duration_seconds = segment_duration_seconds.unwrap_or(DEFAULT_SEGMENT_DURATION_SECONDS);
+
+        // The product leaves `u32` at 268436 seconds, and `usize` is 32 bits wide on
+        //  the `i686` wheel, so both are too narrow for a duration callers may pass:
+        //  268436 selected 544 ms of an 8 s file instead of the whole of it.
+        let segment_samples =
+            (duration_seconds as u64 * SAMPLE_RATE_HZ as u64).min(usize::MAX as u64) as usize;
+
+        if samples.len() <= segment_samples {
+            return samples;
+        }
+
+        let middle = samples.len() / 2;
+        let half_segment = segment_samples / 2;
+
+        &samples[middle - half_segment..middle + half_segment]
+    }
+
     pub fn make_signature_from_bytes(
         bytes: Vec<u8>,
         segment_duration_seconds: Option<u32>,
     ) -> Result<DecodedSignature, Box<dyn Error>> {
         let raw_pcm_samples = SignatureGenerator::pcm_samples_from_bytes(bytes)?;
+        let segment =
+            SignatureGenerator::middle_segment(&raw_pcm_samples, segment_duration_seconds);
 
-        // Process the PCM samples as in `make_signature_from_buffer`.
-        let duration_seconds = segment_duration_seconds.unwrap_or(10);
-        let sample_rate = 16000;
-        let segment_samples = (duration_seconds * sample_rate) as usize;
-
-        let raw_pcm_samples_slice: &[i16] = if raw_pcm_samples.len() > segment_samples {
-            let middle = raw_pcm_samples.len() / 2;
-            let half_segment = segment_samples / 2;
-            if middle >= half_segment && middle + half_segment <= raw_pcm_samples.len() {
-                &raw_pcm_samples[middle - half_segment..middle + half_segment]
-            } else {
-                &raw_pcm_samples[..segment_samples]
-            }
-        } else {
-            &raw_pcm_samples[..]
-        };
-
-        // Generate signature from buffer
-        let signature =
-            SignatureGenerator::make_signature_from_buffer(raw_pcm_samples_slice.to_vec());
-
-        // Return the generated signature
-        Ok(signature)
+        Ok(SignatureGenerator::make_signature_from_buffer(
+            segment.to_vec(),
+        ))
     }
 
     pub fn make_signature_from_file(
         file_path: &Path,
         segment_duration_seconds: Option<u32>,
     ) -> Result<DecodedSignature, Box<dyn Error>> {
-        // Decode the .WAV, .MP3, .OGG or .FLAC file
-        let raw_pcm_samples = SignatureGenerator::pcm_samples_from_bytes(fs::read(file_path)?)?;
-
-        // Downsample the raw PCM samples to 16 KHz, and skip to the middle of the file
-        //  to increase recognition odds. Take N (10 by default) seconds of sample.
-        let duration_seconds = segment_duration_seconds.unwrap_or(10);
-        let sample_rate = 16000;
-        let segment_samples = (duration_seconds * sample_rate) as usize;
-
-        let slice_len = raw_pcm_samples.len().min(segment_samples);
-        let mut raw_pcm_samples_slice: &[i16] = &raw_pcm_samples[..slice_len];
-
-        if raw_pcm_samples.len() > segment_samples {
-            let middle = raw_pcm_samples.len() / 2;
-            raw_pcm_samples_slice =
-                &raw_pcm_samples[middle - segment_samples / 2..middle + segment_samples / 2];
-        }
-
-        let signature =
-            SignatureGenerator::make_signature_from_buffer(raw_pcm_samples_slice.to_vec());
-
-        Ok(signature)
+        SignatureGenerator::make_signature_from_bytes(
+            fs::read(file_path)?,
+            segment_duration_seconds,
+        )
     }
 
     pub fn make_signature_from_buffer(s16_mono_16khz_buffer: Vec<i16>) -> DecodedSignature {
@@ -103,7 +94,7 @@ impl SignatureGenerator {
             num_spread_ffts_done: 0,
 
             signature: DecodedSignature {
-                sample_rate_hz: 16000,
+                sample_rate_hz: SAMPLE_RATE_HZ,
                 number_samples: s16_mono_16khz_buffer.len() as u32,
                 frequency_band_to_sound_peaks: HashMap::new(),
             },
@@ -518,6 +509,30 @@ mod tests {
             from_bytes.encode_to_uri().unwrap(),
             from_file.encode_to_uri().unwrap(),
         );
+    }
+
+    #[test]
+    fn a_duration_at_or_above_the_file_length_selects_the_whole_file() {
+        // 8 s at 16 kHz, which is `probe.flac` resampled and not cut.
+        const WHOLE_FILE_SAMPLES: u32 = 8 * 16000;
+
+        // 268436 is where the product left `u32`: it selected 544 ms of this file and
+        //  reported success, and 268435456 selected nothing at all.
+        for duration in [10, 268_436, 268_435_456, u32::MAX] {
+            let from_file = SignatureGenerator::make_signature_from_file(
+                &probe_path("probe.flac"),
+                Some(duration),
+            )
+            .unwrap();
+            let from_bytes = SignatureGenerator::make_signature_from_bytes(
+                std::fs::read(probe_path("probe.flac")).unwrap(),
+                Some(duration),
+            )
+            .unwrap();
+
+            assert_eq!(from_file.number_samples, WHOLE_FILE_SAMPLES, "{duration}");
+            assert_eq!(from_bytes.number_samples, WHOLE_FILE_SAMPLES, "{duration}");
+        }
     }
 
     #[test]
