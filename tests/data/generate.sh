@@ -12,11 +12,12 @@
 #  near-empty signature.
 #
 # `chord.flac` is what a change to decoding or resampling is judged on, because
-#  `probe.*` is the wrong signal for that. Its two channels carry different chirps,
-#  so a change to the downmix moves far more than it would on a stereo mix, and it
-#  holds nothing above 3.2 kHz, so every peak in the 3500 to 5500 Hz band is an
-#  artifact whichever pipeline produced it. The chord carries the same partials in
-#  both channels, phase shifted, and reaches 6.6 kHz.
+#  `probe.*` is the wrong signal for that. The probe's two channels carry different
+#  chirps, so a change to the downmix moves far more than it would on a stereo mix,
+#  and the higher of them only reaches the 3500 to 5500 Hz band in the last 1.65 s:
+#  `450+240*t` sweeps at twice `240`, so it ends at 4290 Hz. The chord carries the
+#  same partials in both channels, phase shifted, and holds that band for its whole
+#  length, up to 6.6 kHz.
 #
 # Re-running this reproduces every file byte for byte except `probe.ogg` and
 #  `probe.opus`: an Ogg stream carries a random serial number, so a handful of bytes

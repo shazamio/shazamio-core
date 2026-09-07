@@ -36,11 +36,7 @@ fn decoder_for(format: &dyn FormatReader) -> Result<(u32, Box<dyn Decoder>), Err
     Ok((track.id, decoder))
 }
 
-pub fn samples_from_bytes(
-    bytes: Vec<u8>,
-    seconds: usize,
-    offset: usize,
-) -> Result<(SignalSpec, Vec<f32>), Error> {
+pub fn samples_from_bytes(bytes: Vec<u8>) -> Result<(SignalSpec, Vec<f32>), Error> {
     let media_source = MediaSourceStream::new(Box::new(Cursor::new(bytes)), Default::default());
 
     // A lossy encoder pads the stream it writes, and the padding is silence the
@@ -119,16 +115,6 @@ pub fn samples_from_bytes(
         }
 
         spec = Some(packet_spec);
-
-        // `seconds` is `usize::MAX` when the whole file is wanted, so the product has
-        //  to saturate: a plain multiply panics with `attempt to multiply with overflow`.
-        let sample_limit = seconds
-            .saturating_add(offset)
-            .saturating_mul(packet_spec.rate as usize)
-            .saturating_mul(packet_spec.channels.count());
-        if aggregate_samples.len() >= sample_limit {
-            break;
-        }
     }
 
     let Some(spec) = spec else {

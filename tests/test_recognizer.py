@@ -39,16 +39,10 @@ AUDIO_FORMATS: Final[tuple[str, ...]] = ("mp3", "ogg", "opus", "flac")
 
 GOLDEN_AUDIO_FORMAT: Final[str] = "flac"
 
-# All three files encode the same 8-second source. `.samples` names a duration, not
-#  a count: `src/fingerprinting/communication.rs` divides the sample count by the
-#  sample rate, so the field is milliseconds. This is what guards the `.ogg` path now
-#  that its URI is not pinned: an `.ogg` that decodes to nothing lands nowhere near it.
+# Every file encodes the same 8-second source and decodes to exactly that, because
+#  the reader trims the padding a lossy encoder writes. `.samples` is a duration in
+#  milliseconds, not a count: `src/fingerprinting/communication.rs` does the division.
 EXPECTED_DURATION_MS: Final[int] = 8000
-
-# The resampler drops a few samples at each edge, and a lossy encoder pads the stream
-#  it writes, so the decoded length lands beside the source length rather than on it:
-#  7997 ms for `.flac` and `.ogg`, 8042 ms for `.mp3`.
-DURATION_TOLERANCE_MS: Final[int] = 100
 
 
 def _probe(audio_format: str) -> Path:
@@ -86,7 +80,7 @@ async def test_every_format_decodes_the_whole_file(
 ) -> None:
     signature = await recognizer.recognize_path(_probe(audio_format))
 
-    assert abs(signature.signature.samples - EXPECTED_DURATION_MS) <= DURATION_TOLERANCE_MS
+    assert signature.signature.samples == EXPECTED_DURATION_MS
 
 
 async def test_recognize_path_accepts_a_string_too(*, recognizer: Recognizer) -> None:

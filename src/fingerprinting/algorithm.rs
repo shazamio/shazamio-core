@@ -23,7 +23,7 @@ pub struct SignatureGenerator {
 
 impl SignatureGenerator {
     fn pcm_samples_from_bytes(bytes: Vec<u8>) -> Result<Vec<i16>, Box<dyn Error>> {
-        let (signal_spec, samples) = samples_from_bytes(bytes, usize::MAX, 0)?;
+        let (signal_spec, samples) = samples_from_bytes(bytes)?;
         let raw_pcm_samples = resample(signal_spec, samples)?;
         Ok(raw_pcm_samples)
     }
@@ -309,6 +309,10 @@ mod tests {
     // The probes and their pinned URIs are the ones `tests/` uses;
     //  `tests/data/generate.sh` regenerates the audio. Reading them here rather than
     //  restating the expected bytes keeps one copy of each golden.
+    //
+    //  A golden URI holds on Linux only, so every test comparing one is ignored
+    //  elsewhere. The module docstring of `tests/test_recognizer.py` has the reason
+    //  and the CI runs that showed it.
     const DATA_DIRECTORY: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data");
 
     fn probe_path(name: &str) -> PathBuf {
@@ -326,7 +330,7 @@ mod tests {
     //  something that entry point does not.
     fn decode_probe(name: &str) -> Result<(usize, usize), Box<dyn Error>> {
         let bytes = std::fs::read(probe_path(name))?;
-        let (spec, samples) = samples_from_bytes(bytes, usize::MAX, 0)?;
+        let (spec, samples) = samples_from_bytes(bytes)?;
 
         Ok((samples.len() / spec.channels.count(), spec.channels.count()))
     }
@@ -338,31 +342,49 @@ mod tests {
         for name in ["probe.flac", "probe.mp3", "probe.ogg"] {
             let (frames, _) = decode_probe(name).unwrap();
 
-            assert!(frames >= SOURCE_FRAMES, "{name} decoded {frames} frames");
+            assert_eq!(frames, SOURCE_FRAMES, "{name}");
         }
     }
 
     #[test]
-    fn an_opus_stream_decodes() {
+    fn an_opus_stream_decodes_to_the_length_of_its_source() {
         // Opus always decodes at 48 kHz whatever the encoder was fed, so the frame
         //  count is against that rate rather than against the source's 44.1 kHz.
         const OPUS_RATE: usize = 48_000;
-        const SOURCE_FRAMES: usize = 8 * OPUS_RATE;
 
         let bytes = std::fs::read(Path::new(DATA_DIRECTORY).join("probe.opus")).unwrap();
-        let (spec, samples) = samples_from_bytes(bytes, usize::MAX, 0).unwrap();
+        let (spec, samples) = samples_from_bytes(bytes).unwrap();
         let frames = samples.len() / spec.channels.count();
 
         assert_eq!(spec.rate as usize, OPUS_RATE);
-        assert!(frames >= SOURCE_FRAMES, "decoded {frames} frames");
+        assert_eq!(frames, 8 * OPUS_RATE);
+    }
+
+    #[test]
+    fn a_chained_ogg_stream_decodes_every_link() {
+        // Two Ogg streams in one file, which is what a concatenation produces. The
+        //  reader stops between them and asks for a new decoder; read as the end of
+        //  the file, the second link went missing and nothing reported it.
+        let mut chained = std::fs::read(probe_path("probe.opus")).unwrap();
+        chained.extend_from_slice(&chained.clone());
+
+        let (spec, samples) = samples_from_bytes(chained).unwrap();
+
+        assert_eq!(samples.len() / spec.channels.count(), 2 * 8 * 48_000);
     }
 
     #[test]
     fn an_mp4_container_decodes() {
-        assert!(decode_probe("probe.m4a").is_ok());
+        // 1504 frames longer than the source: AAC pads the front of the stream and
+        //  the container does not signal by how much, so nothing can trim it. Same
+        //  gap before the decoder was swapped, so it is not a regression to fix here.
+        let (frames, _) = decode_probe("probe.m4a").unwrap();
+
+        assert_eq!(frames, 8 * 44100 + 1504);
     }
 
     #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "the golden URI is pinned on Linux")]
     fn the_whole_pipeline_reproduces_the_golden_uri() {
         let signature =
             SignatureGenerator::make_signature_from_file(&probe_path("probe.flac"), None).unwrap();
@@ -384,15 +406,16 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "the golden URI is pinned on Linux")]
     fn the_chord_probe_reproduces_its_golden_uri() {
         let signature =
             SignatureGenerator::make_signature_from_file(&probe_path("chord.flac"), None).unwrap();
 
         assert_eq!(signature.encode_to_uri().unwrap(), golden_uri("chord.flac"));
 
-        // `probe.flac` holds nothing above 3.2 kHz, so its 7 peaks between 3500 and
-        //  5500 Hz are resampling artifacts, against 36 here. That is what makes this
-        //  the probe a decoding or resampling change is judged on.
+        // `probe.flac` barely reaches the 3500 to 5500 Hz band, so it puts 7 peaks
+        //  there against 36 here. `tests/data/generate.sh` says why, and why that
+        //  makes this the probe a decoding or resampling change is judged on.
         let top_band = &signature.frequency_band_to_sound_peaks[&FrequencyBand::_3500_5500];
 
         assert!(
@@ -423,6 +446,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "the golden URI is pinned on Linux")]
     fn the_bytes_of_a_file_fingerprint_the_same_as_its_path() {
         let probe = std::fs::read(probe_path("probe.flac")).unwrap();
 
