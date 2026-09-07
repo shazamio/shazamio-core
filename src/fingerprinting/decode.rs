@@ -1,10 +1,10 @@
-use std::io::Cursor;
+use std::io::{Cursor, ErrorKind};
 use std::sync::OnceLock;
 
 use symphonia::core::audio::{SampleBuffer, SignalSpec};
-use symphonia::core::codecs::{CodecRegistry, DecoderOptions, CODEC_TYPE_NULL};
+use symphonia::core::codecs::{CodecRegistry, Decoder, DecoderOptions, CODEC_TYPE_NULL};
 use symphonia::core::errors::Error;
-use symphonia::core::formats::FormatOptions;
+use symphonia::core::formats::{FormatOptions, FormatReader};
 use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
 use symphonia::core::probe::Hint;
@@ -23,6 +23,19 @@ fn codec_registry() -> &'static CodecRegistry {
     })
 }
 
+/// Picks the first track carrying audio and builds a decoder for it.
+fn decoder_for(format: &dyn FormatReader) -> Result<(u32, Box<dyn Decoder>), Error> {
+    let track = format
+        .tracks()
+        .iter()
+        .find(|track| track.codec_params.codec != CODEC_TYPE_NULL)
+        .ok_or(Error::Unsupported("codec"))?;
+
+    let decoder = codec_registry().make(&track.codec_params, &DecoderOptions::default())?;
+
+    Ok((track.id, decoder))
+}
+
 pub fn samples_from_bytes(
     bytes: Vec<u8>,
     seconds: usize,
@@ -30,23 +43,24 @@ pub fn samples_from_bytes(
 ) -> Result<(SignalSpec, Vec<f32>), Error> {
     let media_source = MediaSourceStream::new(Box::new(Cursor::new(bytes)), Default::default());
 
+    // A lossy encoder pads the stream it writes, and the padding is silence the
+    //  container describes rather than audio. Left off, `probe.opus` decoded to
+    //  8013 ms of an 8000 ms source and `probe.mp3` to 8045 ms of the same.
+    //  https://docs.rs/symphonia-core/0.5.5/symphonia_core/formats/struct.FormatOptions.html#structfield.enable_gapless
+    let format_options = FormatOptions {
+        enable_gapless: true,
+        ..Default::default()
+    };
+
     let probe_result = symphonia::default::get_probe().format(
         &Hint::new(),
         media_source,
-        &FormatOptions::default(),
+        &format_options,
         &MetadataOptions::default(),
     )?;
 
     let mut format = probe_result.format;
-
-    let track = format
-        .tracks()
-        .iter()
-        .find(|track| track.codec_params.codec != CODEC_TYPE_NULL)
-        .ok_or(Error::Unsupported("codec"))?;
-
-    let track_id = track.id;
-    let mut decoder = codec_registry().make(&track.codec_params, &DecoderOptions::default())?;
+    let (mut track_id, mut decoder) = decoder_for(format.as_ref())?;
 
     // The spec comes from the packets rather than from the container, because the
     //  decoder is the authority on what it produced. Nothing is assumed before the
@@ -55,9 +69,27 @@ pub fn samples_from_bytes(
     let mut sample_buffer: Option<SampleBuffer<f32>> = None;
     let mut aggregate_samples: Vec<f32> = Vec::new();
 
-    // `next_packet` reports the end of the stream as an error rather than as `None`,
-    //  so every error ends the read. https://docs.rs/symphonia-core/0.5.5/symphonia_core/formats/trait.FormatReader.html#tymethod.next_packet
-    while let Ok(packet) = format.next_packet() {
+    loop {
+        let packet = match format.next_packet() {
+            Ok(packet) => packet,
+
+            // `next_packet` reports the end of the stream as an `UnexpectedEof` read
+            //  error rather than as `None`, and every other error is real.
+            //  https://docs.rs/symphonia-core/0.5.5/symphonia_core/formats/trait.FormatReader.html#tymethod.next_packet
+            Err(Error::IoError(er)) if er.kind() == ErrorKind::UnexpectedEof => break,
+
+            // A chained Ogg file opens a second logical stream, and the reader asks
+            //  for a new decoder rather than for the read to stop. Read as the end, a
+            //  four-second chained file decoded to 2013 ms and reported success.
+            //  https://www.rfc-editor.org/rfc/rfc7845#section-2
+            Err(Error::ResetRequired) => {
+                (track_id, decoder) = decoder_for(format.as_ref())?;
+                continue;
+            }
+
+            Err(er) => return Err(er),
+        };
+
         // If the packet does not belong to the selected track, skip it.
         if packet.track_id() != track_id {
             continue;
@@ -66,9 +98,14 @@ pub fn samples_from_bytes(
         let audio_buffer = decoder.decode(&packet)?;
         let packet_spec = *audio_buffer.spec();
 
+        // `SampleBuffer::capacity` counts samples and `AudioBufferRef::capacity`
+        //  frames, so comparing them raw let a stereo packet reuse a buffer half the
+        //  size it needed, and `copy_interleaved_ref` panicked on its own assertion.
+        let required_samples = audio_buffer.capacity() * packet_spec.channels.count();
+
         if sample_buffer
             .as_ref()
-            .is_none_or(|buffer| buffer.capacity() < audio_buffer.capacity())
+            .is_none_or(|buffer| buffer.capacity() < required_samples)
         {
             sample_buffer = Some(SampleBuffer::new(
                 audio_buffer.capacity() as u64,
