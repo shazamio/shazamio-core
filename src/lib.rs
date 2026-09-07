@@ -5,12 +5,12 @@ mod response;
 mod utils;
 
 use crate::errors::SignatureError;
-use crate::params::SearchParams;
+use crate::params::{validated_segment_duration_seconds, SearchParams};
 use crate::response::{Geolocation, Signature, SignatureSong};
 use crate::utils::convert_signature_to_py;
 use crate::utils::get_python_future;
 use crate::utils::unwrap_decoded_signature;
-use fingerprinting::algorithm::SignatureGenerator;
+use fingerprinting::algorithm::{SignatureGenerator, DEFAULT_SEGMENT_DURATION_SECONDS};
 use log::{debug, error, info};
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
@@ -36,7 +36,6 @@ fn shazamio_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
 #[derive(Clone)]
 #[pyclass(from_py_object, module = "shazamio_core")]
 struct Recognizer {
-    #[pyo3(get, set)]
     segment_duration_seconds: u32,
 }
 
@@ -44,15 +43,29 @@ struct Recognizer {
 impl Recognizer {
     #[new]
     #[pyo3(signature = (segment_duration_seconds=None))]
-    pub fn new(segment_duration_seconds: Option<u32>) -> Self {
-        let duration = segment_duration_seconds.unwrap_or(10);
+    pub fn new(segment_duration_seconds: Option<u32>) -> PyResult<Self> {
+        let duration = validated_segment_duration_seconds(
+            segment_duration_seconds.unwrap_or(DEFAULT_SEGMENT_DURATION_SECONDS),
+        )?;
         info!(
             "Recognizer created with segment_duration_seconds = {}",
             duration
         );
-        Recognizer {
+        Ok(Recognizer {
             segment_duration_seconds: duration,
-        }
+        })
+    }
+
+    #[getter]
+    fn get_segment_duration_seconds(&self) -> u32 {
+        self.segment_duration_seconds
+    }
+
+    #[setter]
+    fn set_segment_duration_seconds(&mut self, value: u32) -> PyResult<()> {
+        self.segment_duration_seconds = validated_segment_duration_seconds(value)?;
+
+        Ok(())
     }
 
     #[pyo3(signature = (value, options=None))]
@@ -68,13 +81,16 @@ impl Recognizer {
             options,
         );
 
-        let search_options = options.unwrap_or_else(|| {
-            debug!(
-                "Options not provided, using default segment duration {}",
-                self.segment_duration_seconds,
-            );
-            SearchParams::new(Option::from(self.segment_duration_seconds))
-        });
+        let search_options = match options {
+            Some(options) => options,
+            None => {
+                debug!(
+                    "Options not provided, using default segment duration {}",
+                    self.segment_duration_seconds,
+                );
+                SearchParams::new(Some(self.segment_duration_seconds))?
+            }
+        };
 
         let future = async move {
             debug!("Starting async recognition from bytes");
@@ -111,13 +127,16 @@ impl Recognizer {
             options,
         );
 
-        let search_options = options.unwrap_or_else(|| {
-            debug!(
-                "Options not provided, using default segment duration {}",
-                self.segment_duration_seconds,
-            );
-            SearchParams::new(Option::from(self.segment_duration_seconds))
-        });
+        let search_options = match options {
+            Some(options) => options,
+            None => {
+                debug!(
+                    "Options not provided, using default segment duration {}",
+                    self.segment_duration_seconds,
+                );
+                SearchParams::new(Some(self.segment_duration_seconds))?
+            }
+        };
 
         let future = async move {
             debug!("Starting async recognition from file: {}", value.display());
@@ -149,8 +168,11 @@ mod tests {
     // The same default `SearchParams` carries, and `shazamio_core.pyi` documents.
     #[test]
     fn a_recognizer_defaults_to_a_ten_second_segment() {
-        assert_eq!(Recognizer::new(None).segment_duration_seconds, 10);
-        assert_eq!(Recognizer::new(Some(4)).segment_duration_seconds, 4);
+        assert_eq!(Recognizer::new(None).unwrap().segment_duration_seconds, 10);
+        assert_eq!(
+            Recognizer::new(Some(4)).unwrap().segment_duration_seconds,
+            4
+        );
     }
 
     // `stubtest` and `tests/test_init.py` compare the same list against the `.pyi`

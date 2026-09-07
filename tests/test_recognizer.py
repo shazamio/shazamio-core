@@ -121,6 +121,28 @@ async def test_a_segment_longer_than_the_file_analyses_it_whole(
     assert signature.signature.samples == EXPECTED_DURATION_MS
 
 
+def test_a_zero_segment_duration_is_refused() -> None:
+    with pytest.raises(ValueError):
+        Recognizer(0)
+
+    with pytest.raises(ValueError):
+        SearchParams(0)
+
+
+def test_a_zero_segment_duration_is_refused_on_assignment_too() -> None:
+    recognizer = Recognizer()
+    search_parameters = SearchParams()
+
+    with pytest.raises(ValueError):
+        recognizer.segment_duration_seconds = 0
+
+    with pytest.raises(ValueError):
+        search_parameters.segment_duration_seconds = 0
+
+    assert recognizer.segment_duration_seconds == 10
+    assert search_parameters.segment_duration_seconds == 10
+
+
 async def test_recognize_path_accepts_a_string_too(*, recognizer: Recognizer) -> None:
     # `recognize_path` extracts a Rust `PathBuf` through `os.fspath`, so a `str` and
     #  a `Path` both work. It used to extract a `String` and reject a `Path` with
