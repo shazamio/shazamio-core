@@ -31,8 +31,11 @@ build-backend = "maturin"
 name = "shazamio_core"
 description = "Audio fingerprinting for Shazam, written in Rust and exposed to Python"
 readme = "README.md"
+# `Cargo.toml` declares the same expression, and says why it needs its own copy.
 license = "MIT"
-license-files = ["LICENSE"]
+# `THIRD-PARTY-NOTICES.md` is generated; `just licenses` writes it and the
+#  `licenses` check fails when it no longer matches `Cargo.lock`.
+license-files = ["LICENSE", "THIRD-PARTY-NOTICES.md"]
 authors = [{name = "dotX12", email = "dev@shitposting.team"}]
 maintainers = [{name = "Danipulok", email = "danipulok@gmail.com"}]
 # Must match the `abi3-py*` feature in `Cargo.toml`, which is where the floor is

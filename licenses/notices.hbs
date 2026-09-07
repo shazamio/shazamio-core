@@ -1,0 +1,33 @@
+# Third-party notices
+
+This file is generated. Regenerate it with `just licenses`; what it is generated
+from is `Cargo.lock` plus the harvesting rules in `licenses/about.toml`.
+
+The wheel is a single extension module with every crate below compiled into it,
+so their terms travel with the binary. The project's own licence is `LICENSE`,
+beside this file.
+
+Section 3.2(a) of the Mozilla Public License 2.0 asks that recipients be told how
+to obtain the source form of the files it covers. Every crate below is published
+on `crates.io`, its unmodified source is at
+`https://crates.io/crates/<name>/<version>`, and the repository it was published
+from is named beside it. None of them is patched here.
+
+Crates per licence:
+
+{{#each overview}}
+- {{{name}}} (`{{id}}`): {{count}}
+{{/each}}
+
+{{#each licenses}}
+## {{{name}}}
+
+{{#each used_by}}
+- `{{crate.name}} {{crate.version}}`{{#if crate.repository}} ({{crate.repository}}){{/if}}
+{{/each}}
+
+```text
+{{{text}}}
+```
+
+{{/each}}

@@ -12,13 +12,20 @@ harness: &harness
   - .github/path-filters.yaml
   - justfile
 
-crate: &crate
-  - src/**
+# An alias to a list nests it, and this action flattens that at any depth, so an
+#  anchor composed of other anchors is read as one flat list of patterns.
+#  https://github.com/dorny/paths-filter/blob/ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d/src/filter.ts#L155-L157
+
+# What the dependency tree is resolved from, and so what the licence notices are
+#  generated from. Named apart from `crate` below because `src/**` cannot change
+#  which crates the wheel links.
+manifest: &manifest
   - Cargo.toml
   - Cargo.lock
 
-# An alias to a list nests it, and this action flattens that.
-#  https://github.com/dorny/paths-filter/blob/ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d/README.md#L475
+crate: &crate
+  - src/**
+  - *manifest
 
 # `Rust lint`, `Rust unit tests` and `MSRV`.
 rust:
@@ -36,8 +43,18 @@ python:
   - uv.lock
 
 # `windows`, `macos`, `linux` and `sdist`, which build what a release publishes.
+#  The notices are in that set: `pyproject.toml` ships them beside `LICENSE`, so
+#  editing them changes what every wheel contains.
 dist:
   - *harness
   - *crate
   - pyproject.toml
   - docker/**
+  - THIRD-PARTY-NOTICES.md
+
+# `Licence notices`, which regenerates them and diffs against the committed file.
+licenses:
+  - *harness
+  - *manifest
+  - licenses/**
+  - THIRD-PARTY-NOTICES.md

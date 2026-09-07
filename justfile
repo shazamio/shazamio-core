@@ -6,6 +6,16 @@
 #  happens to have put on `PATH`.
 set shell := ["bash", "-uc"]
 
+# An unpinned generator rewrites the notices and turns a green branch red with
+#  nobody having touched the tree. The `Licence notices` job reads this value with
+#  `just --evaluate` rather than restating it, so the version has one home.
+cargo_about_version := "0.9.2"
+
+# Named once so the recipe that writes the notices and the one that diffs them
+#  cannot disagree about which file that is. `pyproject.toml` names it too, in
+#  `license-files`, because a manifest cannot read a recipe.
+notices := "THIRD-PARTY-NOTICES.md"
+
 [doc("Show the recipes")]
 default:
     @just --list
@@ -17,8 +27,13 @@ sync:
 # `--install-hooks` builds the hook environments now instead of during whichever
 #  commit happens to be the first, which otherwise stalls for a minute with no
 #  indication that it is downloading rather than checking.
-[doc("Everything a checkout needs: the dependencies and the `pre-commit` hooks")]
+
+# Without `--features cli` the install builds no executable at all and says so
+#  only in a warning, because the `cargo-about` binary sits behind that feature.
+#  https://github.com/EmbarkStudios/cargo-about/blob/f7394d5c8f618623573072caadf6594821c789b6/Cargo.toml#L23-L26
+[doc("Everything a checkout needs: the dependencies, `cargo-about` and the `pre-commit` hooks")]
 install: sync
+    cargo install cargo-about --locked --features cli --version '={{ cargo_about_version }}'
     uv run pre-commit install --install-hooks
 
 [doc("Run the Python test suite")]
@@ -63,5 +78,33 @@ msrv:
     rustup toolchain install "$version" --profile minimal
     cargo "+$version" check --locked --all-targets
 
+# What the wheel ships beside `LICENSE`. Some crates carry their licence with
+#  CRLF or a trailing blank line, which the whitespace hooks rewrite: the diff
+#  below then fails on a later commit with no dependency having moved.
+[doc("Regenerate the third-party licence notices from `Cargo.lock`")]
+licenses output=notices:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    cargo about generate --config licenses/about.toml licenses/notices.hbs --output-file {{ output }}
+
+    normalized="$(mktemp)"
+    trap 'rm -f "$normalized"' EXIT
+
+    # `$(...)` drops every trailing newline, so the `printf` leaves exactly one.
+    printf '%s\n' "$(sed 's/[[:space:]]*$//' {{ output }})" > "$normalized"
+    cp "$normalized" {{ output }}
+
+[doc("Check the committed notices still match `Cargo.lock`")]
+licenses-check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    generated="$(mktemp)"
+    trap 'rm -f "$generated"' EXIT
+
+    just licenses "$generated"
+    diff -u {{ notices }} "$generated"
+
 [doc("Everything CI gates on; the first run downloads the MSRV toolchain")]
-all: lint rust-test test stubtest msrv
+all: lint rust-test test stubtest msrv licenses-check

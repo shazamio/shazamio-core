@@ -110,7 +110,7 @@ Every check CI runs is a [`just`](https://github.com/casey/just) recipe, so the 
 
 ```sh
 just --list      # what there is
-just install     # builds the extension, installs the test dependencies and the commit hooks
+just install     # builds the extension, installs the test dependencies, `cargo-about` and the commit hooks
 just all         # everything CI gates on
 ```
 
@@ -127,3 +127,8 @@ sudo apt install libpython3.14-dev
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+The wheel statically links its Rust dependencies, so the terms in
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) apply to it as well. That file
+says how it is generated; `just licenses-check` fails once a dependency change
+has left it behind.

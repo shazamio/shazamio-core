@@ -58,12 +58,13 @@ jobs:
       rust: ${{ steps.filter.outcome == 'skipped' || steps.filter.outputs.rust == 'true' }}
       python: ${{ steps.filter.outcome == 'skipped' || steps.filter.outputs.python == 'true' }}
       dist: ${{ steps.filter.outcome == 'skipped' || steps.filter.outputs.dist == 'true' }}
+      licenses: ${{ steps.filter.outcome == 'skipped' || steps.filter.outputs.licenses == 'true' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # A tag push carries no diff to filter on, and `workflow_dispatch` is somebody
       #  asking for the whole matrix. The step then does not run and leaves its
-      #  outputs empty, which the three above read as `true`.
+      #  outputs empty, which every output above reads as `true`.
       - id: filter
         if: github.event_name != 'workflow_dispatch' && !startsWith(github.ref, 'refs/tags/')
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
@@ -146,6 +147,10 @@ jobs:
 
       - name: Check the formatting and run `clippy`
         run: just lint
+
+  # `licenses/about.toml` restates the targets the three jobs below build for,
+  #  because `cargo about` resolves the dependency tree per target and cannot read
+  #  a workflow. Adding a target here means adding it there.
 
   # The wheels below are abi3: one per platform, loading on every CPython from 3.10
   #  up. There is no per-interpreter matrix any more, so a new CPython release
@@ -328,11 +333,39 @@ jobs:
       - name: Check the crate against the declared MSRV
         run: just msrv
 
+  # `THIRD-PARTY-NOTICES.md` ships in every wheel and is generated from
+  #  `Cargo.lock`, so the failure worth catching is a dependency change nobody
+  #  regenerated after. Why the notices exist at all: `licenses/about.toml`.
+  licenses:
+    name: Licence notices
+    needs: changes
+    if: needs.changes.outputs.licenses == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-just
+
+      # The version is the `justfile`'s, read rather than restated: a generator of
+      #  another version rewrites the notices, and the two copies would then
+      #  disagree about which output is the correct one.
+      - id: tool
+        run: echo "version=$(just --evaluate cargo_about_version)" >> "$GITHUB_OUTPUT"
+
+      # A prebuilt binary from the project's own releases. Building it from source
+      #  costs about half a minute of the job for a check that runs in seconds.
+      - uses: taiki-e/install-action@d438492cf8a250514fa2d34b30bc3c0dc37c65ff # v2.87.8
+        with:
+          tool: cargo-about@${{ steps.tool.outputs.version }}
+
+      - name: Check the notices still match `Cargo.lock`
+        run: just licenses-check
+
   release:
     name: Release
     runs-on: ubuntu-latest
     if: "startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'"
-    needs: [ test, rust-test, lint, sdist, macos, linux, windows ]
+    needs: [ test, rust-test, lint, licenses, sdist, macos, linux, windows ]
     steps:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
