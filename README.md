@@ -24,7 +24,7 @@ Python 3.10 and newer. Prebuilt wheels:
 | macOS `x86_64` (10.12+), `arm64` (11.0+)     | yes                    | no        |
 | Windows `win_amd64`, `win32`                 | yes                    | no        |
 
-Everything else builds from the source distribution and needs a Rust toolchain, 1.87 or newer.
+Everything else builds from the source distribution, which needs a Rust toolchain 1.87 or newer, CMake and a C compiler. `libopus` is built from vendored sources rather than linked against a system copy, so without CMake the build stops on `is 'cmake' not installed?`.
 
 ## Usage
 
@@ -102,6 +102,8 @@ except SignatureError as error:
 
 Decoding goes through [`symphonia`](https://github.com/pdeljanov/Symphonia) with every codec and container it ships enabled, and resampling to mono 16 kHz through [`rubato`](https://github.com/HEnquist/rubato). Opus is the one codec `symphonia` has no decoder for, so it goes through [`libopus`](https://github.com/SpaceManiac/opus-rs), which is compiled into the wheel rather than loaded from the system. Nothing is shelled out to, so no external binary has to be installed. The test suite covers MP3, Ogg Vorbis, Opus and FLAC on Linux, macOS and Windows.
 
+Two inputs are outside that set and raise `SignatureError`: Windows Media Audio in an ASF container, which `symphonia` does not read, and an Opus stream wider than stereo, which needs the multistream mapping `libopus` exposes separately. Both decoded in earlier releases through an `ffmpeg` fallback that has since been removed.
+
 ## Development
 
 Every check CI runs is a [`just`](https://github.com/casey/just) recipe, so the two cannot drift apart:
@@ -114,7 +116,7 @@ just all         # everything CI gates on
 
 `just install` also wires the same recipes into `git commit` through [`pre-commit`](https://pre-commit.com), each one scoped to the files it gates, so a change to the `README` runs none of them and a change to the crate runs all of them. CI scopes its jobs the same way, from the same sets: `.github/path-filters.yaml`.
 
-`just install` needs a Rust toolchain; `maturin` comes from `pyproject.toml` and is fetched automatically. `just` itself is packaged for most systems, listed under [Packages](https://github.com/casey/just#packages).
+`just install` needs the toolchain the Install section lists; `maturin` comes from `pyproject.toml` and is fetched automatically. `just` itself is packaged for most systems, listed under [Packages](https://github.com/casey/just#packages).
 
 `just rust-test` links `libpython`, so on Debian and Ubuntu the development package of the interpreter `cargo` picks up has to be present, or the build stops at `rust-lld: error: unable to find library -lpython3.14`:
 
