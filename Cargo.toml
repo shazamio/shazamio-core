@@ -2,8 +2,9 @@
 name = "shazamio-core"
 version = "1.2.0"
 edition = "2021"
-# `pyo3` 0.29 declares 1.83 and is the highest floor in the tree; nothing here needs more.
-rust-version = "1.83"
+# `rubato` 5 declares 1.87 and is the highest floor in the tree; `pyo3` 0.29 asks for
+#  1.83 and nothing else asks for more.
+rust-version = "1.87"
 
 [lib]
 name = "shazamio_core"
@@ -38,7 +39,7 @@ log = "0.4.33"
 #  https://github.com/pdeljanov/Symphonia#codecs-decoders
 symphonia = { version = "0.5.4", features = ["all"] }
 opus = "0.4.0"
-rubato = "0.15.0"
+rubato = "5.0.0"
 
 [profile.release]
 # Measured 2026-09-05 by diffing the CI wheels before and after. On Linux the
