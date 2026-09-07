@@ -96,9 +96,9 @@ async def test_a_wider_opus_stream_decodes(
     *,
     recognizer: Recognizer,
 ) -> None:
-    # Neither file is in the matrix above, and both were refused outright until the
-    #  decoder started reading `OpusHead`: Matroska declares no channel count, and six
-    #  channels need the multistream API. Matroska signals no end padding, hence 8013.
+    # Neither file is in the matrix above, and both were refused until the decoder
+    #  started reading `OpusHead`: Matroska declares no channel count, and six channels
+    #  need the multistream API. Its end padding is dropped, not applied, hence 8013.
     signature = await recognizer.recognize_path(DATA_DIRECTORY / file_name)
 
     assert signature.signature.samples == expected_duration_ms

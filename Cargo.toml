@@ -30,10 +30,10 @@ pyo3 = { version = "=0.29.2", features = ["abi3-py310"] }
 pyo3-async-runtimes = { version = "0.29.0", features = ["tokio-runtime"] }
 pyo3-log = "=0.13.4"
 log = "0.4.33"
-# `symphonia` has no Opus decoder in any release, and no `symphonia-codec-opus`
-#  crate exists, so `features = ["all"]` does not add one either. `opus` bundles
-#  `libopus` and links it statically, so the wheel gains no runtime dependency.
-#  https://github.com/pdeljanov/Symphonia#codecs-decoders
+# `symphonia` ships no Opus decoder in any release up to 0.6.1, its latest, and
+#  `features = ["all"]` adds none: `symphonia-codec-opus` is unwritten and unpublished.
+#  `opus` bundles `libopus` and links it statically, so the wheel gains no dependency.
+#  https://github.com/pdeljanov/Symphonia/blob/ee35874b571a35a9a6e15d3bc9a3aaf8f11fbeee/README.md#L111
 symphonia = { version = "0.5.4", features = ["all"] }
 opus = "0.4.0"
 rubato = "5.0.0"

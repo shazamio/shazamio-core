@@ -385,9 +385,10 @@ mod tests {
 
     #[test]
     fn an_opus_stream_in_matroska_decodes() {
-        // Matroska describes an Opus track with no channel count, and the decoder
-        //  used to refuse it with "declares no channel layout". It signals no end
-        //  padding either, so 648 frames of it survive the header's pre-skip.
+        // Matroska describes an Opus track with no channel count, and the decoder used
+        //  to refuse it with "declares no channel layout". Its 648 frames of end
+        //  padding survive because the demuxer reads `DiscardPadding` and drops it.
+        //  https://github.com/pdeljanov/Symphonia/blob/6d533f26150953a882a6a111ebd13f0abf7129d5/symphonia-format-mkv/src/segment.rs#L427
         let probe = decode_probe("matroska.webm").unwrap();
 
         assert_eq!(probe.channels, 2);
@@ -433,9 +434,10 @@ mod tests {
 
     #[test]
     fn an_mp4_container_decodes() {
-        // 1504 frames longer than the source: AAC pads the front of the stream and
-        //  the container does not signal by how much, so nothing can trim it. Same
-        //  gap before the decoder was swapped, so it is not a regression to fix here.
+        // 1504 frames longer than the source: AAC pads the front, and the edit list
+        //  saying by how much is parsed into the track and never read again. Same gap
+        //  before the decoder was swapped, so it is not a regression to fix here.
+        //  https://github.com/pdeljanov/Symphonia/blob/6d533f26150953a882a6a111ebd13f0abf7129d5/symphonia-format-isomp4/src/atoms/trak.rs#L22
         let probe = decode_probe("probe.m4a").unwrap();
 
         assert_eq!(probe.frames, 8 * 44100 + 1504);
@@ -448,10 +450,19 @@ mod tests {
             SignatureGenerator::make_signature_from_file(&probe_path("probe.flac"), None).unwrap();
 
         assert_eq!(signature.encode_to_uri().unwrap(), golden_uri("probe.flac"));
+    }
 
-        // Peaks landed in every band, so `do_peak_recognition` ran its whole match.
+    #[test]
+    fn the_whole_pipeline_peaks_in_every_band() {
+        // The golden above pins the bytes and runs on Linux alone. This holds
+        //  everywhere: peaks landed in every band, so `do_peak_recognition` ran its
+        //  whole match rather than half of it.
+        let signature =
+            SignatureGenerator::make_signature_from_file(&probe_path("probe.flac"), None).unwrap();
+
         let mut bands: Vec<_> = signature.frequency_band_to_sound_peaks.keys().collect();
         bands.sort();
+
         assert_eq!(
             bands,
             vec![
@@ -470,10 +481,16 @@ mod tests {
             SignatureGenerator::make_signature_from_file(&probe_path("chord.flac"), None).unwrap();
 
         assert_eq!(signature.encode_to_uri().unwrap(), golden_uri("chord.flac"));
+    }
 
+    #[test]
+    fn the_chord_probe_fills_the_top_band() {
         // `probe.flac` barely reaches the 3500 to 5500 Hz band, so it puts 7 peaks
         //  there against 36 here. `tests/data/generate.sh` says why, and why that
         //  makes this the probe a decoding or resampling change is judged on.
+        let signature =
+            SignatureGenerator::make_signature_from_file(&probe_path("chord.flac"), None).unwrap();
+
         let top_band = &signature.frequency_band_to_sound_peaks[&FrequencyBand::_3500_5500];
 
         assert!(
@@ -504,15 +521,18 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(not(target_os = "linux"), ignore = "the golden URI is pinned on Linux")]
     fn the_bytes_of_a_file_fingerprint_the_same_as_its_path() {
         let probe = std::fs::read(probe_path("probe.flac")).unwrap();
 
         let from_bytes = SignatureGenerator::make_signature_from_bytes(probe, None).unwrap();
+        let from_file =
+            SignatureGenerator::make_signature_from_file(&probe_path("probe.flac"), None).unwrap();
 
+        // The path form is what the golden above pins, so comparing the two carries
+        //  the same guarantee on Linux and still runs everywhere else.
         assert_eq!(
             from_bytes.encode_to_uri().unwrap(),
-            golden_uri("probe.flac")
+            from_file.encode_to_uri().unwrap(),
         );
     }
 

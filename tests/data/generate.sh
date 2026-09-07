@@ -19,12 +19,13 @@
 #  same partials in both channels, phase shifted, and holds that band for its whole
 #  length, up to 6.6 kHz.
 #
-# Re-running this reproduces every file byte for byte except `probe.ogg` and
-#  `probe.opus`: an Ogg stream carries a random serial number, so a handful of bytes
-#  change per run. The decoded audio does not, and neither does the fingerprint, so
-#  the goldens survive a regeneration. Checked on `ffmpeg` 8.0.1; another build may
-#  re-encode differently, and then the goldens have to be rewritten alongside the
-#  audio.
+# Re-running this reproduces every file byte for byte except the five that carry a
+#  random identifier: `probe.ogg`, `probe.opus`, `surround.opus` and
+#  `chained_capacity.ogg` each get a fresh Ogg serial number, and `matroska.webm` a
+#  fresh track UID, so a handful of bytes change per run. The decoded audio does
+#  not, and neither does the fingerprint, so the goldens survive a regeneration.
+#  Checked on `ffmpeg` 8.0.1; another build may re-encode differently, and then the
+#  goldens have to be rewritten alongside the audio.
 set -euo pipefail
 
 cd "$(dirname "$0")"
@@ -42,9 +43,10 @@ ffmpeg -y -i probe.wav -c:a aac -b:a 128k probe.m4a
 #  signal and writes 185 kbps, four times the size of every other probe.
 ffmpeg -y -i probe.wav -c:a libopus -b:a 96k -vbr constrained probe.opus
 
-# The same Opus in Matroska rather than in Ogg. Matroska signals neither the
-#  pre-skip nor the end padding, so the two containers exercise different halves of
-#  the trimming: the header carries the pre-skip and nothing carries the padding.
+# The same Opus in Matroska rather than in Ogg. Both carry the end padding, and only
+#  the Ogg reader applies it: the Matroska one reads `DiscardPadding` and drops it,
+#  so this file keeps the padding the `.opus` beside it loses.
+#  https://github.com/pdeljanov/Symphonia/blob/6d533f26150953a882a6a111ebd13f0abf7129d5/symphonia-format-mkv/src/segment.rs#L427
 ffmpeg -y -i probe.wav -c:a libopus -b:a 96k -vbr constrained matroska.webm
 
 # Six channels, which `libopus` decodes only through its multistream API: above two
