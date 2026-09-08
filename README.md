@@ -83,7 +83,9 @@ signature = await recognizer.recognize_path(
 )
 ```
 
-`SearchParams` wins where both are given.
+`SearchParams` wins where both are given. The duration must be at least 1; zero
+raises `ValueError`. A value at or above the length of the file analyses it whole,
+whatever the value.
 
 ### Errors
 

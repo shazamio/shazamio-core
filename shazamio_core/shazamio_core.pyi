@@ -68,6 +68,7 @@ class SearchParams:
           - Example: If the audio is **8 seconds** and `segment_duration_seconds = 10`, the entire **8-second file** will be processed.
         - **Audio is always converted to mono and down sampled to 16 kHz** before analysis.
         - This parameter determines the number of samples used for frequency analysis and fingerprint generation.
+        - **Must be at least 1.** Zero raises `ValueError`, at the constructor and on assignment.
     """
 
     segment_duration_seconds: int
@@ -99,6 +100,7 @@ class Recognizer:
               - Example: If the audio is **8 seconds** and `segment_duration_seconds = 10`, the entire **8-second file** will be processed.
             - **Audio is always converted to mono and down sampled to 16 kHz** before analysis.
             - This parameter determines the number of samples used for frequency analysis and fingerprint generation.
+            - **Must be at least 1.** Zero raises `ValueError`, at the constructor and on assignment.
         """
 
     async def recognize_path(
