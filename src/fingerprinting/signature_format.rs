@@ -45,8 +45,9 @@ impl DecodedSignature {
     pub fn encode_to_binary(&self) -> Result<Vec<u8>, Box<dyn Error>> {
         let mut cursor = Cursor::new(vec![]);
 
-        // Please see the RawSignatureHeader structure definition above for
-        // information about the following fields.
+        // The names below are the fields of `RawSignatureHeader` in the project this was
+        //  ported from, which says what each one holds. Only its decoder needed the struct.
+        //  https://github.com/marin-m/SongRec/blob/50b72aab457718fd0b2a814aa002149cea37453a/src/core/fingerprinting/signature_format.rs#L24
 
         cursor.write_u32::<LittleEndian>(0xcafe2580)?; // magic1
         cursor.write_u32::<LittleEndian>(0)?; // crc32 - Will write later
