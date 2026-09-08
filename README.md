@@ -75,12 +75,23 @@ Ten seconds by default, taken from the middle of the file. A file shorter than t
 Set it per recognizer, or per call:
 
 ```python
-recognizer = Recognizer(segment_duration_seconds=5)
+import asyncio
 
-signature = await recognizer.recognize_path(
-    "track.mp3",
-    SearchParams(segment_duration_seconds=15),
-)
+from shazamio_core import Recognizer, SearchParams
+
+
+async def main() -> None:
+    recognizer = Recognizer(segment_duration_seconds=5)
+
+    signature = await recognizer.recognize_path(
+        "track.mp3",
+        SearchParams(segment_duration_seconds=15),
+    )
+
+    print(signature.signature.samples)
+
+
+asyncio.run(main())
 ```
 
 `SearchParams` wins where both are given. The duration must be at least 1; zero
@@ -92,12 +103,19 @@ whatever the value.
 Audio that cannot be decoded, and a file that is not there, raise `SignatureError`:
 
 ```python
+import asyncio
+
 from shazamio_core import Recognizer, SignatureError
 
-try:
-    await Recognizer().recognize_path("not-audio.txt")
-except SignatureError as error:
-    print(error)
+
+async def main() -> None:
+    try:
+        await Recognizer().recognize_path("not-audio.txt")
+    except SignatureError as error:
+        print(error)
+
+
+asyncio.run(main())
 ```
 
 ## Formats
