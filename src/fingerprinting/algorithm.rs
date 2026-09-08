@@ -446,9 +446,9 @@ mod tests {
 
     #[test]
     fn a_link_that_decodes_into_a_wider_buffer_decodes() {
-        // A decoder sizes its buffer once, so only a chained stream makes the sample
-        //  buffer grow. Vorbis holds 1024 frames here and the FLAC link after it 1152,
-        //  so 2304 samples land in a buffer of 2048 and `copy_interleaved_ref` panicked.
+        // The sample buffer used to be sized once, so a link needing a wider one panicked
+        //  in `copy_interleaved_ref`: 2304 samples into a buffer of 2048. How the fixture
+        //  chains its links: `tests/data/generate.sh`.
         let probe = decode_probe("chained_capacity.ogg").unwrap();
 
         assert_eq!(probe.channels, 2);
