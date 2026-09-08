@@ -1,11 +1,10 @@
-use crate::fingerprinting::decode::samples_from_bytes;
+use crate::fingerprinting::decode::MonoDecoder;
 use crate::fingerprinting::hanning::HANNING_WINDOW_2048_MULTIPLIERS;
-use crate::fingerprinting::resample::resample;
+use crate::fingerprinting::resample::Resampling;
 use crate::fingerprinting::signature_format::{DecodedSignature, FrequencyBand, FrequencyPeak};
 use chfft::RFft1D;
 use std::collections::HashMap;
 use std::error::Error;
-use std::fs;
 use std::path::Path;
 
 // The rate every entry point resamples to before fingerprinting, and the rate the
@@ -28,8 +27,17 @@ pub struct SignatureGenerator {
 }
 
 impl SignatureGenerator {
-    fn pcm_samples_from_bytes(bytes: Vec<u8>) -> Result<Vec<i16>, Box<dyn Error>> {
-        resample(samples_from_bytes(bytes)?)
+    // Decoded, mixed down and resampled a packet at a time, so nothing longer than one
+    //  packet of the source is ever held beside the 16 kHz result.
+    fn pcm_samples(mut decoder: MonoDecoder) -> Result<Vec<i16>, Box<dyn Error>> {
+        let mut resampling = Resampling::new(decoder.spec().rate)?;
+        let mut mono_frames = Vec::new();
+
+        while decoder.next_chunk(&mut mono_frames)? {
+            resampling.push(&mono_frames)?;
+        }
+
+        resampling.finish()
     }
 
     // A file no longer than the requested segment is fingerprinted whole; a longer one
@@ -57,23 +65,35 @@ impl SignatureGenerator {
         bytes: Vec<u8>,
         segment_duration_seconds: Option<u32>,
     ) -> Result<DecodedSignature, Box<dyn Error>> {
-        let raw_pcm_samples = SignatureGenerator::pcm_samples_from_bytes(bytes)?;
-        let segment =
-            SignatureGenerator::middle_segment(&raw_pcm_samples, segment_duration_seconds);
-
-        Ok(SignatureGenerator::make_signature_from_buffer(
-            segment.to_vec(),
-        ))
+        SignatureGenerator::make_signature(
+            MonoDecoder::from_bytes(bytes)?,
+            segment_duration_seconds,
+        )
     }
 
     pub fn make_signature_from_file(
         file_path: &Path,
         segment_duration_seconds: Option<u32>,
     ) -> Result<DecodedSignature, Box<dyn Error>> {
-        SignatureGenerator::make_signature_from_bytes(
-            fs::read(file_path)?,
+        // Read through as it decodes rather than with `fs::read`, which held the whole
+        //  file: 30 minutes of stereo FLAC is 230 MB of bytes before a sample is decoded.
+        SignatureGenerator::make_signature(
+            MonoDecoder::from_file(file_path)?,
             segment_duration_seconds,
         )
+    }
+
+    fn make_signature(
+        decoder: MonoDecoder,
+        segment_duration_seconds: Option<u32>,
+    ) -> Result<DecodedSignature, Box<dyn Error>> {
+        let raw_pcm_samples = SignatureGenerator::pcm_samples(decoder)?;
+        let segment =
+            SignatureGenerator::middle_segment(&raw_pcm_samples, segment_duration_seconds);
+
+        Ok(SignatureGenerator::make_signature_from_buffer(
+            segment.to_vec(),
+        ))
     }
 
     pub fn make_signature_from_buffer(s16_mono_16khz_buffer: Vec<i16>) -> DecodedSignature {
@@ -320,19 +340,34 @@ mod tests {
     struct ProbeShape {
         frames: usize,
         channels: usize,
+        rate: u32,
     }
 
-    // The same read-and-decode the path entry point does, so a test here cannot prove
-    //  something that entry point does not.
-    fn decode_probe(name: &str) -> Result<ProbeShape, Box<dyn Error>> {
-        let bytes = std::fs::read(probe_path(name))?;
-        let decoded_audio = samples_from_bytes(bytes)?;
-        let channels = decoded_audio.spec.channels.count();
+    // The same decode the entry points drive, so a test here cannot prove something they
+    //  do not do. Mixing down keeps one value per frame, so the count is the frame count.
+    fn decode(mut decoder: MonoDecoder) -> Result<ProbeShape, SymphoniaError> {
+        let mut mono_frames = Vec::new();
+        let mut frames = 0;
+
+        while decoder.next_chunk(&mut mono_frames)? {
+            frames += mono_frames.len();
+        }
 
         Ok(ProbeShape {
-            frames: decoded_audio.samples.len() / channels,
-            channels,
+            frames,
+            channels: decoder.spec().channels.count(),
+            rate: decoder.spec().rate,
         })
+    }
+
+    // The same read-and-decode the path entry point does.
+    fn decode_probe(name: &str) -> Result<ProbeShape, SymphoniaError> {
+        decode(MonoDecoder::from_file(&probe_path(name))?)
+    }
+
+    // What the bytes entry point does instead, for a stream no file holds.
+    fn decode_bytes(bytes: Vec<u8>) -> Result<ProbeShape, SymphoniaError> {
+        decode(MonoDecoder::from_bytes(bytes)?)
     }
 
     #[test]
@@ -352,12 +387,10 @@ mod tests {
         //  count is against that rate rather than against the source's 44.1 kHz.
         const OPUS_RATE: usize = 48_000;
 
-        let bytes = std::fs::read(Path::new(DATA_DIRECTORY).join("probe.opus")).unwrap();
-        let decoded_audio = samples_from_bytes(bytes).unwrap();
-        let frames = decoded_audio.samples.len() / decoded_audio.spec.channels.count();
+        let probe = decode_probe("probe.opus").unwrap();
 
-        assert_eq!(decoded_audio.spec.rate as usize, OPUS_RATE);
-        assert_eq!(frames, 8 * OPUS_RATE);
+        assert_eq!(probe.rate as usize, OPUS_RATE);
+        assert_eq!(probe.frames, 8 * OPUS_RATE);
     }
 
     #[test]
@@ -368,10 +401,9 @@ mod tests {
         let mut chained = std::fs::read(probe_path("probe.opus")).unwrap();
         chained.extend_from_slice(&chained.clone());
 
-        let decoded_audio = samples_from_bytes(chained).unwrap();
-        let frames = decoded_audio.samples.len() / decoded_audio.spec.channels.count();
+        let probe = decode_bytes(chained).unwrap();
 
-        assert_eq!(frames, 2 * 8 * 48_000);
+        assert_eq!(probe.frames, 2 * 8 * 48_000);
     }
 
     #[test]
@@ -405,7 +437,7 @@ mod tests {
         let mut chained = std::fs::read(probe_path("probe.opus")).unwrap();
         chained.extend_from_slice(&std::fs::read(probe_path("surround.opus")).unwrap());
 
-        let Err(error) = samples_from_bytes(chained) else {
+        let Err(error) = decode_bytes(chained) else {
             panic!("a stream that changes format decoded");
         };
 
