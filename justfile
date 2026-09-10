@@ -20,8 +20,13 @@ notices := "THIRD-PARTY-NOTICES.md"
 default:
     @just --list
 
-[doc("Build the extension into the environment and install the test dependencies")]
-sync:
+# --- Setup ---
+
+# Separate from `install` because the CI test matrix wants the environment and
+#  nothing else: `cargo-about` and the hook environments cost minutes on each of
+#  the three runners, and neither is used to run a test.
+[doc("The environment the tests need: the dependencies and the built extension")]
+install-test:
     uv sync
 
 # `--install-hooks` builds the hook environments now instead of during whichever
@@ -32,28 +37,11 @@ sync:
 #  only in a warning, because the `cargo-about` binary sits behind that feature.
 #  https://github.com/EmbarkStudios/cargo-about/blob/f7394d5c8f618623573072caadf6594821c789b6/Cargo.toml#L23-L26
 [doc("Everything a checkout needs: the dependencies, `cargo-about` and the `pre-commit` hooks")]
-install: sync
+install: install-test
     cargo install cargo-about --locked --features cli --version '={{ cargo_about_version }}'
     uv run pre-commit install --install-hooks
 
-[doc("Run the Python test suite")]
-test:
-    uv run pytest
-
-# Nothing else compares the hand-written `.pyi` with the extension, and it had
-#  drifted: `Recognizer.__init__` declared a parameter the runtime carries on
-#  `__new__`, and three classes claimed to be `@dataclass`.
-[doc("Check the type stub against the built extension")]
-stubtest:
-    uv run python -m mypy.stubtest shazamio_core.shazamio_core
-
-[doc("Run the Rust unit tests")]
-rust-test:
-    cargo test
-
-[doc("Reformat the crate")]
-fmt:
-    cargo fmt --all
+# --- Code quality ---
 
 # `--all-targets` is what reaches the `#[cfg(test)]` modules. The default target
 #  set stops at the library, so every unit test would go unlinted.
@@ -62,6 +50,32 @@ fmt:
 lint:
     cargo fmt --all --check
     cargo clippy --all-targets -- -D warnings
+
+[doc("Reformat the crate")]
+format:
+    cargo fmt --all
+
+# Nothing else compares the hand-written `.pyi` with the extension, and it had
+#  drifted: `Recognizer.__init__` declared a parameter the runtime carries on
+#  `__new__`, and three classes claimed to be `@dataclass`.
+[doc("Check the type stub against the built extension")]
+typecheck:
+    uv run python -m mypy.stubtest shazamio_core.shazamio_core
+
+# --- Tests ---
+
+[doc("Run both suites")]
+test: test-rust test-python
+
+[doc("Run the Python suite; extra arguments reach `pytest`")]
+test-python *args:
+    uv run pytest {{ args }}
+
+[doc("Run the Rust suite; extra arguments reach `cargo test`")]
+test-rust *args:
+    cargo test {{ args }}
+
+# --- Release ---
 
 # Everything else builds with current stable, so a `cargo update` can raise the
 #  real floor and stay green. Whoever builds the sdist on a distro toolchain is
@@ -106,5 +120,7 @@ licenses-check:
     just licenses "$generated"
     diff -u {{ notices }} "$generated"
 
+# --- CI ---
+
 [doc("Everything CI gates on; the first run downloads the MSRV toolchain")]
-all: lint rust-test test stubtest msrv licenses-check
+ci: lint typecheck test msrv licenses-check

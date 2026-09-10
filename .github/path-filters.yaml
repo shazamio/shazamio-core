@@ -32,7 +32,7 @@ rust:
   - *harness
   - *crate
 
-# `Test`, which runs `just test` and `just stubtest`. The crate is in scope
+# `Test`, which runs `just test-python` and `just typecheck`. The crate is in scope
 #  because both exercise the built extension rather than the sources beside it.
 python:
   - *harness

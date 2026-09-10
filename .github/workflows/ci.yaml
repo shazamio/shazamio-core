@@ -93,16 +93,16 @@ jobs:
       - uses: ./.github/actions/setup-just
 
       - name: Install the project and its test dependencies
-        run: just sync
+        run: just install-test
 
       - name: Run the tests
-        run: just test
+        run: just test-python
 
       # The stub does not vary by platform, so one runner answers for all three. Why
-      #  the check exists at all: the `stubtest` recipe.
+      #  the check exists at all: the `typecheck` recipe.
       - name: Check the type stub against the built extension
         if: matrix.os == 'ubuntu-latest'
-        run: just stubtest
+        run: just typecheck
 
   # Byte layout, checksum, band ordering: none of that varies by platform, so one
   #  runner answers for all of them -- whether the fingerprint itself does is what
@@ -126,7 +126,7 @@ jobs:
       - uses: ./.github/actions/setup-just
 
       - name: Run the unit tests
-        run: just rust-test
+        run: just test-rust
 
   # Neither of the two gates the recipe runs is provided by anything else here: the
   #  wheel jobs compile the crate, and a compiler is indifferent to formatting and to
