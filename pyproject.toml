@@ -29,9 +29,12 @@ build-backend = "maturin"
 
 [project]
 name = "shazamio_core"
-description = "Audio fingerprinting for Shazam, written in Rust and exposed to Python"
 readme = "README.md"
 # `Cargo.toml` declares the same expression, and says why it needs its own copy.
+#  Deriving this one from there instead, by naming `license` in `dynamic` the way
+#  `description` is, emits the deprecated `License: MIT` field in place of
+#  `License-Expression: MIT`.
+#  https://peps.python.org/pep-0639/#deprecate-license-field
 license = "MIT"
 # `THIRD-PARTY-NOTICES.md` is generated; `just licenses` writes it and the
 #  `licenses` check fails when it no longer matches `Cargo.lock`.
@@ -47,7 +50,10 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dynamic = ["version"]
+# `maturin` may only fill a field named here, so `description` has to be listed to
+#  reach the metadata at all: left out, the distribution ships with no `Summary`.
+#  https://www.maturin.rs/metadata
+dynamic = ["version", "description"]
 
 [project.urls]
 Repository = "https://github.com/shazamio/shazamio-core"

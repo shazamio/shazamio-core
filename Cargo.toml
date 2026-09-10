@@ -2,6 +2,14 @@
 name = "shazamio-core"
 version = "1.2.0"
 edition = "2021"
+# The one copy: `pyproject.toml` lists `description` in `dynamic` and `maturin`
+#  takes it from here, where it becomes the `Summary` of the Python distribution.
+description = "Audio fingerprinting for Shazam, written in Rust and exposed to Python"
+# Without one of `documentation`, `homepage` or `repository` every build prints
+#  `manifest has no documentation, homepage or repository`. `[project.urls]` names
+#  this address again because `cargo` has no field for an issue tracker, and making
+#  `urls` dynamic too would drop that link from the distribution metadata.
+repository = "https://github.com/shazamio/shazamio-core"
 # Same expression `pyproject.toml` declares. It is here because the licence
 #  harvesting the `licenses` recipe runs reads crate metadata, and warns on
 #  every run about a crate that declares none.
