@@ -18,6 +18,13 @@ accepted = [
 ignore-build-dependencies = true
 ignore-dev-dependencies = true
 
+# The root crate is harvested like any dependency, so a file of third-party notices
+#  listed this project among them, and the paragraph promising every crate below is
+#  published on `crates.io` was false for that row: it is not published anywhere.
+#  `ignore` drops a workspace member that publishes nowhere.
+#  https://embarkstudios.github.io/cargo-about/cli/generate/config.html
+private = { ignore = true }
+
 # The six targets the wheels are built for, so a crate pulled in by a `cfg()`
 #  none of them match stays out of the notices. Canonical list:
 #  `.github/workflows/ci.yaml`.

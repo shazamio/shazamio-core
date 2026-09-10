@@ -10,6 +10,9 @@ description = "Audio fingerprinting for Shazam, written in Rust and exposed to P
 #  this address again because `cargo` has no field for an issue tracker, and making
 #  `urls` dynamic too would drop that link from the distribution metadata.
 repository = "https://github.com/shazamio/shazamio-core"
+# Nothing publishes this crate: the wheel is what ships. `licenses/about.toml` reads
+#  the field to keep our own licence out of the third-party notices.
+publish = false
 # Same expression `pyproject.toml` declares. It is here because the licence
 #  harvesting the `licenses` recipe runs reads crate metadata, and warns on
 #  every run about a crate that declares none.
