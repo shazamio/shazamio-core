@@ -326,6 +326,28 @@ jobs:
       - uses: ./.github/actions/setup-just
       - name: Check what the archive carries
         run: just dist-check
+
+      # The registry and not `target/`, and written only from `master`: both are the
+      #  10 GB cache limit this repository has already gone over once, which the
+      #  `cache-to` line of the `linux` job argues. A pull request would export a
+      #  release `target/` nothing else can read, and it is the largest thing here.
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          cache-targets: "false"
+          save-if: ${{ github.ref == 'refs/heads/master' }}
+
+      # Nothing else opens the archive, and it is the install path wherever no wheel
+      #  exists. `install-test` compiles the crate through the PEP 517 backend, so an
+      #  `include` that dropped a source file or a fixture fails here instead of in
+      #  somebody's terminal. It resolves without `uv.lock`, which the archive omits.
+      - name: Check a wheel builds out of the archive and its suite passes
+        run: |
+          tar -xzf dist/*.tar.gz -C "$RUNNER_TEMP"
+          cd "$RUNNER_TEMP"/shazamio_core-*
+
+          just install-test
+          just test-python
+
       - name: Upload sdist
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
