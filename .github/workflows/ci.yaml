@@ -181,6 +181,9 @@ jobs:
          target: ${{ matrix.target }}
          args: --release --out dist
          sccache: "true"
+     - uses: ./.github/actions/setup-just
+     - name: Check what the wheels carry
+       run: just dist-check
      - name: Upload wheels
        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
        with:
@@ -212,6 +215,10 @@ jobs:
           target: ${{ matrix.target }}
           args: --release --out dist
           sccache: "true"
+      - uses: ./.github/actions/setup-just
+      - name: Check what the wheels carry
+        run: just dist-check
+
       - name: Upload wheels
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -294,6 +301,10 @@ jobs:
           cd "$RUNNER_TEMP"
           python -c "import shazamio_core; print(shazamio_core.__file__)"
 
+      - uses: ./.github/actions/setup-just
+      - name: Check what the wheels carry
+        run: just dist-check
+
       - name: Upload wheels
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -312,6 +323,9 @@ jobs:
           maturin-version: ${{ env.MATURIN_VERSION }}
           command: sdist
           args: --out dist
+      - uses: ./.github/actions/setup-just
+      - name: Check what the archive carries
+        run: just dist-check
       - name: Upload sdist
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

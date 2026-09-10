@@ -42,14 +42,18 @@ python:
   - pyproject.toml
   - uv.lock
 
-# `windows`, `macos`, `linux` and `sdist`, which build what a release publishes.
-#  The notices are in that set: `pyproject.toml` ships them beside `LICENSE`, so
-#  editing them changes what every wheel contains.
+# `windows`, `macos`, `linux` and `sdist`, which build what a release publishes and
+#  check what came out of it. The notices are in that set: `pyproject.toml` ships
+#  them beside `LICENSE`, so editing them changes what every wheel contains. So are
+#  the package directory and the checker itself: `dist-check` requires the stub and
+#  `py.typed`, and a deletion there would otherwise reach a release unchecked.
 dist:
   - *harness
   - *crate
   - pyproject.toml
   - docker/**
+  - shazamio_core/**
+  - scripts/**
   - THIRD-PARTY-NOTICES.md
 
 # `Licence notices`, which regenerates them and diffs against the committed file.
