@@ -43,10 +43,11 @@ python:
   - uv.lock
 
 # `windows`, `macos`, `linux` and `sdist`, which build what a release publishes and
-#  check what came out of it. The notices are in that set: `pyproject.toml` ships
-#  them beside `LICENSE`, so editing them changes what every wheel contains. So are
-#  the package directory and the checker itself: `dist-check` requires the stub and
-#  `py.typed`, and a deletion there would otherwise reach a release unchecked.
+#  check what came out of it. The notices are in the set because `pyproject.toml`
+#  ships them beside `LICENSE`; `shazamio_core/` and `scripts/` are in it because
+#  `dist-check` reads the stub, `py.typed` and its own script. Globbed where
+#  `include` in `Cargo.toml` names one file: that one decides what is published,
+#  this one only decides what re-runs, and too narrow here skips a job in silence.
 dist:
   - *harness
   - *crate
