@@ -42,10 +42,10 @@ repos:
         files: ^(\.pre-commit-config\.yaml|justfile|src/.*|Cargo\.(toml|lock))$
         pass_filenames: false
 
-      - id: rust-test
+      - id: test-rust
         name: rust · unit tests
         entry: just
-        args: [rust-test]
+        args: [test-rust]
         language: system
         files: ^(\.pre-commit-config\.yaml|justfile|src/.*|Cargo\.(toml|lock))$
         pass_filenames: false
@@ -62,18 +62,18 @@ repos:
 
       # The crate is in scope for both because they exercise the built extension;
       #  `tool.uv.cache-keys` in `pyproject.toml` is what rebuilds it.
-      - id: test
+      - id: test-python
         name: python · pytest
         entry: just
-        args: [test]
+        args: [test-python]
         language: system
         files: ^(\.pre-commit-config\.yaml|justfile|src/.*|Cargo\.(toml|lock)|tests/.*|shazamio_core/.*|pyproject\.toml|uv\.lock)$
         pass_filenames: false
 
-      - id: stubtest
+      - id: typecheck
         name: python · stub against the built extension
         entry: just
-        args: [stubtest]
+        args: [typecheck]
         language: system
         files: ^(\.pre-commit-config\.yaml|justfile|src/.*|Cargo\.(toml|lock)|tests/.*|shazamio_core/.*|pyproject\.toml|uv\.lock)$
         pass_filenames: false

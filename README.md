@@ -155,14 +155,14 @@ Every check CI runs is a [`just`](https://github.com/casey/just) recipe, so the 
 ```sh
 just --list      # what there is
 just install     # builds the extension, installs the test dependencies, `cargo-about` and the commit hooks
-just all         # everything CI gates on
+just ci          # everything CI gates on
 ```
 
 `just install` also wires the same recipes into `git commit` through [`pre-commit`](https://pre-commit.com), each one scoped to the files it gates, so a change to the `README` runs none of them and a change to the crate runs all of them. CI scopes its jobs the same way, from the same sets: `.github/path-filters.yaml`.
 
 `just install` needs the toolchain the Install section lists; `maturin` comes from `pyproject.toml` and is fetched automatically. `just` itself is packaged for most systems, listed under [Packages](https://github.com/casey/just#packages).
 
-`just rust-test` links `libpython`, so on Debian and Ubuntu the development package of the interpreter `cargo` picks up has to be present, or the build stops at `rust-lld: error: unable to find library -lpython3.14`:
+`just test-rust` links `libpython`, so on Debian and Ubuntu the development package of the interpreter `cargo` picks up has to be present, or the build stops at `rust-lld: error: unable to find library -lpython3.14`:
 
 ```sh
 sudo apt install libpython3.14-dev
