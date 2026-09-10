@@ -75,12 +75,23 @@ Ten seconds by default, taken from the middle of the file. A file shorter than t
 Set it per recognizer, or per call:
 
 ```python
-recognizer = Recognizer(segment_duration_seconds=5)
+import asyncio
 
-signature = await recognizer.recognize_path(
-    "track.mp3",
-    SearchParams(segment_duration_seconds=15),
-)
+from shazamio_core import Recognizer, SearchParams
+
+
+async def main() -> None:
+    recognizer = Recognizer(segment_duration_seconds=5)
+
+    signature = await recognizer.recognize_path(
+        "track.mp3",
+        SearchParams(segment_duration_seconds=15),
+    )
+
+    print(signature.signature.samples)
+
+
+asyncio.run(main())
 ```
 
 `SearchParams` wins where both are given. The duration must be at least 1; zero
@@ -92,19 +103,50 @@ whatever the value.
 Audio that cannot be decoded, and a file that is not there, raise `SignatureError`:
 
 ```python
+import asyncio
+
 from shazamio_core import Recognizer, SignatureError
 
-try:
-    await Recognizer().recognize_path("not-audio.txt")
-except SignatureError as error:
-    print(error)
+
+async def main() -> None:
+    try:
+        await Recognizer().recognize_path("not-audio.txt")
+    except SignatureError as error:
+        print(error)
+
+
+asyncio.run(main())
 ```
 
 ## Formats
 
-Decoding goes through [`symphonia`](https://github.com/pdeljanov/Symphonia) with every codec and container it ships enabled, and resampling to mono 16 kHz through [`rubato`](https://github.com/HEnquist/rubato). Opus is the one codec `symphonia` has no decoder for, so it goes through [`libopus`](https://github.com/SpaceManiac/opus-rs), which is compiled into the wheel rather than loaded from the system. Nothing is shelled out to, so no external binary has to be installed. The test suite covers MP3, Ogg Vorbis, Opus and FLAC on Linux, macOS and Windows.
+Decoding goes through [`symphonia`](https://github.com/pdeljanov/Symphonia) with every codec and container it ships enabled, and resampling to mono 16 kHz through [`rubato`](https://github.com/HEnquist/rubato). Opus is the one codec `symphonia` has no decoder for, so it goes through [`libopus`](https://github.com/SpaceManiac/opus-rs), which is compiled into the wheel rather than loaded from the system. Nothing is shelled out to, so no external binary has to be installed.
 
-One input is outside that set and raises `SignatureError`: Windows Media Audio in an ASF container. `symphonia` ships no ASF demuxer, and the `CODEC_TYPE_WMA` it declares has no decoder behind it. The format decoded in earlier releases through an `ffmpeg` fallback that has since been removed.
+That leaves these codecs, each one probed through the public API in the container named beside it:
+
+| Codec  | Probed in      | In the test suite |
+|--------|----------------|-------------------|
+| AAC    | ADTS           |                   |
+| ADPCM  | WAV            |                   |
+| ALAC   | MP4            |                   |
+| FLAC   | FLAC           | yes               |
+| MP1    | not probed     |                   |
+| MP2    | MPEG           |                   |
+| MP3    | MPEG           | yes               |
+| Opus   | Ogg            | yes               |
+| PCM    | WAV, AIFF, CAF |                   |
+| Vorbis | Ogg            | yes               |
+
+MP1 is the one row taken from what `symphonia` registers rather than from a run: nothing here encodes it. The containers recognised are ADTS, AIFF, CAF, FLAC, Matroska and WebM, MP4, MPEG, Ogg and WAV, and the test suite runs on Linux, macOS and Windows.
+
+Anything else raises `SignatureError`, and a container from that list is no guarantee: what has to be decodable is the codec inside it. The two refusals differ in how far the file gets:
+
+| Refused          | Error                        | Why                                     |
+|------------------|------------------------------|-----------------------------------------|
+| AC-3 in Matroska | `unsupported feature: codec` | the container is read, the codec is not |
+| WMA in ASF       | `end of stream`              | there is no ASF demuxer at all          |
+
+Windows Media Audio decoded in earlier releases through an `ffmpeg` fallback that has since been removed.
 
 ## Development
 
