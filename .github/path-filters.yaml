@@ -42,14 +42,19 @@ python:
   - pyproject.toml
   - uv.lock
 
-# `windows`, `macos`, `linux` and `sdist`, which build what a release publishes.
-#  The notices are in that set: `pyproject.toml` ships them beside `LICENSE`, so
-#  editing them changes what every wheel contains.
+# `windows`, `macos`, `linux` and `sdist`, which build what a release publishes and
+#  check what came out of it. The notices are in the set because `pyproject.toml`
+#  ships them beside `LICENSE`; `shazamio_core/` and `scripts/` are in it because
+#  `dist-check` reads the stub, `py.typed` and its own script. Globbed where
+#  `include` in `Cargo.toml` names one file: that one decides what is published,
+#  this one only decides what re-runs, and too narrow here skips a job in silence.
 dist:
   - *harness
   - *crate
   - pyproject.toml
   - docker/**
+  - shazamio_core/**
+  - scripts/**
   - THIRD-PARTY-NOTICES.md
 
 # `Licence notices`, which regenerates them and diffs against the committed file.

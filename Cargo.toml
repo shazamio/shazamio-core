@@ -49,6 +49,12 @@ include = [
     # The generator of the notices above, and what the shipped `justfile` reads in
     #  `licenses-check`: without it that recipe and `ci` fail on a missing file.
     "/licenses/**",
+    # What `dist-check` runs, for the same reason as `licenses/` above: the shipped
+    #  `justfile` names the script, and the recipe fails on a missing file without it.
+    #  Named rather than globbed, unlike `licenses/`: that directory ships whole
+    #  because `cargo about` needs both its files, while `scripts/` is a bucket a
+    #  scratch helper can land in, and `include` would ship it over `.gitignore`.
+    "/scripts/check_dist.py",
 ]
 
 [lib]

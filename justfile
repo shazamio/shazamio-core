@@ -120,6 +120,16 @@ licenses-check:
     just licenses "$generated"
     diff -u {{ notices }} "$generated"
 
+# Nothing else opens a release archive, and every way of getting one wrong is
+#  silent: a wheel without the stub type-checks as `Any`, and a source archive
+#  without `licenses/` fails nothing until somebody runs `licenses-check` inside
+#  it. What ships is decided by `include` in `Cargo.toml`, `license-files` in
+#  `pyproject.toml` and `maturin` itself, none of which can see the others.
+#  `--no-project`: the checker imports nothing outside the standard library.
+[doc("Check the built artifacts in a directory carry what they should")]
+dist-check directory="dist":
+    uv run --no-project python scripts/check_dist.py {{ directory }}
+
 # --- CI ---
 
 [doc("Everything CI gates on; the first run downloads the MSRV toolchain")]
