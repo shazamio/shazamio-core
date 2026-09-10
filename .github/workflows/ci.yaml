@@ -279,14 +279,8 @@ jobs:
           cache-to: ${{ github.ref == 'refs/heads/master' && format('type=gha,mode=max,scope={0}', matrix.name) || '' }}
           context: .
 
-      - name: List the wheels the image built
-        run: docker run --rm shazamio_core ls -la /opt/dist
-
       - name: Copy the wheels out of the image
         run: docker run --rm -v $(pwd)/dist:/tmp shazamio_core sh -c "cp -R /opt/dist/* /tmp/"
-
-      - name: List the wheels that were copied
-        run: ls -la dist
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
