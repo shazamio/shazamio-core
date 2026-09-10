@@ -9,6 +9,36 @@ license = "MIT"
 # `rubato` 5 declares 1.87 and is the highest floor in the tree; `pyo3` 0.29 asks for
 #  1.83 and nothing else asks for more.
 rust-version = "1.87"
+# What the source distribution carries, whitelisted so a new file has to be named
+#  here to ship. It leaves out what only the repository uses: the workflows, the
+#  wheel image, the commit hooks, the lock file of the test tooling. The tests and
+#  their audio stay, because a source build is the install path wherever no wheel
+#  exists and whoever takes it has to run the suite on the platform they built for.
+#  https://packaging.python.org/en/latest/discussions/downstream-packaging/
+#  `Cargo.toml`, `Cargo.lock` and `pyproject.toml` are added by the build regardless.
+#
+#  Every pattern is anchored because `include` overrides `.gitignore`: a bare
+#  `LICENSE` matched the 54 of them under `.venv/` and `.pytest_cache/` too.
+#  https://doc.rust-lang.org/cargo/reference/manifest.html#the-exclude-and-include-fields
+include = [
+    # The crate, and the Python package the built extension is loaded from.
+    "/src/**/*.rs",
+    "/shazamio_core/**",
+    "/tests/**",
+    # How the suite above is run, and the one record of what a source build should
+    #  pass before it is trusted.
+    "/justfile",
+    # Removing it fails the build before the compiler is reached: `Failed to read
+    #  Readme specified in Cargo.toml, which should be at <root>/README.md`.
+    "/README.md",
+    # Both are named in `license-files` in `pyproject.toml`, so they carry into the
+    #  metadata of the wheel a source build produces.
+    "/LICENSE",
+    "/THIRD-PARTY-NOTICES.md",
+    # The generator of the notices above, and what the shipped `justfile` reads in
+    #  `licenses-check`: without it that recipe and `ci` fail on a missing file.
+    "/licenses/**",
+]
 
 [lib]
 name = "shazamio_core"
