@@ -1158,7 +1158,7 @@ SOFTWARE.
 
 ## MIT License
 
-- `shazamio-core 1.2.0`
+- `shazamio-core 1.2.0` (https://github.com/shazamio/shazamio-core)
 
 ```text
 MIT License
