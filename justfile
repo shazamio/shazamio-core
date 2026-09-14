@@ -128,14 +128,14 @@ licenses-check:
 #  `pyproject.toml` and `maturin` itself, none of which can see the others.
 [doc("Check the built artifacts in a directory carry and declare what they should")]
 dist-check directory="dist":
-    uv run --no-project python scripts/check_dist.py {{ directory }}
-    uv run --no-project --with twine twine check {{ directory }}/*
+    uv run --no-project python scripts/check_dist.py {{ quote(directory) }}
+    uv run --no-project --with twine twine check {{ quote(directory) }}/*
 
 # What a user receives, as opposed to what a wheel contains: nothing else here
 #  installs one, and nothing else loads the extension it carries.
 [doc("Install a built wheel outside the checkout and import what it carries")]
 dist-smoketest directory="dist":
-    uv run --no-project python scripts/smoketest_dist.py {{ directory }}
+    uv run --no-project python scripts/smoketest_dist.py {{ quote(directory) }}
 
 # --- CI ---
 
