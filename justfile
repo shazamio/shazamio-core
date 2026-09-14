@@ -121,14 +121,21 @@ licenses-check:
     diff -u {{ notices }} "$generated"
 
 # Nothing else opens a release archive, and every way of getting one wrong is
-#  silent: a wheel without the stub type-checks as `Any`, and a source archive
-#  without `licenses/` fails nothing until somebody runs `licenses-check` inside
-#  it. What ships is decided by `include` in `Cargo.toml`, `license-files` in
+#  silent: a wheel without the stub type-checks as `Any`, a source archive
+#  without `licenses/` fails nothing until `licenses-check` runs inside it, and
+#  a long description PyPI cannot render is reported at upload or not at all.
+#  What ships is decided by `include` in `Cargo.toml`, `license-files` in
 #  `pyproject.toml` and `maturin` itself, none of which can see the others.
-#  `--no-project`: the checker imports nothing outside the standard library.
-[doc("Check the built artifacts in a directory carry what they should")]
+[doc("Check the built artifacts in a directory carry and declare what they should")]
 dist-check directory="dist":
-    uv run --no-project python scripts/check_dist.py {{ directory }}
+    uv run --no-project python scripts/check_dist.py {{ quote(directory) }}
+    uv run --no-project --with twine twine check {{ quote(directory) }}/*
+
+# What a user receives, as opposed to what a wheel contains: nothing else here
+#  installs one, and nothing else loads the extension it carries.
+[doc("Install a built wheel outside the checkout and import what it carries")]
+dist-smoketest directory="dist":
+    uv run --no-project python scripts/smoketest_dist.py {{ quote(directory) }}
 
 # --- CI ---
 

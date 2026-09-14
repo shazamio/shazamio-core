@@ -62,6 +62,7 @@ _SDIST: Final[Rules] = Rules(
         ("licenses/about.toml",),
         ("licenses/notices.hbs",),
         ("scripts/check_dist.py",),
+        ("scripts/smoketest_dist.py",),
         ("shazamio_core/__init__.py",),
         ("shazamio_core/py.typed",),
         ("shazamio_core/shazamio_core.pyi",),
@@ -78,6 +79,25 @@ _SDIST: Final[Rules] = Rules(
     ),
     metadata_entry="PKG-INFO",
 )
+
+
+# A CPython wheel is built against `pyo3/abi3-py310`, so `maturin` tags it
+#  `cp310-abi3` and it claims to load on every CPython from 3.10 up. Drop that
+#  feature and the build silently goes back to one wheel per interpreter version:
+#  the entries and the metadata are identical, so nothing else here would see it.
+#  PyPy has no stable ABI and is tagged after its interpreter on purpose, which is
+#  argued in `docker/build-manylinux.sh`.
+def _tag_problems(name: str) -> list[str]:
+    """Report what is wrong with a wheel's compatibility tags, read from its name."""
+    python_tag, abi_tag = name.removesuffix(".whl").split("-")[-3:-1]
+
+    if not python_tag.startswith("cp"):
+        return []
+
+    if abi_tag != "abi3":
+        return [f"is tagged `{python_tag}-{abi_tag}`, so it is not a limited API wheel"]
+
+    return []
 
 
 def _matches(entries: tuple[str, ...], *, pattern: str) -> list[str]:
@@ -153,9 +173,9 @@ def _problems(artifact: Artifact, *, rules: Rules) -> list[str]:
     return found
 
 
-def _check(path: Path, *, artifact: Artifact, rules: Rules) -> bool:
+def _check(path: Path, *, artifact: Artifact, rules: Rules, name_problems: list[str]) -> bool:
     """Report what is wrong with one artifact, and answer whether anything was."""
-    found = _problems(artifact, rules=rules)
+    found: list[str] = name_problems + _problems(artifact, rules=rules)
 
     for problem in found:
         print(f"{path.name}: {problem}", file=sys.stderr)
@@ -186,6 +206,7 @@ def main() -> int:
             path,
             artifact=_read_wheel(path),
             rules=_WHEEL,
+            name_problems=_tag_problems(path.name),
         )
 
     for path in sdists:
@@ -193,6 +214,7 @@ def main() -> int:
             path,
             artifact=_read_sdist(path),
             rules=_SDIST,
+            name_problems=[],
         )
 
     return 1 if failed else 0
