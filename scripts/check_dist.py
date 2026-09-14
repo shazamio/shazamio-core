@@ -62,6 +62,7 @@ _SDIST: Final[Rules] = Rules(
         ("licenses/about.toml",),
         ("licenses/notices.hbs",),
         ("scripts/check_dist.py",),
+        ("scripts/smoketest_dist.py",),
         ("shazamio_core/__init__.py",),
         ("shazamio_core/py.typed",),
         ("shazamio_core/shazamio_core.pyi",),

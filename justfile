@@ -130,6 +130,12 @@ licenses-check:
 dist-check directory="dist":
     uv run --no-project python scripts/check_dist.py {{ directory }}
 
+# What a user receives, as opposed to what a wheel contains: nothing else here
+#  installs one, and nothing else loads the extension it carries.
+[doc("Install a built wheel outside the checkout and import what it carries")]
+dist-smoketest directory="dist":
+    uv run --no-project python scripts/smoketest_dist.py {{ directory }}
+
 # --- CI ---
 
 [doc("Everything CI gates on; the first run downloads the MSRV toolchain")]
