@@ -399,9 +399,12 @@ jobs:
       - name: Check the notices still match `Cargo.lock`
         run: just licenses-check
 
+  # `msrv` is in the list because the floor is a promise the published crate makes:
+  #  everything else builds with current stable, so a dependency that raised the
+  #  real floor fails here and nowhere before the first person on that version.
   release:
     name: Release
-    needs: [ test, rust-test, lint, windows, macos, linux, sdist, licenses ]
+    needs: [ test, rust-test, lint, msrv, windows, macos, linux, sdist, licenses ]
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     # The only write in the workflow: `action-gh-release` attaches the wheels to the
