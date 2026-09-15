@@ -177,3 +177,5 @@ The wheel statically links its Rust dependencies, so the terms in
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) apply to it as well. That file
 says how it is generated; `just licenses-check` fails once a dependency change
 has left it behind.
+
+<!-- Probe branch: a documentation-only change, to observe which checks report. -->
