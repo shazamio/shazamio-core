@@ -439,9 +439,31 @@ jobs:
       - name: Check the notices still match `Cargo.lock`
         run: just licenses-check
 
+  # Branch protection matches a required check by name, and a skipped matrix job
+  #  reports its `name:` unexpanded instead of one check per leg: one skipped
+  #  `Wheel (${{ matrix.name }})` where a run reports `Wheel (manylinux-arm)` and
+  #  three more. No matrix name is safe to require, so this one is static and
+  #  reports whatever the filters decided.
+  gate:
+    name: CI
+    needs: [ changes, test, rust-test, lint, harness-lint, msrv, windows, macos, linux, sdist, licenses ]
+    # Runs even when everything it waits on was filtered away, which is the case it
+    #  exists for: a documentation-only pull request must report this name too.
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      # `skipped` is a pass, `failure` and `cancelled` are not. A step that runs
+      #  only on the bad case needs no condition of its own to succeed otherwise.
+      - name: Fail unless everything succeeded or was skipped
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
+
   # `msrv` is in the list because the floor is a promise the published crate makes:
   #  everything else builds with current stable, so a dependency that raised the
   #  real floor fails here and nowhere before the first person on that version.
+
+  # Not `needs: gate`: that job passes when a dependency was skipped, which is what
+  #  makes it requireable, and a skipped wheel job must never let a publish through.
   release:
     name: Release
     needs: [ test, rust-test, lint, harness-lint, msrv, windows, macos, linux, sdist, licenses ]
