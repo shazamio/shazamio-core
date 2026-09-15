@@ -84,3 +84,4 @@ harness_lint:
   - *harness
   - "**/*.sh"
   - scripts/check_ci_gate.py
+  - scripts/check_ci_filters.py

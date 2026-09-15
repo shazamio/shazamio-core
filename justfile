@@ -65,11 +65,12 @@ lint-rust:
 #  Given no path it globs the workflows itself. Given one it reads that file as a
 #  workflow, which `.github/actions/*/action.yml` is not: every key of a composite
 #  action is then reported as unexpected.
-[doc("Lint the scripts and the workflows, and check the gate waits on every job")]
+[doc("Lint the scripts and the workflows, and check what the gate and the filters cover")]
 lint-harness:
     uv run --no-project --with 'shellcheck-py=={{ shellcheck_version }}' shellcheck $(git ls-files '*.sh')
     uv run --no-project --with 'shellcheck-py=={{ shellcheck_version }}' --with 'actionlint-py=={{ actionlint_version }}' actionlint
     uv run --no-project --with pyyaml python scripts/check_ci_gate.py
+    uv run --no-project --with pyyaml python scripts/check_ci_filters.py
 
 [doc("Reformat the crate")]
 format:
