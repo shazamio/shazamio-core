@@ -27,10 +27,19 @@ crate: &crate
   - src/**
   - *manifest
 
-# `Rust lint`, `Rust unit tests` and `MSRV`.
+# The notices, and the two files they are generated from. An anchor because both
+#  sets below name all three: `licenses` regenerates them, `dist` ships them.
+notices: &notices
+  - licenses/**
+  - THIRD-PARTY-NOTICES.md
+
+# `Rust lint`, `Rust unit tests` and `MSRV`. `tests/**` is in the set because the
+#  unit tests read their fixtures from there: `DATA_DIRECTORY` in
+#  `src/fingerprinting/algorithm.rs` points at `tests/data`.
 rust:
   - *harness
   - *crate
+  - tests/**
 
 # `Test`, which runs `just test-python` and `just typecheck`. The crate is in scope
 #  because both exercise the built extension rather than the sources beside it.
@@ -43,11 +52,11 @@ python:
   - uv.lock
 
 # `windows`, `macos`, `linux` and `sdist`, which build what a release publishes and
-#  check what came out of it. The notices are in the set because `pyproject.toml`
-#  ships them beside `LICENSE`; `shazamio_core/` and `scripts/` are in it because
-#  `dist-check` reads the stub, `py.typed` and its own script. Globbed where
-#  `include` in `Cargo.toml` names one file: that one decides what is published,
-#  this one only decides what re-runs, and too narrow here skips a job in silence.
+#  check what came out of it. Everything `scripts/check_dist.py` names is in the set:
+#  the stub and `py.typed`, `LICENSE`, the notices, `licenses/`, `tests/*.py` and the
+#  script itself, plus the `README.md` that `twine check` renders. Globbed where
+#  `include` in `Cargo.toml` names one file: that decides what is published, this
+#  only decides what re-runs, and too narrow here skips a job in silence.
 dist:
   - *harness
   - *crate
@@ -55,14 +64,16 @@ dist:
   - docker/**
   - shazamio_core/**
   - scripts/**
-  - THIRD-PARTY-NOTICES.md
+  - tests/**
+  - README.md
+  - LICENSE
+  - *notices
 
 # `Licence notices`, which regenerates them and diffs against the committed file.
 licenses:
   - *harness
   - *manifest
-  - licenses/**
-  - THIRD-PARTY-NOTICES.md
+  - *notices
 
 # `Harness lint`, which `shellcheck`s the scripts and `actionlint`s the workflows.
 #  The workflows arrive with `harness`; the glob mirrors the `git ls-files` the
