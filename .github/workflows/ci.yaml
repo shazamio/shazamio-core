@@ -310,7 +310,7 @@ jobs:
           context: .
 
       - name: Copy the wheels out of the image
-        run: docker run --rm -v $(pwd)/dist:/tmp shazamio_core sh -c "cp -R /opt/dist/* /tmp/"
+        run: docker run --rm -v "$(pwd)/dist:/tmp" shazamio_core sh -c "cp -R /opt/dist/* /tmp/"
 
       - uses: ./.github/actions/setup-just
 
