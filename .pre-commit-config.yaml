@@ -39,7 +39,7 @@ repos:
         entry: just
         args: [lint-rust]
         language: system
-        files: ^(\.pre-commit-config\.yaml|justfile|src/.*|Cargo\.(toml|lock))$
+        files: ^(\.pre-commit-config\.yaml|justfile|src/.*|Cargo\.(toml|lock)|tests/.*)$
         pass_filenames: false
 
       - id: test-rust
@@ -47,7 +47,7 @@ repos:
         entry: just
         args: [test-rust]
         language: system
-        files: ^(\.pre-commit-config\.yaml|justfile|src/.*|Cargo\.(toml|lock))$
+        files: ^(\.pre-commit-config\.yaml|justfile|src/.*|Cargo\.(toml|lock)|tests/.*)$
         pass_filenames: false
 
       # On the lockfile as well as on the crate: what a `cargo update` can do to
@@ -57,7 +57,7 @@ repos:
         entry: just
         args: [msrv]
         language: system
-        files: ^(\.pre-commit-config\.yaml|justfile|src/.*|Cargo\.(toml|lock))$
+        files: ^(\.pre-commit-config\.yaml|justfile|src/.*|Cargo\.(toml|lock)|tests/.*)$
         pass_filenames: false
 
       # The crate is in scope for both because they exercise the built extension;
@@ -89,9 +89,9 @@ repos:
       # `.github/**` is the linted content here rather than a decider, so unlike
       #  every set above it is in this one.
       - id: lint-harness
-        name: harness · `shellcheck`, `actionlint` and the gate
+        name: harness · `shellcheck`, `actionlint`, the gate and the filters
         entry: just
         args: [lint-harness]
         language: system
-        files: ^(\.pre-commit-config\.yaml|justfile|\.github/.*|.*\.sh|scripts/check_ci_gate\.py)$
+        files: ^(\.pre-commit-config\.yaml|justfile|\.github/.*|.*\.sh|scripts/check_ci_(gate|filters)\.py)$
         pass_filenames: false
