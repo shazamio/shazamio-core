@@ -86,7 +86,7 @@ _SDIST: Final[Rules] = Rules(
 #  feature and the build silently goes back to one wheel per interpreter version:
 #  the entries and the metadata are identical, so nothing else here would see it.
 #  PyPy has no stable ABI and is tagged after its interpreter on purpose, which is
-#  argued in `docker/build-manylinux.sh`.
+#  argued in `docker/build-wheels.sh`.
 def _tag_problems(name: str) -> list[str]:
     """Report what is wrong with a wheel's compatibility tags, read from its name."""
     python_tag, abi_tag = name.removesuffix(".whl").split("-")[-3:-1]

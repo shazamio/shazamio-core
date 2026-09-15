@@ -253,9 +253,26 @@ jobs:
           - name: manylinux-arm
             arch: aarch64
             os: ubuntu-24.04-arm
+            base: quay.io/pypa/manylinux_2_28:2026.08.24-1
+            smoketest: dist-smoketest
           - name: manylinux-x86
             arch: x86_64
             os: ubuntu-latest
+            base: quay.io/pypa/manylinux_2_28:2026.08.24-1
+            smoketest: dist-smoketest
+          # A musl system matches neither `manylinux` tag, so an install on one built
+          #  the crate from source instead: a Rust toolchain and a C compiler first,
+          #  then the `libopus` that `opus` bundles. Alpine is the common case.
+          - name: musllinux-arm
+            arch: aarch64
+            os: ubuntu-24.04-arm
+            base: quay.io/pypa/musllinux_1_2:2026.08.24-1
+            smoketest: dist-smoketest-musl
+          - name: musllinux-x86
+            arch: x86_64
+            os: ubuntu-latest
+            base: quay.io/pypa/musllinux_1_2:2026.08.24-1
+            smoketest: dist-smoketest-musl
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -268,14 +285,17 @@ jobs:
         with:
           file: docker/Dockerfile
           platforms: ${{ matrix.arch }}
+          # The `Dockerfile` declares both arguments and defaults neither, so a tag
+          #  that drifts from what is published here fails the build instead.
           build-args: |
+            BASE_IMAGE=${{ matrix.base }}
             MATURIN_VERSION=${{ env.MATURIN_VERSION }}
           tags: shazamio_core
           push: false
           load: true
-          # Both matrix entries share the buildx default scope otherwise, so the
+          # The matrix entries share the buildx default scope otherwise, so the
           #  repository holds one index and whichever job finishes last on `master`
-          #  overwrites the other's. One run measured 12 cached layers on x86 against 0
+          #  overwrites the others'. One run measured 12 cached layers on x86 against 0
           #  on ARM64, and 8.72 GB of blobs behind four surviving indexes.
           #  https://github.com/moby/buildkit/blob/703866e5f2e4af295b485b181b447a7755d5099c/README.md#L544
           cache-from: type=gha,scope=${{ matrix.name }}
@@ -284,6 +304,7 @@ jobs:
           #  nobody could reuse. That held the repository over the 10 GB limit, and eviction
           #  is oldest-first, so the x86 image lost its layers before the next run read
           #  them: 0 cached layers, and 224s of a 441s build step spent re-exporting them.
+          #  Four scopes divide that same limit now, and the two libcs share no layer.
           #  https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching
           cache-to: ${{ github.ref == 'refs/heads/master' && format('type=gha,mode=max,scope={0}', matrix.name) || '' }}
           context: .
@@ -299,9 +320,10 @@ jobs:
       # The build image carries every library the wheel could have linked against
       #  and this runner carries none of them, at the architecture the wheel
       #  targets. That is what makes the Linux copy of this step the one that
-      #  proves the wheel works where users are.
+      #  proves the wheel works where users are. A musl wheel cannot be installed
+      #  on the runner at all, so its recipe runs the same script inside Alpine.
       - name: Check the wheel installs and imports outside the checkout
-        run: just dist-smoketest
+        run: just ${{ matrix.smoketest }}
 
       - name: Upload wheels
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

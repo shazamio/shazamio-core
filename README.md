@@ -21,6 +21,7 @@ Python 3.10 and newer. Prebuilt wheels:
 | Platform                                     | CPython 3.10+ (`abi3`) | PyPy 3.11 |
 |----------------------------------------------|------------------------|-----------|
 | Linux `x86_64`, `aarch64` (`manylinux_2_28`) | yes                    | yes       |
+| Linux `x86_64`, `aarch64` (`musllinux_1_2`)  | yes                    | no        |
 | macOS `x86_64` (10.12+), `arm64` (11.0+)     | yes                    | no        |
 | Windows `win_amd64`, `win32`                 | yes                    | no        |
 

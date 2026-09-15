@@ -1,15 +1,16 @@
-# The tag names no architecture on purpose: it is a manifest list, so buildx pulls the
-#  entry matching `platforms` in the workflow and one file serves both runners. The date
-#  is pinned because a silent rebuild of the toolchain that links the wheel would ship
-#  unnoticed.
-#  https://docs.docker.com/build/building/multi-platform/
-FROM quay.io/pypa/manylinux_2_28:2026.08.24-1 AS base
+# check=skip=InvalidDefaultArgInFrom
 
-RUN dnf install -y epel-release
-# RUN dnf config-manager --set-enabled crb
-RUN dnf install -y --nogpgcheck https://download1.rpmfusion.org/free/el/rpmfusion-free-release-8.noarch.rpm
-RUN dnf install -y --nogpgcheck https://download1.rpmfusion.org/nonfree/el/rpmfusion-nonfree-release-8.noarch.rpm
-RUN dnf install -y clang clang-devel
+# The base is an argument with no default: both tags live in the `linux` matrix of
+#  `.github/workflows/ci.yaml`, so a bare `docker build` fails rather than drifting
+#  from what CI publishes. Reporting that is what the check above does.
+#  https://docs.docker.com/reference/build-checks/invalid-default-arg-in-from/
+#  The two images lay their interpreters out alike and differ only in their package
+#  manager, which `install-build-deps.sh` handles. Neither tag names an architecture:
+#  each is a manifest list, so buildx pulls the entry matching `platforms`.
+#  https://docs.docker.com/build/building/multi-platform/
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE} AS base
+
 # Only the minimum supported interpreter belongs here: the wheel is `abi3`, so one
 #  is emitted whatever builds it, and this entry stays only so `pip3` below exists
 #  at all. Must match the `abi3-py*` feature in `Cargo.toml`.
@@ -21,11 +22,11 @@ ENV PATH="/root/.cargo/bin:/opt/python/cp310-cp310/bin:$PATH"
 #  a `v` that no other site uses, so it is stripped.
 ARG MATURIN_VERSION
 RUN : "${MATURIN_VERSION:?the MATURIN_VERSION build argument is required}" \
- && pip3 install "maturin==${MATURIN_VERSION#v}" patchelf cffi ziglang sccache>=0.4.0
+ && pip3 install "maturin==${MATURIN_VERSION#v}" patchelf
 
 WORKDIR /opt
-COPY docker/install-basic-deps-manylinux.sh .
-RUN bash /opt/install-basic-deps-manylinux.sh
+COPY docker/install-build-deps.sh .
+RUN bash /opt/install-build-deps.sh
 
 FROM base AS chef
 ENV PATH="/root/.cargo/bin:$PATH"
@@ -46,10 +47,10 @@ COPY --from=planner /opt/recipe.json recipe.json
 #  Why the feature went away: the `[build-system]` comment in `pyproject.toml`.
 RUN PYO3_BUILD_EXTENSION_MODULE=1 cargo chef cook --release --recipe-path recipe.json
 COPY . .
-RUN bash /opt/docker/build-manylinux.sh
+RUN bash /opt/docker/build-wheels.sh
 RUN rm -rf target
 
 # Pinned to a stable line, not `latest`: this stage only carries the wheels out,
-# and a silent Alpine major bump underneath them buys nothing.
+#  and a silent Alpine major bump underneath them buys nothing.
 FROM alpine:3.24 AS dist
 COPY --from=builder /opt/dist /opt/dist
