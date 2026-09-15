@@ -34,10 +34,10 @@ repos:
   #  it, so the workflow carries `.github/**` and this one carries itself.
   - repo: local
     hooks:
-      - id: lint
+      - id: lint-rust
         name: rust · fmt and clippy
         entry: just
-        args: [lint]
+        args: [lint-rust]
         language: system
         files: ^(\.pre-commit-config\.yaml|justfile|src/.*|Cargo\.(toml|lock))$
         pass_filenames: false
@@ -84,4 +84,14 @@ repos:
         args: [licenses-check]
         language: system
         files: ^(\.pre-commit-config\.yaml|justfile|Cargo\.(toml|lock)|licenses/.*|THIRD-PARTY-NOTICES\.md)$
+        pass_filenames: false
+
+      # `.github/**` is the linted content here rather than a decider, so unlike
+      #  every set above it is in this one.
+      - id: lint-harness
+        name: harness · `shellcheck` and `actionlint`
+        entry: just
+        args: [lint-harness]
+        language: system
+        files: ^(\.pre-commit-config\.yaml|justfile|\.github/.*|.*\.sh)$
         pass_filenames: false

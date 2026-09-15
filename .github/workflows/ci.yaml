@@ -61,6 +61,7 @@ jobs:
       python: ${{ steps.filter.outcome == 'skipped' || steps.filter.outputs.python == 'true' }}
       dist: ${{ steps.filter.outcome == 'skipped' || steps.filter.outputs.dist == 'true' }}
       licenses: ${{ steps.filter.outcome == 'skipped' || steps.filter.outputs.licenses == 'true' }}
+      harness_lint: ${{ steps.filter.outcome == 'skipped' || steps.filter.outputs.harness_lint == 'true' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -148,7 +149,24 @@ jobs:
       - uses: ./.github/actions/setup-just
 
       - name: Check the formatting and run `clippy`
-        run: just lint
+        run: just lint-rust
+
+  # The shell nothing else here reads: the scripts the images run, and the `run:`
+  #  blocks of this file, which no compiler ever sees. `actionlint` checks the
+  #  workflow around them as well, so a matrix key that does not exist fails here
+  #  instead of expanding to an empty string in a later job.
+  harness-lint:
+    name: Harness lint
+    needs: changes
+    if: needs.changes.outputs.harness_lint == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-just
+
+      - name: Lint the scripts and the workflows
+        run: just lint-harness
 
   # `licenses/about.toml` restates the targets the three jobs below build for,
   #  because `cargo about` resolves the dependency tree per target and cannot read
@@ -310,7 +328,7 @@ jobs:
           context: .
 
       - name: Copy the wheels out of the image
-        run: docker run --rm -v $(pwd)/dist:/tmp shazamio_core sh -c "cp -R /opt/dist/* /tmp/"
+        run: docker run --rm -v "$(pwd)/dist:/tmp" shazamio_core sh -c "cp -R /opt/dist/* /tmp/"
 
       - uses: ./.github/actions/setup-just
 
@@ -426,7 +444,7 @@ jobs:
   #  real floor fails here and nowhere before the first person on that version.
   release:
     name: Release
-    needs: [ test, rust-test, lint, msrv, windows, macos, linux, sdist, licenses ]
+    needs: [ test, rust-test, lint, harness-lint, msrv, windows, macos, linux, sdist, licenses ]
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     # The only write in the workflow: `action-gh-release` attaches the wheels to the
