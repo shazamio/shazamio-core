@@ -72,3 +72,4 @@ licenses:
 harness_lint:
   - *harness
   - "**/*.sh"
+  - scripts/check_ci_gate.py

@@ -89,9 +89,9 @@ repos:
       # `.github/**` is the linted content here rather than a decider, so unlike
       #  every set above it is in this one.
       - id: lint-harness
-        name: harness · `shellcheck` and `actionlint`
+        name: harness · `shellcheck`, `actionlint` and the gate
         entry: just
         args: [lint-harness]
         language: system
-        files: ^(\.pre-commit-config\.yaml|justfile|\.github/.*|.*\.sh)$
+        files: ^(\.pre-commit-config\.yaml|justfile|\.github/.*|.*\.sh|scripts/check_ci_gate\.py)$
         pass_filenames: false
