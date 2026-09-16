@@ -11,8 +11,9 @@ tests = [
     "pytest-asyncio>=1.4.0",
 ]
 lint = [
-    # For `mypy.stubtest` alone, which checks `shazamio_core.pyi` against the built
-    #  extension in CI. Nothing here is type-checked with `mypy` itself.
+    # For `mypy.stubtest`, which checks `shazamio_core.pyi` against the built
+    #  extension, and for `mypy --strict` over `tests/test_typing.py`, the one file
+    #  here it reads. The rest of the tree is checked by neither.
     "mypy>=2.3.1",
     # Locked here rather than left to each machine, which is what `just` itself
     #  has to be.

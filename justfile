@@ -79,9 +79,13 @@ format:
 # Nothing else compares the hand-written `.pyi` with the extension, and it had
 #  drifted: `Recognizer.__init__` declared a parameter the runtime carries on
 #  `__new__`, and three classes claimed to be `@dataclass`.
-[doc("Check the type stub against the built extension")]
+
+# `stubtest` compares declarations and never reads a call site, so what a caller
+#  may do with what the entry points return is checked by type-checking one.
+[doc("Check the type stub against the built extension, and against a caller")]
 typecheck:
     uv run python -m mypy.stubtest shazamio_core.shazamio_core
+    uv run mypy --strict tests/test_typing.py
 
 # --- Tests ---
 

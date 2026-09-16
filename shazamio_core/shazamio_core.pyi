@@ -8,6 +8,7 @@ https://github.com/PyO3/pyo3/blob/v0.29.2/guide/src/type-stub.md
 `mypy.stubtest` checks this file against the compiled module in CI.
 """
 
+from collections.abc import Awaitable
 from os import PathLike
 from typing import final
 
@@ -86,6 +87,10 @@ class Recognizer:
 
     This class provides an interface for recognizing audio files, but the actual
     processing logic is implemented in Rust and accessed via FFI.
+
+    Both recognize methods return an `asyncio.Future`, not a coroutine: they need a
+    running event loop at the call, and the work starts there rather than at the
+    `await`. The `README` says what that allows and what it rules out.
     """
 
     segment_duration_seconds: int
@@ -103,11 +108,15 @@ class Recognizer:
             - **Must be at least 1.** Zero raises `ValueError`, at the constructor and on assignment.
         """
 
-    async def recognize_path(
+    # The runtime hands back `loop.create_future()` and spawns the work straight
+    #  after, so what these return is an awaitable and never a coroutine.
+    #  `tests/test_typing.py` holds the declaration below to what a caller may do.
+    #  https://github.com/PyO3/pyo3-async-runtimes/blob/58d42b7a3eb239719175c5587b2b7debd9ee134b/src/generic.rs#L620-L631
+    def recognize_path(
         self,
         value: str | PathLike[str],
         options: SearchParams | None = None,
-    ) -> Signature:
+    ) -> Awaitable[Signature]:
         """
         Recognize audio from a file path.
 
@@ -115,15 +124,15 @@ class Recognizer:
 
         :param value: Path to an audio file.
         :param options: Search parameters.
-        :return: Signature object.
+        :return: `Awaitable` resolving to a `Signature`.
         :raises SignatureError: if an error occurs.
         """
 
-    async def recognize_bytes(
+    def recognize_bytes(
         self,
         value: bytes,
         options: SearchParams | None = None,
-    ) -> Signature:
+    ) -> Awaitable[Signature]:
         """
         Recognize audio from raw bytes.
 
@@ -131,6 +140,6 @@ class Recognizer:
 
         :param value: Raw audio file as bytes.
         :param options: Search parameters.
-        :return: Signature object.
+        :return: `Awaitable` resolving to a `Signature`.
         :raises SignatureError: if an error occurs.
         """

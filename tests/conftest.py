@@ -1,8 +1,13 @@
-"""Fixtures shared by the fingerprint tests."""
+"""Fixtures and paths shared by the suites."""
+
+from pathlib import Path
+from typing import Final
 
 import pytest
 
 from shazamio_core import Recognizer
+
+DATA_DIRECTORY: Final[Path] = Path(__file__).parent / "data"
 
 
 @pytest.fixture
