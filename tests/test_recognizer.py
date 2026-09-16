@@ -30,10 +30,9 @@ from pathlib import Path
 from typing import Final
 
 import pytest
+from conftest import DATA_DIRECTORY
 
 from shazamio_core import Recognizer, SearchParams
-
-DATA_DIRECTORY: Final[Path] = Path(__file__).parent / "data"
 
 AUDIO_FORMATS: Final[tuple[str, ...]] = ("mp3", "ogg", "opus", "flac")
 

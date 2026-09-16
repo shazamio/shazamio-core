@@ -29,7 +29,7 @@ Everything else builds from the source distribution, which needs a Rust toolchai
 
 ## Usage
 
-Both entry points are coroutines.
+Both entry points return an `asyncio.Future` rather than a coroutine, so they need a running event loop at the call and the work starts there rather than at the `await`. `await`, `asyncio.ensure_future` and `asyncio.gather` all accept what they return; `asyncio.create_task` takes a coroutine alone and rejects it.
 
 ```python
 import asyncio
