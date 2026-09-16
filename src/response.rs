@@ -18,7 +18,7 @@ pub(crate) struct SignatureSong {
     #[pyo3(get)]
     pub(crate) samples: u32,
     #[pyo3(get)]
-    pub(crate) timestamp: u32,
+    pub(crate) timestamp: u64,
     #[pyo3(get)]
     pub(crate) uri: String,
 }
@@ -31,7 +31,7 @@ pub(crate) struct Signature {
     #[pyo3(get)]
     pub(crate) signature: SignatureSong,
     #[pyo3(get)]
-    pub(crate) timestamp: u32,
+    pub(crate) timestamp: u64,
     #[pyo3(get)]
     pub(crate) timezone: String,
 }
@@ -51,7 +51,7 @@ impl Geolocation {
 #[pymethods]
 impl SignatureSong {
     #[new]
-    pub fn new(samples: u32, timestamp: u32, uri: String) -> PyResult<Self> {
+    pub fn new(samples: u32, timestamp: u64, uri: String) -> PyResult<Self> {
         Ok(SignatureSong {
             samples,
             timestamp,
@@ -66,7 +66,7 @@ impl Signature {
     pub fn new(
         geolocation: Geolocation,
         signature: SignatureSong,
-        timestamp: u32,
+        timestamp: u64,
         timezone: String,
     ) -> PyResult<Self> {
         Ok(Signature {
