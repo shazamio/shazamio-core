@@ -60,8 +60,8 @@ Both return a `Signature`:
 |----------------------------------------|-------------------------------------------------------------------------------------------------------------|
 | `signature.uri`                        | the fingerprint itself, base64 inside a `data:audio/vnd.shazam.sig` URI                                     |
 | `signature.samples`                    | duration of the analysed segment in milliseconds                                                            |
-| `signature.timestamp`                  | when the signature was produced                                                                             |
-| `timestamp`, `timezone`, `geolocation` | fixed values the request envelope carries. They are not read from the machine and mean nothing on their own |
+| `timestamp`, `signature.timestamp`     | when the signature was produced, in epoch milliseconds. Both hold the same reading                          |
+| `timezone`, `geolocation`              | fixed values the request envelope carries. They are not read from the machine and mean nothing on their own |
 
 Every field above is read only: assigning to one raises `AttributeError`.
 
