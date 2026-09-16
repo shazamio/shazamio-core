@@ -22,30 +22,44 @@ __all__ = [
 ]
 
 
+# Every field of the three classes below is a getter and nothing more:
+#  `src/response.rs` declares them `#[pyo3(get)]`, so the runtime refuses an
+#  assignment that a plain attribute here would let a caller write.
+#  `tests/test_typing.py` holds the declarations to that.
 @final
 class Geolocation:
-    altitude: int
-    latitude: int
-    longitude: int
+    @property
+    def altitude(self) -> int: ...
+    @property
+    def latitude(self) -> int: ...
+    @property
+    def longitude(self) -> int: ...
 
     def __new__(cls, altitude: int, latitude: int, longitude: int) -> Geolocation: ...
 
 
 @final
 class SignatureSong:
-    samples: int
-    timestamp: int
-    uri: str
+    @property
+    def samples(self) -> int: ...
+    @property
+    def timestamp(self) -> int: ...
+    @property
+    def uri(self) -> str: ...
 
     def __new__(cls, samples: int, timestamp: int, uri: str) -> SignatureSong: ...
 
 
 @final
 class Signature:
-    geolocation: Geolocation
-    signature: SignatureSong
-    timestamp: int
-    timezone: str
+    @property
+    def geolocation(self) -> Geolocation: ...
+    @property
+    def signature(self) -> SignatureSong: ...
+    @property
+    def timestamp(self) -> int: ...
+    @property
+    def timezone(self) -> str: ...
 
     def __new__(
         cls,

@@ -63,6 +63,8 @@ Both return a `Signature`:
 | `signature.timestamp`                  | when the signature was produced                                                                             |
 | `timestamp`, `timezone`, `geolocation` | fixed values the request envelope carries. They are not read from the machine and mean nothing on their own |
 
+Every field above is read only: assigning to one raises `AttributeError`.
+
 The URI is the part a client sends on:
 
 ```
