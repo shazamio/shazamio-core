@@ -2,9 +2,10 @@
 
 `mypy.stubtest` compares declarations against the extension and never reads a call
 site, so nothing else here notices the stub promising a coroutine the runtime does
-not build, or a writable attribute it refuses to assign. `just typecheck` runs
-`mypy --strict` over this file, where every ignore below goes unused the moment the
-stub goes back to what it said before and `--warn-unused-ignores` fails on it.
+not build, a writable attribute it refuses to assign, or an argument it refuses at
+the call. `just typecheck` runs `mypy --strict` over this file, where every ignore
+below goes unused the moment the stub goes back to what it said before and
+`--warn-unused-ignores` fails on it.
 """
 
 import asyncio
@@ -17,6 +18,13 @@ from conftest import DATA_DIRECTORY
 from shazamio_core import Geolocation, Recognizer, SearchParams, Signature, SignatureSong
 
 _PROBE: Final[Path] = DATA_DIRECTORY / "probe.flac"
+
+
+class _BytesPath:
+    """An `os.PathLike` whose `__fspath__` gives `bytes`, which is not accepted."""
+
+    def __fspath__(self) -> bytes:
+        return b"probe.flac"
 
 
 async def test_awaiting_the_call_gives_a_signature(*, recognizer: Recognizer) -> None:
@@ -118,3 +126,25 @@ def test_the_segment_duration_stays_writable() -> None:
 
     assert recognizer.segment_duration_seconds == 5
     assert search_parameters.segment_duration_seconds == 5
+
+
+async def test_an_argument_of_the_wrong_type_is_refused_at_the_call(
+    *,
+    recognizer: Recognizer,
+) -> None:
+    """Each call raises before returning an awaitable, so nothing is scheduled.
+
+    The wording belongs to the binding machinery rather than to this project, and it
+    moves with the interpreter and with `pyo3`, so only the type is asserted.
+    """
+    with pytest.raises(TypeError):
+        recognizer.recognize_path(1)  # type: ignore[arg-type]
+
+    with pytest.raises(TypeError):
+        recognizer.recognize_path(_BytesPath())  # type: ignore[arg-type]
+
+    with pytest.raises(TypeError):
+        recognizer.recognize_bytes("a string")  # type: ignore[arg-type]
+
+    with pytest.raises(TypeError):
+        recognizer.recognize_path(_PROBE, 1)  # type: ignore[arg-type]

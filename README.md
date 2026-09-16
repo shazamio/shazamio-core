@@ -103,7 +103,18 @@ whatever the value.
 
 ### Errors
 
-Audio that cannot be decoded, and a file that is not there, raise `SignatureError`:
+Anything the decoder cannot use raises `SignatureError`, and the message opens with the input that failed: the path for `recognize_path`, `the byte payload` for `recognize_bytes`.
+
+| Given                                                | Message                                                                                         |
+|------------------------------------------------------|-------------------------------------------------------------------------------------------------|
+| a path that is not there                             | `<input>: No such file or directory (os error 2)`                                               |
+| a stream nothing in this build reads, a directory included | `<input>: unsupported feature: no reader in this build recognises the stream`              |
+| a container that is read, holding a codec that is not | `<input>: unsupported feature: the stream carries no track with a codec this build can decode`  |
+| audio that stops before the segment does             | `<input>: end of stream`                                                                        |
+
+What follows the input is `symphonia`'s wording, or the operating system's, and differs between platforms.
+
+An argument of the wrong type raises `TypeError` instead, and raises it at the call rather than on the `await`, so nothing is scheduled.
 
 ```python
 import asyncio
@@ -144,10 +155,10 @@ MP1 is the one row taken from what `symphonia` registers rather than from a run:
 
 Anything else raises `SignatureError`, and a container from that list is no guarantee: what has to be decodable is the codec inside it. The two refusals differ in how far the file gets:
 
-| Refused          | Error                        | Why                                     |
-|------------------|------------------------------|-----------------------------------------|
-| AC-3 in Matroska | `unsupported feature: codec` | the container is read, the codec is not |
-| WMA in ASF       | `end of stream`              | there is no ASF demuxer at all          |
+| Refused          | Fails as                                        | Why                                     |
+|------------------|-------------------------------------------------|-----------------------------------------|
+| AC-3 in Matroska | `no track with a codec this build can decode`   | the container is read, the codec is not |
+| WMA in ASF       | `end of stream`                                 | there is no ASF demuxer at all          |
 
 Windows Media Audio decoded in earlier releases through an `ffmpeg` fallback that has since been removed.
 
