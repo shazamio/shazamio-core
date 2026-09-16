@@ -11,7 +11,7 @@ use crate::utils::convert_signature_to_py;
 use crate::utils::get_python_future;
 use crate::utils::unwrap_decoded_signature;
 use fingerprinting::algorithm::{SignatureGenerator, DEFAULT_SEGMENT_DURATION_SECONDS};
-use log::{debug, error, info};
+use log::{debug, info};
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 use pyo3::{pyclass, pymethods, pymodule, Bound, Py, PyAny, PyErr, PyResult, Python};
@@ -98,10 +98,11 @@ impl Recognizer {
                 value,
                 Some(search_options.segment_duration_seconds),
             )
-            .map_err(|e| {
-                error!("Error in make_signature_from_bytes: {}", e);
-                let error_message = format!("{}", e);
-                PyErr::new::<SignatureError, _>(error_message)
+            // The failure is reported by being raised, so it is not logged as well, and
+            //  the message names which of the two entry points it came from: `symphonia`
+            //  describes the stream it was given and never where that stream came from.
+            .map_err(|error| {
+                PyErr::new::<SignatureError, _>(format!("the byte payload: {error}"))
             })?;
 
             debug!("Successfully generated signature from bytes");
@@ -144,10 +145,11 @@ impl Recognizer {
                 &value,
                 Some(search_options.segment_duration_seconds),
             )
-            .map_err(|e| {
-                debug!("Error in make_signature_from_file: {}", e);
-                let error_message = format!("{}", e);
-                PyErr::new::<SignatureError, _>(error_message)
+            // Named for the same reason as above, and here the path matters most:
+            //  `File::open` fails with `No such file or directory (os error 2)`, which
+            //  says nothing about which file.
+            .map_err(|error| {
+                PyErr::new::<SignatureError, _>(format!("{}: {error}", value.display()))
             })?;
 
             debug!("Successfully generated signature from file");

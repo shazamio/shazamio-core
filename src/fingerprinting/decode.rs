@@ -37,7 +37,9 @@ fn decoder_for(format: &dyn FormatReader) -> Result<TrackDecoder, Error> {
         .tracks()
         .iter()
         .find(|track| track.codec_params.codec != CODEC_TYPE_NULL)
-        .ok_or(Error::Unsupported("codec"))?;
+        .ok_or(Error::Unsupported(
+            "the stream carries no track with a codec this build can decode",
+        ))?;
 
     let decoder = codec_registry().make(&track.codec_params, &DecoderOptions::default())?;
 
@@ -67,12 +69,24 @@ impl PacketDecoder {
             ..Default::default()
         };
 
-        let probe_result = symphonia::default::get_probe().format(
-            &Hint::new(),
-            media_source,
-            &format_options,
-            &MetadataOptions::default(),
-        )?;
+        // `symphonia` reports a stream it cannot recognise by naming its own probe:
+        //  `unsupported feature: core (probe): no suitable format reader found`. A caller
+        //  can act on none of that, and this is the only place that knows the failure
+        //  means nothing here could read the stream at all.
+        //  https://github.com/pdeljanov/Symphonia/blob/6d533f26150953a882a6a111ebd13f0abf7129d5/symphonia-core/src/probe.rs#L306
+        let probe_result = symphonia::default::get_probe()
+            .format(
+                &Hint::new(),
+                media_source,
+                &format_options,
+                &MetadataOptions::default(),
+            )
+            .map_err(|error| match error {
+                Error::Unsupported(_) => {
+                    Error::Unsupported("no reader in this build recognises the stream")
+                }
+                other => other,
+            })?;
 
         let format = probe_result.format;
         let track_decoder = decoder_for(format.as_ref())?;
