@@ -87,7 +87,7 @@ log = "0.4.33"
 #  `features = ["all"]` adds none: `symphonia-codec-opus` is unwritten and unpublished.
 #  `opus` bundles `libopus` and links it statically, so the wheel gains no dependency.
 #  https://github.com/pdeljanov/Symphonia/blob/ee35874b571a35a9a6e15d3bc9a3aaf8f11fbeee/README.md#L111
-symphonia = { version = "0.5.4", features = ["all"] }
+symphonia = { version = "0.6.1", features = ["all"] }
 opus = "0.4.0"
 rubato = "5.0.0"
 
