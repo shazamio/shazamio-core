@@ -47,7 +47,11 @@ async def test_a_path_that_cannot_be_read_names_itself(
     [
         pytest.param(b"", f"the byte payload: {_UNREADABLE}", id="empty"),
         pytest.param(b"not audio at all", f"the byte payload: {_UNREADABLE}", id="not-audio"),
-        pytest.param(_TRUNCATED_AUDIO, "the byte payload: end of stream", id="truncated-audio"),
+        pytest.param(
+            _TRUNCATED_AUDIO,
+            "the byte payload: unexpected end of file",
+            id="truncated-audio",
+        ),
     ],
 )
 async def test_a_payload_that_cannot_be_decoded_says_which_input_it_was(
@@ -58,3 +62,14 @@ async def test_a_payload_that_cannot_be_decoded_says_which_input_it_was(
 ) -> None:
     with pytest.raises(SignatureError, match=f"^{re.escape(expected_message)}$"):
         await recognizer.recognize_bytes(payload)
+
+
+async def test_a_codec_this_build_cannot_decode_is_refused(*, recognizer: Recognizer) -> None:
+    path: Path = DATA_DIRECTORY / "ac3.mka"
+    expected_message: str = (
+        f"{path}: unsupported feature: the stream carries no track with a codec this build can decode"
+    )
+
+    with pytest.raises(SignatureError, match=f"^{re.escape(expected_message)}$"):
+        await recognizer.recognize_path(path)
+

@@ -1,15 +1,16 @@
 use std::fs::File;
-use std::io::{Cursor, ErrorKind};
+use std::io::Cursor;
 use std::path::Path;
 use std::sync::OnceLock;
 
-use symphonia::core::audio::{SampleBuffer, SignalSpec};
-use symphonia::core::codecs::{CodecRegistry, Decoder, DecoderOptions, CODEC_TYPE_NULL};
+use symphonia::core::audio::AudioSpec;
+use symphonia::core::codecs::audio::{AudioDecoder, AudioDecoderOptions};
+use symphonia::core::codecs::registry::CodecRegistry;
 use symphonia::core::errors::Error;
+use symphonia::core::formats::probe::Hint;
 use symphonia::core::formats::{FormatOptions, FormatReader};
 use symphonia::core::io::{MediaSource, MediaSourceStream};
 use symphonia::core::meta::MetadataOptions;
-use symphonia::core::probe::Hint;
 
 use crate::fingerprinting::opus_decoder::OpusDecoder;
 
@@ -20,7 +21,7 @@ fn codec_registry() -> &'static CodecRegistry {
     REGISTRY.get_or_init(|| {
         let mut registry = CodecRegistry::new();
         symphonia::default::register_enabled_codecs(&mut registry);
-        registry.register_all::<OpusDecoder>();
+        registry.register_audio_decoder::<OpusDecoder>();
         registry
     })
 }
@@ -28,58 +29,53 @@ fn codec_registry() -> &'static CodecRegistry {
 /// The track a packet has to belong to, and the decoder that reads it.
 struct TrackDecoder {
     track_id: u32,
-    decoder: Box<dyn Decoder>,
+    decoder: Box<dyn AudioDecoder>,
 }
 
-/// Picks the first track carrying audio and builds a decoder for it.
+/// Picks the first audio track this build has a decoder for, and builds that decoder.
 fn decoder_for(format: &dyn FormatReader) -> Result<TrackDecoder, Error> {
-    let track = format
-        .tracks()
-        .iter()
-        .find(|track| track.codec_params.codec != CODEC_TYPE_NULL)
-        .ok_or(Error::Unsupported(
+    // A codec `symphonia` can name is not one it can decode: AC-3 has an id and no
+    //  decoder, so taking the first known codec refused AC-3 followed by FLAC with
+    //  `core (codec): unsupported audio codec` instead of reading the FLAC.
+    //  https://github.com/pdeljanov/Symphonia/blob/ee35874b571a35a9a6e15d3bc9a3aaf8f11fbeee/symphonia-core/src/formats/mod.rs#L602-L617
+    let Some((track_id, codec_parameters)) = format.tracks().iter().find_map(|track| {
+        let codec_parameters = track.codec_params.as_ref()?.audio()?;
+        codec_registry().get_audio_decoder(codec_parameters.codec)?;
+        Some((track.id, codec_parameters))
+    }) else {
+        return Err(Error::Unsupported(
             "the stream carries no track with a codec this build can decode",
-        ))?;
+        ));
+    };
 
-    let decoder = codec_registry().make(&track.codec_params, &DecoderOptions::default())?;
+    let decoder =
+        codec_registry().make_audio_decoder(codec_parameters, &AudioDecoderOptions::default())?;
 
-    Ok(TrackDecoder {
-        track_id: track.id,
-        decoder,
-    })
+    Ok(TrackDecoder { track_id, decoder })
 }
 
 /// Reads the packets of one track, decoded and mixed down to mono.
 struct PacketDecoder {
     format: Box<dyn FormatReader>,
     track_decoder: TrackDecoder,
-    sample_buffer: Option<SampleBuffer<f32>>,
+    interleaved_samples: Vec<f32>,
 }
 
 impl PacketDecoder {
     fn new(source: Box<dyn MediaSource>) -> Result<Self, Error> {
         let media_source = MediaSourceStream::new(source, Default::default());
 
-        // A lossy encoder pads the stream it writes, and the padding is silence the
-        //  container describes rather than audio. Left off, `probe.opus` decoded to
-        //  8013 ms of an 8000 ms source and `probe.mp3` to 8045 ms of the same.
-        //  https://docs.rs/symphonia-core/0.5.5/symphonia_core/formats/struct.FormatOptions.html#structfield.enable_gapless
-        let format_options = FormatOptions {
-            enable_gapless: true,
-            ..Default::default()
-        };
-
         // `symphonia` reports a stream it cannot recognise by naming its own probe:
         //  `unsupported feature: core (probe): no suitable format reader found`. A caller
         //  can act on none of that, and this is the only place that knows the failure
         //  means nothing here could read the stream at all.
-        //  https://github.com/pdeljanov/Symphonia/blob/6d533f26150953a882a6a111ebd13f0abf7129d5/symphonia-core/src/probe.rs#L306
-        let probe_result = symphonia::default::get_probe()
-            .format(
+        //  https://github.com/pdeljanov/Symphonia/blob/ee35874b571a35a9a6e15d3bc9a3aaf8f11fbeee/symphonia-core/src/formats/probe.rs#L597
+        let format = symphonia::default::get_probe()
+            .probe(
                 &Hint::new(),
                 media_source,
-                &format_options,
-                &MetadataOptions::default(),
+                FormatOptions::default(),
+                MetadataOptions::default(),
             )
             .map_err(|error| match error {
                 Error::Unsupported(_) => {
@@ -88,31 +84,24 @@ impl PacketDecoder {
                 other => other,
             })?;
 
-        let format = probe_result.format;
         let track_decoder = decoder_for(format.as_ref())?;
 
         Ok(PacketDecoder {
             format,
             track_decoder,
-            sample_buffer: None,
+            interleaved_samples: Vec::new(),
         })
     }
 
     /// Fills `mono_frames` with the next packet and reports the spec it decoded under,
     /// or `None` once the stream ends.
-    fn next(&mut self, mono_frames: &mut Vec<f32>) -> Result<Option<SignalSpec>, Error> {
+    fn next(&mut self, mono_frames: &mut Vec<f32>) -> Result<Option<AudioSpec>, Error> {
         mono_frames.clear();
 
         loop {
             let packet = match self.format.next_packet() {
-                Ok(packet) => packet,
-
-                // `next_packet` reports the end of the stream as an `UnexpectedEof` read
-                //  error rather than as `None`, and every other error is real.
-                //  https://docs.rs/symphonia-core/0.5.5/symphonia_core/formats/trait.FormatReader.html#tymethod.next_packet
-                Err(Error::IoError(er)) if er.kind() == ErrorKind::UnexpectedEof => {
-                    return Ok(None)
-                }
+                Ok(Some(packet)) => packet,
+                Ok(None) => return Ok(None),
 
                 // A chained Ogg file opens a second logical stream, and the reader asks
                 //  for a new decoder rather than for the read to stop. Read as the end, a
@@ -127,37 +116,22 @@ impl PacketDecoder {
             };
 
             // If the packet does not belong to the selected track, skip it.
-            if packet.track_id() != self.track_decoder.track_id {
+            if packet.track_id != self.track_decoder.track_id {
                 continue;
             }
 
             let audio_buffer = self.track_decoder.decoder.decode(&packet)?;
-            let spec = *audio_buffer.spec();
-            let channel_count = spec.channels.count();
+            let spec = audio_buffer.spec().clone();
+            let channel_count = spec.channels().count();
 
-            // `SampleBuffer::capacity` counts samples and `AudioBufferRef::capacity`
-            //  frames, so comparing them raw let a stereo packet reuse a buffer half the
-            //  size it needed, and `copy_interleaved_ref` panicked on its own assertion.
-            let required_samples = audio_buffer.capacity() * channel_count;
+            audio_buffer.copy_to_vec_interleaved(&mut self.interleaved_samples);
 
-            if self
-                .sample_buffer
-                .as_ref()
-                .is_none_or(|buffer| buffer.capacity() < required_samples)
-            {
-                self.sample_buffer = Some(SampleBuffer::new(audio_buffer.capacity() as u64, spec));
-            }
+            // Mixing down here rather than after the whole file is what keeps the
+            //  interleaved samples of a long recording from being held at all.
+            mono_frames.resize(self.interleaved_samples.len() / channel_count, 0f32);
 
-            if let Some(buffer) = self.sample_buffer.as_mut() {
-                buffer.copy_interleaved_ref(audio_buffer);
-
-                // Mixing down here rather than after the whole file is what keeps the
-                //  interleaved samples of a long recording from being held at all.
-                mono_frames.resize(buffer.samples().len() / channel_count, 0f32);
-
-                for (index, sample) in buffer.samples().iter().enumerate() {
-                    mono_frames[index / channel_count] += sample / channel_count as f32;
-                }
+            for (index, sample) in self.interleaved_samples.iter().enumerate() {
+                mono_frames[index / channel_count] += sample / channel_count as f32;
             }
 
             return Ok(Some(spec));
@@ -168,7 +142,7 @@ impl PacketDecoder {
 /// Decodes a stream one packet at a time, mixed down to mono at the rate it declares.
 pub struct MonoDecoder {
     packets: PacketDecoder,
-    spec: SignalSpec,
+    spec: AudioSpec,
     first_chunk: Option<Vec<f32>>,
 }
 
@@ -202,8 +176,8 @@ impl MonoDecoder {
     }
 
     /// The spec every packet of the stream decodes under.
-    pub fn spec(&self) -> SignalSpec {
-        self.spec
+    pub fn spec(&self) -> &AudioSpec {
+        &self.spec
     }
 
     /// Takes the next packet of the stream, and reports whether one arrived.

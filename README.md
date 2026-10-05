@@ -110,7 +110,7 @@ Anything the decoder cannot use raises `SignatureError`, and the message opens w
 | a path that is not there                             | `<input>: No such file or directory (os error 2)`                                               |
 | a stream nothing in this build reads, a directory included | `<input>: unsupported feature: no reader in this build recognises the stream`              |
 | a container that is read, holding a codec that is not | `<input>: unsupported feature: the stream carries no track with a codec this build can decode`  |
-| audio that stops before the segment does             | `<input>: end of stream`                                                                        |
+| audio that stops before the segment does             | `<input>: unexpected end of file`                                                               |
 
 What follows the input is `symphonia`'s wording, or the operating system's, and differs between platforms.
 
@@ -158,7 +158,7 @@ Anything else raises `SignatureError`, and a container from that list is no guar
 | Refused          | Fails as                                        | Why                                     |
 |------------------|-------------------------------------------------|-----------------------------------------|
 | AC-3 in Matroska | `no track with a codec this build can decode`   | the container is read, the codec is not |
-| WMA in ASF       | `end of stream`                                 | there is no ASF demuxer at all          |
+| WMA in ASF       | `no reader in this build recognises the stream` | there is no ASF demuxer at all          |
 
 Windows Media Audio decoded in earlier releases through an `ffmpeg` fallback that has since been removed.
 

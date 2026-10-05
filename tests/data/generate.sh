@@ -46,8 +46,15 @@ ffmpeg -y -i probe.wav -c:a libopus -b:a 96k -vbr constrained probe.opus
 # The same Opus in Matroska rather than in Ogg. Both carry the end padding, and only
 #  the Ogg reader applies it: the Matroska one reads `DiscardPadding` and drops it,
 #  so this file keeps the padding the `.opus` beside it loses.
-#  https://github.com/pdeljanov/Symphonia/blob/6d533f26150953a882a6a111ebd13f0abf7129d5/symphonia-format-mkv/src/segment.rs#L427
+#  https://github.com/pdeljanov/Symphonia/blob/ee35874b571a35a9a6e15d3bc9a3aaf8f11fbeee/symphonia-format-mkv/src/segment.rs#L1187
 ffmpeg -y -i probe.wav -c:a libopus -b:a 96k -vbr constrained matroska.webm
+
+# AC-3, which `symphonia` names and does not decode, alone and ahead of a FLAC track.
+#  `bitexact` fixes the Matroska track UIDs, so both files regenerate byte for byte.
+ffmpeg -y -f lavfi -i "sine=frequency=440:sample_rate=48000:duration=1" \
+  -c:a ac3 -flags:a +bitexact -fflags +bitexact ac3.mka
+ffmpeg -y -f lavfi -i "sine=frequency=440:sample_rate=48000:duration=1" \
+  -map 0:a -map 0:a -c:a:0 ac3 -c:a:1 flac -flags:a +bitexact -fflags +bitexact ac3_then_flac.mka
 
 # Six channels, which `libopus` decodes only through its multistream API: above two
 #  channels `OpusHead` carries mapping family 1 and a table of streams to channels.
