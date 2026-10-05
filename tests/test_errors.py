@@ -7,6 +7,7 @@ nothing from `No such file or directory (os error 2)` on its own. The `README` s
 what each refusal is; the asserts below hold the messages to it.
 """
 
+import logging
 import re
 from pathlib import Path
 from typing import Final
@@ -73,3 +74,15 @@ async def test_a_codec_this_build_cannot_decode_is_refused(*, recognizer: Recogn
     with pytest.raises(SignatureError, match=f"^{re.escape(expected_message)}$"):
         await recognizer.recognize_path(path)
 
+
+async def test_a_payload_nothing_recognises_is_not_logged_as_well(
+    caplog: pytest.LogCaptureFixture,
+    *,
+    recognizer: Recognizer,
+) -> None:
+    # `symphonia` 0.6 logs every probe that finds no reader, so each refusal used to
+    #  print `probe reached EOF at 16 bytes` on top of the raised error.
+    with pytest.raises(SignatureError):
+        await recognizer.recognize_bytes(b"not audio at all")
+
+    assert [record for record in caplog.records if record.levelno >= logging.WARNING] == []
