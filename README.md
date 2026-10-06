@@ -142,15 +142,15 @@ That leaves these codecs, each one probed through the public API in the containe
 
 | Codec  | Probed in      | In the test suite |
 |--------|----------------|-------------------|
-| AAC    | ADTS           |                   |
-| ADPCM  | WAV            |                   |
-| ALAC   | MP4            |                   |
+| AAC    | ADTS           | yes               |
+| ADPCM  | WAV            | yes               |
+| ALAC   | MP4            | yes               |
 | FLAC   | FLAC           | yes               |
 | MP1    | not probed     |                   |
-| MP2    | MPEG           |                   |
+| MP2    | MPEG           | yes               |
 | MP3    | MPEG           | yes               |
 | Opus   | Ogg            | yes               |
-| PCM    | WAV, AIFF, CAF |                   |
+| PCM    | WAV, AIFF, CAF | yes               |
 | Vorbis | Ogg            | yes               |
 
 MP1 is the one row taken from what `symphonia` registers rather than from a run: nothing here encodes it. The containers recognised are ADTS, AIFF, CAF, FLAC, Matroska and WebM, MP4, MPEG, Ogg and WAV, and the test suite runs on Linux, macOS and Windows.
