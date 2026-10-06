@@ -463,6 +463,48 @@ mod tests {
         );
     }
 
+    #[test]
+    fn a_negative_output_gain_attenuates() {
+        // The field is signed, so -1536 is -6 dB and the factor 10 raised to -6 over 20.
+        let plain = decoded_peak(0);
+        let attenuated = decoded_peak(-1536);
+
+        assert!(
+            (attenuated / plain - 0.501_187).abs() < 1e-3,
+            "{plain} against {attenuated}"
+        );
+    }
+
+    #[test]
+    fn a_pre_skip_longer_than_the_first_packet_carries_into_the_next() {
+        // The pre-skip may span several packets, so what the first one cannot absorb
+        //  is dropped from the next. https://www.rfc-editor.org/rfc/rfc7845#section-4.2
+        const LONG_PRE_SKIP_FRAMES: u16 = (TONE_FRAMES + PRE_SKIP_FRAMES) as u16;
+
+        let mut header = Vec::from(&opus_head(2, 0)[..]);
+        header[PRE_SKIP_OFFSET..PRE_SKIP_OFFSET + 2]
+            .copy_from_slice(&LONG_PRE_SKIP_FRAMES.to_le_bytes());
+
+        let mut codec_parameters = AudioCodecParameters::new();
+        codec_parameters
+            .for_codec(CODEC_ID_OPUS)
+            .with_extra_data(header.into_boxed_slice());
+
+        let mut decoder = OpusDecoder::try_new(&codec_parameters).unwrap();
+
+        let first_frames = decoder
+            .decode(&tone_frames_packet(tone_packet()))
+            .unwrap()
+            .frames();
+        let second_frames = decoder
+            .decode(&tone_frames_packet(tone_packet()))
+            .unwrap()
+            .frames();
+
+        assert_eq!(first_frames, 0);
+        assert_eq!(second_frames, TONE_FRAMES - PRE_SKIP_FRAMES);
+    }
+
     fn decoder_for_channels(channel_count: u8) -> Result<OpusDecoder> {
         let mut codec_parameters = AudioCodecParameters::new();
         codec_parameters
@@ -497,6 +539,41 @@ mod tests {
 
         let Err(error) = OpusDecoder::try_new(&codec_parameters) else {
             panic!("a stream with no `OpusHead` built a decoder");
+        };
+
+        assert!(matches!(error, Error::Unsupported(_)), "{error}");
+    }
+
+    #[test]
+    fn a_header_cut_short_is_refused() {
+        let header = opus_head(2, 0);
+
+        for length in OPUS_HEAD_MAGIC.len()..OPUS_HEAD_MIN_LENGTH {
+            let Err(error) = OpusHead::parse(&header[..length]) else {
+                panic!("a header of {length} bytes parsed");
+            };
+
+            assert!(matches!(error, Error::Unsupported(_)), "{error}");
+        }
+    }
+
+    #[test]
+    fn a_mapping_table_cut_short_is_refused() {
+        let header = opus_head_with_mapping_table(6);
+
+        for length in OPUS_HEAD_MIN_LENGTH..header.len() {
+            let Err(error) = OpusHead::parse(&header[..length]) else {
+                panic!("a header whose table stops at byte {length} parsed");
+            };
+
+            assert!(matches!(error, Error::DecodeError(_)), "{error}");
+        }
+    }
+
+    #[test]
+    fn a_header_of_zero_channels_is_refused() {
+        let Err(error) = OpusHead::parse(&opus_head(0, 0)) else {
+            panic!("a header of zero channels parsed");
         };
 
         assert!(matches!(error, Error::Unsupported(_)), "{error}");
