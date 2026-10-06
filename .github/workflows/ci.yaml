@@ -486,7 +486,11 @@ jobs:
   release:
     name: Release
     needs: [ test, rust-test, lint, harness-lint, msrv, windows, macos, linux, sdist, licenses ]
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    # Tags only: a manual run of a branch would upload its version to PyPI and
+    #  create a release named after the branch, since `tag_name` falls back to the
+    #  ref name. A manual run started on a tag still has a `refs/tags/` ref.
+    #  https://github.com/softprops/action-gh-release/blob/efb35369e0ad2afab669f228072c1b0d510eae64/README.md?plain=1#L227
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     # The only write in the workflow: `action-gh-release` attaches the wheels to the
     #  tag's release through the API. The upload to PyPI needs nothing here, it
