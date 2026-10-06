@@ -422,19 +422,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: ./.github/actions/setup-just
-
-      # The version is the `justfile`'s, read rather than restated: a generator of
-      #  another version rewrites the notices, and the two copies would then
-      #  disagree about which output is the correct one.
-      - id: tool
-        run: echo "version=$(just --evaluate cargo_about_version)" >> "$GITHUB_OUTPUT"
-
-      # A prebuilt binary from the project's own releases. Building it from source
-      #  costs about half a minute of the job for a check that runs in seconds.
-      - uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
-        with:
-          tool: cargo-about@${{ steps.tool.outputs.version }}
+      - uses: ./.github/actions/setup-cargo-about
 
       - name: Check the notices still match `Cargo.lock`
         run: just licenses-check
