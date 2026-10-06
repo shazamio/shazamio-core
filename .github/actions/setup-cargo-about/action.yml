@@ -1,0 +1,20 @@
+name: Set up `cargo-about`
+description: Install `just` and the `cargo-about` version the `justfile` names.
+
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/setup-just
+
+    # The version is the `justfile`'s, read rather than restated: a generator of
+    #  another version rewrites the notices, and the two copies would then
+    #  disagree about which output is the correct one.
+    - id: tool
+      shell: bash
+      run: echo "version=$(just --evaluate cargo_about_version)" >> "$GITHUB_OUTPUT"
+
+    # A prebuilt binary from the project's own releases. Building it from source
+    #  costs about half a minute of the job for a check that runs in seconds.
+    - uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
+      with:
+        tool: cargo-about@${{ steps.tool.outputs.version }}

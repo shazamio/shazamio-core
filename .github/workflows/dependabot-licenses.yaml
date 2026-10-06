@@ -1,0 +1,64 @@
+name: Dependabot licence notices
+
+# Dependabot bumps `Cargo.lock` and never regenerates `THIRD-PARTY-NOTICES.md`, which
+#  names every crate with its version, so each cargo bump failed `Licence notices`
+#  with a one-line diff such as `crc32fast 1.5.1` against `crc32fast 1.5.2`. This
+#  regenerates the file on the bump's own branch and commits it there.
+on:
+  pull_request:
+    branches:
+      - "master"
+      - "dev"
+
+# Runs triggered by Dependabot get a read-only token, and a `permissions` key is
+#  what raises it. This file holds the only write scope in the repository's CI.
+#  https://docs.github.com/en/code-security/dependabot/troubleshooting-dependabot/troubleshooting-dependabot-on-github-actions#changing-github_token-permissions
+permissions:
+  contents: write
+
+# A second push to the branch while this runs would race the commit below.
+concurrency:
+  group: dependabot-licenses-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  notices:
+    name: Regenerate the notices
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && startsWith(github.head_ref, 'dependabot/cargo/')
+    runs-on: ubuntu-latest
+    steps:
+      # The branch itself rather than the merge ref `pull_request` checks out by
+      #  default, since the commit has to land on it.
+      #
+      # A push made with `GITHUB_TOKEN` leaves the new head's CI waiting for somebody
+      #  with write access to approve it; one made with a personal access token
+      #  runs it straight away. Dependabot runs see Dependabot secrets only, so the
+      #  token is stored there, and without it the approval click is the cost.
+      #  https://docs.github.com/en/actions/concepts/security/github_token#when-github_token-triggers-workflow-runs
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ secrets.DEPENDABOT_NOTICES_TOKEN || github.token }}
+
+      - uses: ./.github/actions/setup-cargo-about
+
+      - name: Regenerate the notices from `Cargo.lock`
+        run: just licenses
+
+      # Nothing to commit once the notices match, which is also what ends the loop:
+      #  the push below starts this workflow again, and that run finds no change.
+      #
+      # Dependabot stops rebasing a branch carrying a commit it did not write, unless
+      #  the message says `[dependabot skip]`; with it the rebase drops this commit
+      #  and the next run writes it again.
+      #  https://docs.github.com/en/code-security/dependabot/working-with-dependabot/managing-pull-requests-for-dependency-updates#allowing-dependabot-to-rebase-and-force-push-over-extra-commits
+      - name: Commit the notices to the branch
+        run: |
+          if git diff --quiet -- THIRD-PARTY-NOTICES.md; then
+            exit 0
+          fi
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit --message 'build(licenses): regenerate the notices for the bumped crates [dependabot skip]' -- THIRD-PARTY-NOTICES.md
+          git push
