@@ -30,7 +30,7 @@ impl SignatureGenerator {
     // Decoded, mixed down and resampled a packet at a time, so nothing longer than one
     //  packet of the source is ever held beside the 16 kHz result.
     fn pcm_samples(mut decoder: MonoDecoder) -> Result<Vec<i16>, Box<dyn Error>> {
-        let mut resampling = Resampling::new(decoder.spec().rate)?;
+        let mut resampling = Resampling::new(decoder.spec().rate())?;
         let mut mono_frames = Vec::new();
 
         while decoder.next_chunk(&mut mono_frames)? {
@@ -355,8 +355,8 @@ mod tests {
 
         Ok(ProbeShape {
             frames,
-            channels: decoder.spec().channels.count(),
-            rate: decoder.spec().rate,
+            channels: decoder.spec().channels().count(),
+            rate: decoder.spec().rate(),
         })
     }
 
@@ -411,11 +411,21 @@ mod tests {
         // Matroska describes an Opus track with no channel count, and the decoder used
         //  to refuse it with "declares no channel layout". Its 648 frames of end
         //  padding survive because the demuxer reads `DiscardPadding` and drops it.
-        //  https://github.com/pdeljanov/Symphonia/blob/6d533f26150953a882a6a111ebd13f0abf7129d5/symphonia-format-mkv/src/segment.rs#L427
+        //  https://github.com/pdeljanov/Symphonia/blob/ee35874b571a35a9a6e15d3bc9a3aaf8f11fbeee/symphonia-format-mkv/src/segment.rs#L1187
         let probe = decode_probe("matroska.webm").unwrap();
 
         assert_eq!(probe.channels, 2);
         assert_eq!(probe.frames, 8 * 48_000 + 648);
+    }
+
+    #[test]
+    fn a_track_this_build_cannot_decode_is_passed_over() {
+        // AC-3 comes first, and taking the first track whose codec has a name refused
+        //  the file with `core (codec): unsupported audio codec` instead of reading
+        //  the FLAC track behind it.
+        let probe = decode_probe("ac3_then_flac.mka").unwrap();
+
+        assert_eq!(probe.frames, 48_000);
     }
 
     #[test]
@@ -460,7 +470,7 @@ mod tests {
         // 1504 frames longer than the source: AAC pads the front, and the edit list
         //  saying by how much is parsed into the track and never read again. Same gap
         //  before the decoder was swapped, so it is not a regression to fix here.
-        //  https://github.com/pdeljanov/Symphonia/blob/6d533f26150953a882a6a111ebd13f0abf7129d5/symphonia-format-isomp4/src/atoms/trak.rs#L22
+        //  https://github.com/pdeljanov/Symphonia/blob/ee35874b571a35a9a6e15d3bc9a3aaf8f11fbeee/symphonia-format-isomp4/src/atoms/trak.rs#L37
         let probe = decode_probe("probe.m4a").unwrap();
 
         assert_eq!(probe.frames, 8 * 44100 + 1504);

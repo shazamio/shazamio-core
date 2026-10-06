@@ -7,6 +7,7 @@ nothing from `No such file or directory (os error 2)` on its own. The `README` s
 what each refusal is; the asserts below hold the messages to it.
 """
 
+import logging
 import re
 from pathlib import Path
 from typing import Final
@@ -47,7 +48,11 @@ async def test_a_path_that_cannot_be_read_names_itself(
     [
         pytest.param(b"", f"the byte payload: {_UNREADABLE}", id="empty"),
         pytest.param(b"not audio at all", f"the byte payload: {_UNREADABLE}", id="not-audio"),
-        pytest.param(_TRUNCATED_AUDIO, "the byte payload: end of stream", id="truncated-audio"),
+        pytest.param(
+            _TRUNCATED_AUDIO,
+            "the byte payload: unexpected end of file",
+            id="truncated-audio",
+        ),
     ],
 )
 async def test_a_payload_that_cannot_be_decoded_says_which_input_it_was(
@@ -58,3 +63,26 @@ async def test_a_payload_that_cannot_be_decoded_says_which_input_it_was(
 ) -> None:
     with pytest.raises(SignatureError, match=f"^{re.escape(expected_message)}$"):
         await recognizer.recognize_bytes(payload)
+
+
+async def test_a_codec_this_build_cannot_decode_is_refused(*, recognizer: Recognizer) -> None:
+    path: Path = DATA_DIRECTORY / "ac3.mka"
+    expected_message: str = (
+        f"{path}: unsupported feature: the stream carries no track with a codec this build can decode"
+    )
+
+    with pytest.raises(SignatureError, match=f"^{re.escape(expected_message)}$"):
+        await recognizer.recognize_path(path)
+
+
+async def test_a_payload_nothing_recognises_is_not_logged_as_well(
+    caplog: pytest.LogCaptureFixture,
+    *,
+    recognizer: Recognizer,
+) -> None:
+    # `symphonia` 0.6 logs every probe that finds no reader, so each refusal used to
+    #  print `probe reached EOF at 16 bytes` on top of the raised error.
+    with pytest.raises(SignatureError):
+        await recognizer.recognize_bytes(b"not audio at all")
+
+    assert [record for record in caplog.records if record.levelno >= logging.WARNING] == []

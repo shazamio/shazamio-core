@@ -46,19 +46,3 @@ license = "BSD-3-Clause"
 [[opusic-sys.clarify.files]]
 path = "LICENSE"
 checksum = "01e1167d54a096d123cf6dfbbeb19587278845c6481d2d66d545669846079551"
-
-# Same shape: harvesting also picks the WHATWG notice out of the crate's own
-#  `gb18030_2022.rs`, where it sits as a source header. `LICENSE-MIT` is taken
-#  over `LICENSE-APACHE` because MIT is higher in `accepted` above.
-[encoding_rs.clarify]
-license = "(Apache-2.0 OR MIT) AND BSD-3-Clause"
-
-[[encoding_rs.clarify.files]]
-path = "LICENSE-MIT"
-license = "MIT"
-checksum = "3fa4ca83dcc9237839b1bdeb2e6d16bdfb5ec0c5ce42b24694d8bbf0dcbef72c"
-
-[[encoding_rs.clarify.files]]
-path = "LICENSE-WHATWG"
-license = "BSD-3-Clause"
-checksum = "838118388fe5c2e7f1dbbaeed13e1c7f3ebf88be91319c7c1d77c18e987d1a50"

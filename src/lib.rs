@@ -11,7 +11,8 @@ use crate::utils::convert_signature_to_py;
 use crate::utils::get_python_future;
 use crate::utils::unwrap_decoded_signature;
 use fingerprinting::algorithm::{SignatureGenerator, DEFAULT_SEGMENT_DURATION_SECONDS};
-use log::{debug, info};
+use log::{debug, info, LevelFilter};
+use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 use pyo3::{pyclass, pymethods, pymodule, Bound, Py, PyAny, PyErr, PyResult, Python};
@@ -19,7 +20,17 @@ use std::path::PathBuf;
 
 #[pymodule]
 fn shazamio_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    pyo3_log::init();
+    // The probe logs `probe reached EOF at <n> bytes` at error level for every stream it
+    //  cannot read, beside the `SignatureError` the caller already gets for it.
+    //  https://github.com/pdeljanov/Symphonia/blob/ee35874b571a35a9a6e15d3bc9a3aaf8f11fbeee/symphonia-core/src/formats/probe.rs#L590
+    pyo3_log::Logger::default()
+        .filter_target(
+            "symphonia_core::formats::probe".to_owned(),
+            LevelFilter::Off,
+        )
+        .install()
+        .map_err(|error| PyRuntimeError::new_err(error.to_string()))?;
+
     info!("Initializing shazamio_core module");
 
     m.add_class::<Recognizer>()?;

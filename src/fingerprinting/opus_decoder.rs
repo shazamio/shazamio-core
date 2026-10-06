@@ -1,13 +1,15 @@
 use opus::MSDecoder as LibopusDecoder;
 use symphonia::core::audio::{
-    AsAudioBufferRef, AudioBuffer, AudioBufferRef, Channels, Signal, SignalSpec,
+    AsGenericAudioBufferRef, AudioBuffer, AudioMut, AudioSpec, Channels, GenericAudioBufferRef,
 };
-use symphonia::core::codecs::{
-    CodecDescriptor, CodecParameters, Decoder, DecoderOptions, FinalizeResult, CODEC_TYPE_OPUS,
+use symphonia::core::codecs::audio::well_known::CODEC_ID_OPUS;
+use symphonia::core::codecs::audio::{
+    AudioCodecParameters, AudioDecoder, AudioDecoderOptions, FinalizeResult,
 };
+use symphonia::core::codecs::registry::{RegisterableAudioDecoder, SupportedAudioCodec};
+use symphonia::core::codecs::CodecInfo;
 use symphonia::core::errors::{decode_error, unsupported_error, Error, Result};
-use symphonia::core::formats::Packet;
-use symphonia::core::support_codec;
+use symphonia::core::packet::PacketRef;
 
 // An Opus stream always decodes at 48 kHz, whatever rate the encoder was fed.
 //  https://www.rfc-editor.org/rfc/rfc7845#section-3
@@ -45,20 +47,14 @@ const MAPPING_FAMILY_RTP: u8 = 0;
 const MAPPING_FAMILY_VORBIS: u8 = 1;
 const MAPPING_FAMILY_DISCRETE: u8 = 255;
 
-// `Channels` names 26 positions in a 32-bit mask, so a wider stream cannot be
-//  described at all: the extra bits truncate away, `decode` then writes past the
-//  buffer and panics with "invalid channel index".
-//  https://github.com/pdeljanov/Symphonia/blob/6d533f26150953a882a6a111ebd13f0abf7129d5/symphonia-core/src/audio.rs#L88
-const MAX_CHANNELS: usize = Channels::all().bits().count_ones() as usize;
-
 /// How many channels a mapping family codes: two for the RTP family, eight for the
-/// Vorbis order, and as many as we can name for the discrete one.
+/// Vorbis order, and as many as the header can count for the discrete one.
 /// https://www.rfc-editor.org/rfc/rfc7845#section-5.1.1
 fn max_channels_for_family(mapping_family: u8) -> usize {
     match mapping_family {
         MAPPING_FAMILY_RTP => 2,
         MAPPING_FAMILY_VORBIS => 8,
-        _ => MAX_CHANNELS,
+        _ => usize::from(u8::MAX),
     }
 }
 
@@ -93,7 +89,7 @@ impl OpusHead {
 
         let channel_count = usize::from(data[CHANNEL_COUNT_OFFSET]);
 
-        if channel_count == 0 || channel_count > MAX_CHANNELS {
+        if channel_count == 0 {
             return unsupported_error("opus: the stream declares an unusable channel count");
         }
 
@@ -154,13 +150,13 @@ impl OpusHead {
 
 /// The Opus decoder `symphonia` does not ship, wired to `libopus`.
 ///
-/// `symphonia` demuxes Ogg Opus and hands out `CODEC_TYPE_OPUS` packets already, so
+/// `symphonia` demuxes Ogg Opus and hands out `CODEC_ID_OPUS` packets already, so
 /// only the codec itself is missing: the status table lists Opus as unsupported and
 /// no `symphonia-codec-opus` crate exists.
 /// https://github.com/pdeljanov/Symphonia#codecs-decoders
 pub struct OpusDecoder {
     decoder: LibopusDecoder,
-    codec_parameters: CodecParameters,
+    codec_parameters: AudioCodecParameters,
     buffer: AudioBuffer<f32>,
     interleaved_samples: Vec<f32>,
     channel_count: usize,
@@ -168,17 +164,17 @@ pub struct OpusDecoder {
     frames_to_skip: usize,
 }
 
-// `opus::MSDecoder` is `Send` but not `Sync`, and `symphonia`'s `Decoder` wants both.
-//  Everything reaching the `libopus` pointer takes `&mut self`, so a shared reference
-//  cannot get at it: the two `&self` methods below read the other fields only.
+// `opus::MSDecoder` is `Send` but not `Sync`, and `symphonia`'s `AudioDecoder` wants
+//  both. Everything reaching the `libopus` pointer takes `&mut self`, so a shared
+//  reference cannot get at it: the three `&self` methods below read the other fields only.
 //  https://github.com/SpaceManiac/opus-rs/blob/31e8ba1ae8abfa31bbe37817dbf0a8ebdeffc31c/src/lib.rs#L1203
 unsafe impl Sync for OpusDecoder {}
 
-impl Decoder for OpusDecoder {
-    fn try_new(params: &CodecParameters, _options: &DecoderOptions) -> Result<Self> {
+impl OpusDecoder {
+    fn try_new(params: &AudioCodecParameters) -> Result<Self> {
         // The header is the only description both containers carry. Ogg fills
-        //  `params.channels` and `params.delay` from it, Matroska leaves both `None`
-        //  and a stream out of `.webm` then failed with "declares no channel layout".
+        //  `params.channels` from it, Matroska leaves it `None` and a stream out of
+        //  `.webm` then failed with "declares no channel layout".
         let Some(extra_data) = params.extra_data.as_deref() else {
             return unsupported_error("opus: the stream carries no `OpusHead` header");
         };
@@ -197,15 +193,15 @@ impl Decoder for OpusDecoder {
         .map_err(|_| Error::Unsupported("opus: libopus refused the stream"))?;
 
         // Only the count is read downstream, where every channel is averaged into mono,
-        //  so the mask names as many positions as the stream has rather than the ones
-        //  the Opus channel order actually assigns.
-        let channels = Channels::from_bits_truncate((1u32 << head.channel_count) - 1);
-        let spec = SignalSpec::new(OPUS_SAMPLE_RATE, channels);
+        //  so the channels are counted rather than given the positions the Opus channel
+        //  order assigns them.
+        let channels = Channels::Discrete(head.channel_count as u16);
+        let spec = AudioSpec::new(OPUS_SAMPLE_RATE, channels);
 
         Ok(Self {
             decoder,
             codec_parameters: params.clone(),
-            buffer: AudioBuffer::new(MAX_FRAMES_PER_PACKET as u64, spec),
+            buffer: AudioBuffer::new(spec, MAX_FRAMES_PER_PACKET),
             interleaved_samples: vec![0.0; MAX_FRAMES_PER_PACKET * head.channel_count],
             channel_count: head.channel_count,
             output_gain: head.output_gain,
@@ -214,63 +210,85 @@ impl Decoder for OpusDecoder {
             frames_to_skip: head.pre_skip,
         })
     }
+}
 
-    fn supported_codecs() -> &'static [CodecDescriptor] {
-        &[support_codec!(CODEC_TYPE_OPUS, "opus", "Opus")]
-    }
-
+impl AudioDecoder for OpusDecoder {
     fn reset(&mut self) {
         // A failure here leaves the previous state in place, which decodes the next
         //  packet with stale history rather than not at all. The trait cannot report it.
         let _ = self.decoder.reset_state();
     }
 
-    fn codec_params(&self) -> &CodecParameters {
+    fn codec_info(&self) -> &CodecInfo {
+        &OPUS_CODECS[0].info
+    }
+
+    fn codec_params(&self) -> &AudioCodecParameters {
         &self.codec_parameters
     }
 
-    fn decode(&mut self, packet: &Packet) -> Result<AudioBufferRef<'_>> {
+    fn decode_ref(&mut self, packet: &PacketRef<'_>) -> Result<GenericAudioBufferRef<'_>> {
         self.buffer.clear();
 
         let Ok(decoded_frames) =
             self.decoder
-                .decode_float(&packet.data, &mut self.interleaved_samples, false)
+                .decode_float(packet.data, &mut self.interleaved_samples, false)
         else {
             return decode_error("opus: libopus rejected the packet");
         };
 
+        let decoded_samples = &self.interleaved_samples[..decoded_frames * self.channel_count];
+
+        self.buffer.render_uninit(Some(decoded_frames));
+        self.buffer.copy_from_slice_interleaved(&decoded_samples);
+
+        let output_gain = self.output_gain;
+        self.buffer.apply(|sample| sample * output_gain);
+
         // The reader trims only what the container signals: Ogg reports the end padding
-        //  and leaves the pre-skip to the header, Matroska reports neither. Taking the
+        //  and leaves the pre-skip to the track delay, Matroska reports neither. Taking the
         //  larger of the two leading counts drops each frame once whichever answers.
+        //  https://github.com/pdeljanov/Symphonia/blob/ee35874b571a35a9a6e15d3bc9a3aaf8f11fbeee/symphonia-format-ogg/src/mappings/opus.rs#L129
         let leading = self
             .frames_to_skip
-            .max(packet.trim_start() as usize)
+            .max(packet.trim_start.get() as usize)
             .min(decoded_frames);
         self.frames_to_skip = self.frames_to_skip.saturating_sub(leading);
 
-        let trailing = (packet.trim_end() as usize).min(decoded_frames - leading);
-        let kept_frames = decoded_frames - leading - trailing;
+        let trailing = (packet.trim_end.get() as usize).min(decoded_frames - leading);
+        self.buffer.trim(leading, trailing);
 
-        self.buffer.render_reserved(Some(kept_frames));
-
-        for channel_index in 0..self.channel_count {
-            let channel = self.buffer.chan_mut(channel_index);
-
-            for (frame_index, sample) in channel.iter_mut().enumerate() {
-                let offset = (leading + frame_index) * self.channel_count + channel_index;
-                *sample = self.interleaved_samples[offset] * self.output_gain;
-            }
-        }
-
-        Ok(self.buffer.as_audio_buffer_ref())
+        Ok(self.buffer.as_generic_audio_buffer_ref())
     }
 
     fn finalize(&mut self) -> FinalizeResult {
         FinalizeResult::default()
     }
 
-    fn last_decoded(&self) -> AudioBufferRef<'_> {
-        self.buffer.as_audio_buffer_ref()
+    fn last_decoded(&self) -> GenericAudioBufferRef<'_> {
+        self.buffer.as_generic_audio_buffer_ref()
+    }
+}
+
+const OPUS_CODECS: [SupportedAudioCodec; 1] = [SupportedAudioCodec {
+    id: CODEC_ID_OPUS,
+    info: CodecInfo {
+        short_name: "opus",
+        long_name: "Opus",
+        profiles: &[],
+    },
+}];
+
+impl RegisterableAudioDecoder for OpusDecoder {
+    fn try_registry_new(
+        params: &AudioCodecParameters,
+        _options: &AudioDecoderOptions,
+    ) -> Result<Box<dyn AudioDecoder>> {
+        Ok(Box::new(OpusDecoder::try_new(params)?))
+    }
+
+    fn supported_codecs() -> &'static [SupportedAudioCodec] {
+        &OPUS_CODECS
     }
 }
 
@@ -278,6 +296,9 @@ impl Decoder for OpusDecoder {
 mod tests {
     use super::*;
     use opus::{Application, Channels as OpusChannels, Encoder, MSEncoder};
+    use symphonia::core::audio::Audio;
+    use symphonia::core::packet::Packet;
+    use symphonia::core::units::{Duration, Timestamp};
 
     // 20 ms, the frame size the encoder is asked for below. Any Opus frame size works;
     //  this one is the default and leaves 648 frames once the pre-skip is dropped.
@@ -325,12 +346,12 @@ mod tests {
     fn the_header_supplies_what_a_container_leaves_out() {
         // Matroska describes an Opus track with neither a channel count nor a
         //  pre-skip, so a stream out of `.webm` used to fail on the first of them.
-        let mut codec_parameters = CodecParameters::new();
+        let mut codec_parameters = AudioCodecParameters::new();
         codec_parameters
-            .for_codec(CODEC_TYPE_OPUS)
+            .for_codec(CODEC_ID_OPUS)
             .with_extra_data(opus_head(2, 0));
 
-        let decoder = OpusDecoder::try_new(&codec_parameters, &DecoderOptions::default()).unwrap();
+        let decoder = OpusDecoder::try_new(&codec_parameters).unwrap();
 
         assert_eq!(decoder.channel_count, 2);
         assert_eq!(decoder.frames_to_skip, PRE_SKIP_FRAMES);
@@ -400,28 +421,31 @@ mod tests {
             .unwrap()
     }
 
+    /// One packet of `TONE_FRAMES` frames carrying `data`.
+    fn tone_frames_packet(data: Vec<u8>) -> Packet {
+        Packet::new(
+            0,
+            Timestamp::new(0),
+            Duration::new(TONE_FRAMES as u64),
+            data,
+        )
+    }
+
     /// The loudest sample the decoder produces for that packet under a given gain.
     fn decoded_peak(output_gain_db: i16) -> f32 {
-        let mut codec_parameters = CodecParameters::new();
+        let mut codec_parameters = AudioCodecParameters::new();
         codec_parameters
-            .for_codec(CODEC_TYPE_OPUS)
+            .for_codec(CODEC_ID_OPUS)
             .with_extra_data(opus_head(2, output_gain_db));
 
-        let mut decoder =
-            OpusDecoder::try_new(&codec_parameters, &DecoderOptions::default()).unwrap();
+        let mut decoder = OpusDecoder::try_new(&codec_parameters).unwrap();
 
-        decoder
-            .decode(&Packet::new_from_slice(
-                0,
-                0,
-                TONE_FRAMES as u64,
-                &tone_packet(),
-            ))
-            .unwrap();
+        decoder.decode(&tone_frames_packet(tone_packet())).unwrap();
 
         decoder
             .buffer
-            .chan(0)
+            .plane(0)
+            .unwrap()
             .iter()
             .fold(0f32, |peak, sample| peak.max(sample.abs()))
     }
@@ -440,50 +464,38 @@ mod tests {
     }
 
     fn decoder_for_channels(channel_count: u8) -> Result<OpusDecoder> {
-        let mut codec_parameters = CodecParameters::new();
+        let mut codec_parameters = AudioCodecParameters::new();
         codec_parameters
-            .for_codec(CODEC_TYPE_OPUS)
+            .for_codec(CODEC_ID_OPUS)
             .with_extra_data(opus_head_with_mapping_table(channel_count));
 
-        OpusDecoder::try_new(&codec_parameters, &DecoderOptions::default())
+        OpusDecoder::try_new(&codec_parameters)
     }
 
     #[test]
-    fn the_widest_stream_the_channel_mask_can_name_decodes() {
-        // The ceiling used to be the width of the mask, not the count of positions in
-        //  it: 32 channels panicked on `1u32 << 32` with "attempt to shift left with
-        //  overflow", and 27 truncated to 26 and failed here with "invalid channel index".
-        let channel_count = MAX_CHANNELS as u8;
+    fn the_widest_stream_the_header_can_count_decodes() {
+        // `symphonia` 0.5 counted channels in a 26-position mask, so a 27-channel stream
+        //  was refused. A discrete count takes every channel the header can name.
+        let channel_count = u8::MAX;
         let mut decoder = decoder_for_channels(channel_count).unwrap();
 
         let decoded = decoder
-            .decode(&Packet::new_from_slice(
-                0,
-                0,
-                TONE_FRAMES as u64,
-                &multistream_tone_packet(channel_count),
-            ))
+            .decode(&tone_frames_packet(multistream_tone_packet(channel_count)))
             .unwrap();
 
-        assert_eq!(decoded.spec().channels.count(), MAX_CHANNELS);
+        assert_eq!(
+            decoded.spec().channels().count(),
+            usize::from(channel_count)
+        );
         assert_eq!(decoded.frames(), TONE_FRAMES - PRE_SKIP_FRAMES);
     }
 
     #[test]
-    fn a_stream_wider_than_the_channel_mask_is_refused() {
-        let Err(error) = decoder_for_channels(MAX_CHANNELS as u8 + 1) else {
-            panic!("a stream too wide to describe built a decoder");
-        };
-
-        assert!(matches!(error, Error::Unsupported(_)), "{error}");
-    }
-
-    #[test]
     fn a_stream_with_no_header_is_refused() {
-        let mut codec_parameters = CodecParameters::new();
-        codec_parameters.for_codec(CODEC_TYPE_OPUS);
+        let mut codec_parameters = AudioCodecParameters::new();
+        codec_parameters.for_codec(CODEC_ID_OPUS);
 
-        let Err(error) = OpusDecoder::try_new(&codec_parameters, &DecoderOptions::default()) else {
+        let Err(error) = OpusDecoder::try_new(&codec_parameters) else {
             panic!("a stream with no `OpusHead` built a decoder");
         };
 
