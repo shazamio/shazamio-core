@@ -19,16 +19,27 @@
 #  same partials in both channels, phase shifted, and holds that band for its whole
 #  length, up to 6.6 kHz.
 #
-# Re-running this reproduces every file byte for byte except the five that carry a
-#  random identifier: `probe.ogg`, `probe.opus`, `surround.opus` and
-#  `chained_capacity.ogg` each get a fresh Ogg serial number, and `matroska.webm` a
-#  fresh track UID, so a handful of bytes change per run. The decoded audio does
-#  not, and neither does the fingerprint, so the goldens survive a regeneration.
-#  Checked on `ffmpeg` 8.0.1; another build may re-encode differently, and then the
-#  goldens have to be rewritten alongside the audio.
+# Re-running this reproduces every file byte for byte. Every encode passes
+#  `bitexact`, without which the Ogg muxer draws a random serial number and the
+#  Matroska one a random track UID on every run.
+#  https://github.com/FFmpeg/FFmpeg/blob/894da5ca7d742e4429ffb2af534fcda0103ef593/libavformat/oggenc.c#L485-L518
+#  https://github.com/FFmpeg/FFmpeg/blob/894da5ca7d742e4429ffb2af534fcda0103ef593/libavformat/matroskaenc.c#L3470-L3474
+#  Run it through `just regenerate`, never bare: the MP3, Vorbis and Opus files also
+#  depend on the encoder libraries built into `ffmpeg`, and Ubuntu's 8.0.1 writes
+#  all five of them differently from the static 8.0.1 the image pins.
 set -euo pipefail
 
 cd "$(dirname "$0")"
+
+# Errors only: the banner and the stream summary of every call bury a failure, and
+#  the diff after it in CI, under about 60 KB of log.
+#  `-cpuflags 0` keeps every DSP routine on its C version. The resampler picks its
+#  FMA3 code by CPU, which wrote other Opus bytes on the CI runner than locally.
+#  https://github.com/FFmpeg/FFmpeg/blob/894da5ca7d742e4429ffb2af534fcda0103ef593/libswresample/x86/resample_init.c#L72
+#  https://github.com/FFmpeg/FFmpeg/blob/894da5ca7d742e4429ffb2af534fcda0103ef593/fftools/opt_common.c#L1064-L1072
+ffmpeg() {
+  command ffmpeg -hide_banner -loglevel error -cpuflags 0 "$@"
+}
 
 ffmpeg -y -f lavfi -i "aevalsrc=\
 0.30*sin(2*PI*(300+180*t)*t)+0.22*sin(2*PI*1237*t)+0.16*sin(2*PI*3001*t)|\
@@ -36,18 +47,18 @@ ffmpeg -y -f lavfi -i "aevalsrc=\
 :s=44100:d=8" -c:a pcm_s16le probe.wav
 
 ffmpeg -y -i probe.wav -c:a libmp3lame -b:a 128k probe.mp3
-ffmpeg -y -i probe.wav -c:a libvorbis -b:a 96k probe.ogg
+ffmpeg -y -i probe.wav -c:a libvorbis -b:a 96k -flags:a +bitexact -fflags +bitexact probe.ogg
 ffmpeg -y -i probe.wav -c:a flac -compression_level 8 probe.flac
 ffmpeg -y -i probe.wav -c:a aac -b:a 128k probe.m4a
 # `-vbr constrained` because the default unconstrained VBR ignores `-b:a` on this
 #  signal and writes 185 kbps, four times the size of every other probe.
-ffmpeg -y -i probe.wav -c:a libopus -b:a 96k -vbr constrained probe.opus
+ffmpeg -y -i probe.wav -c:a libopus -b:a 96k -vbr constrained -flags:a +bitexact -fflags +bitexact probe.opus
 
 # The same Opus in Matroska rather than in Ogg. Both carry the end padding, and only
 #  the Ogg reader applies it: the Matroska one reads `DiscardPadding` and drops it,
 #  so this file keeps the padding the `.opus` beside it loses.
 #  https://github.com/pdeljanov/Symphonia/blob/ee35874b571a35a9a6e15d3bc9a3aaf8f11fbeee/symphonia-format-mkv/src/segment.rs#L1187
-ffmpeg -y -i probe.wav -c:a libopus -b:a 96k -vbr constrained matroska.webm
+ffmpeg -y -i probe.wav -c:a libopus -b:a 96k -vbr constrained -flags:a +bitexact -fflags +bitexact matroska.webm
 
 # AC-3, which `symphonia` names and does not decode, alone and ahead of a FLAC track.
 #  `bitexact` fixes the Matroska track UIDs, so both files regenerate byte for byte.
@@ -58,15 +69,18 @@ ffmpeg -y -f lavfi -i "sine=frequency=440:sample_rate=48000:duration=1" \
 
 # Six channels, which `libopus` decodes only through its multistream API: above two
 #  channels `OpusHead` carries mapping family 1 and a table of streams to channels.
-ffmpeg -y -i probe.wav -ac 6 -c:a libopus -b:a 128k -vbr constrained surround.opus
+ffmpeg -y -i probe.wav -ac 6 -c:a libopus -b:a 128k -vbr constrained -flags:a +bitexact -fflags +bitexact \
+  surround.opus
 
 # A chained Ogg whose links agree on rate and channel count but decode into buffers
 #  of different widths: Vorbis holds 1024 frames at 16 kHz, the FLAC link after it
 #  1152. A decoder sizes its buffer once, so only a chain makes the buffer grow.
 ffmpeg -y -f lavfi -i "sine=frequency=440:sample_rate=16000:duration=1" \
-  -ac 2 -c:a libvorbis chained_capacity_link1.ogg
+  -ac 2 -c:a libvorbis -flags:a +bitexact -fflags +bitexact chained_capacity_link1.ogg
+# `bitexact` numbers serials from 0 in each file, so the second link is offset to
+#  keep its serial apart from the first, as a random one was.
 ffmpeg -y -f lavfi -i "sine=frequency=660:sample_rate=16000:duration=1" \
-  -ac 2 -c:a flac -f ogg chained_capacity_link2.ogg
+  -ac 2 -c:a flac -serial_offset 1 -flags:a +bitexact -fflags +bitexact -f ogg chained_capacity_link2.ogg
 cat chained_capacity_link1.ogg chained_capacity_link2.ogg > chained_capacity.ogg
 rm chained_capacity_link1.ogg chained_capacity_link2.ogg
 

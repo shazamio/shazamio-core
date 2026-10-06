@@ -91,6 +91,12 @@ symphonia = { version = "0.6.1", features = ["all"] }
 opus = "0.4.0"
 rubato = "5.0.1"
 
+[dev-dependencies]
+# Compares a golden URI against its file, and rewrites the file instead under
+#  `UPDATE_EXPECT=1`, which is what `just regenerate` sets.
+#  https://github.com/rust-analyzer/expect-test/blob/9e616f9e8e94cd80b0f09155b7d9b4c57e133dbc/src/lib.rs#L485-L489
+expect-test = "1.5.1"
+
 [profile.release]
 # Measured 2026-09-05 by diffing the CI wheels before and after. On Linux the
 #  extension loses 23% against 1.8% for `"debuginfo"`, on macOS 21%, and on Windows

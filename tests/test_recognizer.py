@@ -2,8 +2,8 @@
 
 A failure there means the signature the library emits for unchanged input changed.
 That is either a bug or a deliberate algorithm change; in the second case
-`probe.flac.uri` is rewritten by hand, in the same commit, with the reason in the
-message. The audio itself comes from `tests/data/generate.sh`.
+`just regenerate` rewrites `probe.flac.uri`, in the same commit, with the reason
+in the message. The audio itself comes from `tests/data/generate.sh`.
 
 Only the `.flac` signature is pinned, and only on Linux. Two separate things put a
 URI beyond what a golden file can hold.
