@@ -299,6 +299,7 @@ jobs:
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Build docker image
+        id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           file: docker/Dockerfile
@@ -324,8 +325,32 @@ jobs:
           #  them: 0 cached layers, and 224s of a 441s build step spent re-exporting them.
           #  Four scopes divide that same limit now, and the two libcs share no layer.
           #  https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching
-          cache-to: ${{ github.ref == 'refs/heads/master' && format('type=gha,mode=max,scope={0}', matrix.name) || '' }}
+          #
+          # A failed export only costs the next run its cache, yet it failed the step after
+          #  the wheels were built: `error writing layer blob: not_found`.
+          #  https://github.com/moby/buildkit/blob/19f31ff5bb57ee8b81ad0c8ef9a80e16447df0e6/README.md#L567
+          cache-to: ${{ github.ref == 'refs/heads/master' && format('type=gha,mode=max,scope={0},ignore-error=true', matrix.name) || '' }}
           context: .
+
+      # An ignored export error stays only in the build record, so a cache that stops
+      #  being written would show as nothing but slower builds. A failed export logs
+      #  `#7 ERROR: error writing layer blob: ...` there and exits 0.
+      - name: Warn when the cache export failed
+        if: github.ref == 'refs/heads/master'
+        env:
+          METADATA: ${{ steps.build.outputs.metadata }}
+        run: |
+          ref=$(jq -r '."buildx.build.ref" | split("/") | last' <<< "$METADATA")
+          if ! logs=$(docker buildx history logs "$ref" 2>&1); then
+            echo "::warning title=Cache export not checked (${{ matrix.name }})::$logs"
+            exit 0
+          fi
+
+          vertex=$(grep -oE '^#[0-9]+ exporting cache to' <<< "$logs" | cut -d ' ' -f 1 | head -n 1)
+          error=$(grep -m 1 "^$vertex ERROR: " <<< "$logs" || true)
+          if [[ -n "$vertex" && -n "$error" ]]; then
+            echo "::warning title=Cache export failed (${{ matrix.name }})::${error#"$vertex ERROR: "}"
+          fi
 
       - name: Copy the wheels out of the image
         run: docker run --rm -v "$(pwd)/dist:/tmp" shazamio_core sh -c "cp -R /opt/dist/* /tmp/"
