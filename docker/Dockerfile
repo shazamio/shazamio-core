@@ -4,8 +4,8 @@
 #  `.github/workflows/ci.yaml`, so a bare `docker build` fails rather than drifting
 #  from what CI publishes. Reporting that is what the check above does.
 #  https://docs.docker.com/reference/build-checks/invalid-default-arg-in-from/
-#  The two images lay their interpreters out alike and differ only in their package
-#  manager, which `install-build-deps.sh` handles. Neither tag names an architecture:
+#  The two images lay their interpreters out alike, and both carry the `cmake` and
+#  C compiler that the bundled `libopus` build needs. Neither tag names an architecture:
 #  each is a manifest list, so buildx pulls the entry matching `platforms`.
 #  https://docs.docker.com/build/building/multi-platform/
 ARG BASE_IMAGE
