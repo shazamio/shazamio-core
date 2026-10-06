@@ -116,6 +116,8 @@ What follows the input is `symphonia`'s wording, or the operating system's, and 
 
 An argument of the wrong type raises `TypeError` instead, and raises it at the call rather than on the `await`, so nothing is scheduled.
 
+A panic inside the extension is a bug here rather than bad input. It raises `RustPanic`, an `Exception` subclass the package does not export, on the `await`, with the panic message after `rust future panicked: `.
+
 ```python
 import asyncio
 
