@@ -553,8 +553,8 @@ mod tests {
 
     #[test]
     fn the_chord_probe_fills_the_top_band() {
-        // `probe.flac` barely reaches the 3500 to 5500 Hz band, so it puts 7 peaks
-        //  there against 36 here. `tests/data/generate.sh` says why, and why that
+        // `probe.flac` barely reaches the 3500 to 5500 Hz band, so it puts 2 peaks
+        //  there against 32 here. `tests/data/generate.sh` says why, and why that
         //  makes this the probe a decoding or resampling change is judged on.
         let signature =
             SignatureGenerator::make_signature_from_file(&probe_path("chord.flac"), None).unwrap();
