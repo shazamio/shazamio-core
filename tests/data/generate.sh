@@ -33,8 +33,12 @@ cd "$(dirname "$0")"
 
 # Errors only: the banner and the stream summary of every call bury a failure, and
 #  the diff after it in CI, under about 60 KB of log.
+#  `-cpuflags 0` keeps every DSP routine on its C version. The resampler picks its
+#  FMA3 code by CPU, which wrote other Opus bytes on the CI runner than locally.
+#  https://github.com/FFmpeg/FFmpeg/blob/894da5ca7d742e4429ffb2af534fcda0103ef593/libswresample/x86/resample_init.c#L72
+#  https://github.com/FFmpeg/FFmpeg/blob/894da5ca7d742e4429ffb2af534fcda0103ef593/fftools/opt_common.c#L1064-L1072
 ffmpeg() {
-  command ffmpeg -hide_banner -loglevel error "$@"
+  command ffmpeg -hide_banner -loglevel error -cpuflags 0 "$@"
 }
 
 ffmpeg -y -f lavfi -i "aevalsrc=\
