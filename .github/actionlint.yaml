@@ -1,0 +1,6 @@
+# `actionlint` does not know the `ubuntu-26.04` hosted label yet and rejects it as
+#  `label "ubuntu-26.04" is unknown`. Listed here until a release adds it.
+#  https://github.com/rhysd/actionlint/issues/682
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04

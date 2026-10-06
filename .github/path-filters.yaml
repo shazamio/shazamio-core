@@ -84,6 +84,7 @@ licenses:
 harness_lint:
   - *harness
   - .github/workflows/dependabot-licenses.yaml
+  - .github/actionlint.yaml
   - "**/*.sh"
   - scripts/check_ci_gate.py
   - scripts/check_ci_filters.py
