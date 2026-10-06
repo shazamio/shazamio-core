@@ -31,6 +31,12 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
+# Errors only: the banner and the stream summary of every call bury a failure, and
+#  the diff after it in CI, under about 60 KB of log.
+ffmpeg() {
+  command ffmpeg -hide_banner -loglevel error "$@"
+}
+
 ffmpeg -y -f lavfi -i "aevalsrc=\
 0.30*sin(2*PI*(300+180*t)*t)+0.22*sin(2*PI*1237*t)+0.16*sin(2*PI*3001*t)|\
 0.28*sin(2*PI*(450+240*t)*t)+0.20*sin(2*PI*1601*t)+0.14*sin(2*PI*2699*t)\
