@@ -24,8 +24,9 @@
 #  Matroska one a random track UID on every run.
 #  https://github.com/FFmpeg/FFmpeg/blob/894da5ca7d742e4429ffb2af534fcda0103ef593/libavformat/oggenc.c#L485-L518
 #  https://github.com/FFmpeg/FFmpeg/blob/894da5ca7d742e4429ffb2af534fcda0103ef593/libavformat/matroskaenc.c#L3470-L3474
-#  Checked on `ffmpeg` 8.0.1; another build may re-encode differently, and then the
-#  goldens have to be rewritten alongside the audio.
+#  Run it through `just regenerate`, never bare: the MP3, Vorbis and Opus files also
+#  depend on the encoder libraries built into `ffmpeg`, and Ubuntu's 8.0.1 writes
+#  all five of them differently from the static 8.0.1 the image pins.
 set -euo pipefail
 
 cd "$(dirname "$0")"

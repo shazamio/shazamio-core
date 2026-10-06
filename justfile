@@ -21,6 +21,9 @@ actionlint_version := "1.7.12.24"
 #  `license-files`, because a manifest cannot read a recipe.
 notices := "THIRD-PARTY-NOTICES.md"
 
+# The local tag of `docker/regenerate.Dockerfile`; the digests inside it are the pins.
+regenerate_image := "shazamio-core-regenerate"
+
 [doc("Show the recipes")]
 default:
     @just --list
@@ -99,6 +102,30 @@ test-python *args:
 [doc("Run the Rust suite; extra arguments reach `cargo test`")]
 test-rust *args:
     cargo test {{ args }}
+
+# The fixtures, then the golden URIs from them: only the tests comparing a golden
+#  run, each rewriting its `.uri` rather than failing. Inside the image so the bytes
+#  do not depend on the local `ffmpeg` or `libm`; why it pins both is in its header.
+#  Cargo writes to `/tmp` so the host's `target` never mixes with the image's.
+[doc("Rewrite every fixture and golden URI in `tests/data`, inside the pinned image")]
+regenerate directory=".":
+    docker build --quiet --file docker/regenerate.Dockerfile --tag {{ regenerate_image }} docker
+    docker run --rm --user "$(id -u):$(id -g)" --volume "$(realpath {{ quote(directory) }}):/src" \
+      --workdir /src --env CARGO_HOME=/tmp/cargo --env CARGO_TARGET_DIR=/tmp/target \
+      {{ regenerate_image }} bash -c 'tests/data/generate.sh && UPDATE_EXPECT=1 cargo test --lib golden_uri'
+
+# Runs on a copy of the tracked tree as it stands, so the check never writes.
+[doc("Check `tests/data` is what `regenerate` writes")]
+regenerate-check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    copy="$(mktemp -d)"
+    trap 'rm -rf "$copy"' EXIT
+
+    git ls-files -z | tar --null --files-from - --create | tar --extract --directory "$copy"
+    just regenerate "$copy"
+    diff --recursive tests/data "$copy/tests/data"
 
 # --- Release ---
 

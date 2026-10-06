@@ -330,11 +330,10 @@ mod tests {
         Path::new(DATA_DIRECTORY).join(name)
     }
 
-    fn golden_uri(name: &str) -> String {
-        std::fs::read_to_string(format!("{DATA_DIRECTORY}/{name}.uri"))
-            .unwrap()
-            .trim()
-            .to_string()
+    // `UPDATE_EXPECT=1` rewrites the file instead of failing; `just regenerate` sets it.
+    fn assert_golden_uri(signature: &DecodedSignature, name: &str) {
+        expect_test::expect_file![format!("{DATA_DIRECTORY}/{name}.uri")]
+            .assert_eq(&format!("{}\n", signature.encode_to_uri().unwrap()));
     }
 
     struct ProbeShape {
@@ -517,7 +516,7 @@ mod tests {
         let signature =
             SignatureGenerator::make_signature_from_file(&probe_path("probe.flac"), None).unwrap();
 
-        assert_eq!(signature.encode_to_uri().unwrap(), golden_uri("probe.flac"));
+        assert_golden_uri(&signature, "probe.flac");
     }
 
     #[test]
@@ -548,7 +547,7 @@ mod tests {
         let signature =
             SignatureGenerator::make_signature_from_file(&probe_path("chord.flac"), None).unwrap();
 
-        assert_eq!(signature.encode_to_uri().unwrap(), golden_uri("chord.flac"));
+        assert_golden_uri(&signature, "chord.flac");
     }
 
     #[test]
