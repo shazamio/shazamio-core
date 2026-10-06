@@ -477,6 +477,41 @@ mod tests {
     }
 
     #[test]
+    fn every_other_enabled_codec_decodes() {
+        // Every source is half a second of mono at 44.1 kHz, 22050 frames, so each
+        //  count below past that is the codec's own rounding, and `ffmpeg` decodes
+        //  every one of these files to the same count. How they are encoded:
+        //  `tests/data/generate.sh`.
+        const SOURCE_FRAMES: usize = 22_050;
+
+        for (name, frames) in [
+            ("pcm_f32.wav", SOURCE_FRAMES),
+            ("pcm_s16.aiff", SOURCE_FRAMES),
+            ("pcm_s24.caf", SOURCE_FRAMES),
+            ("alac.m4a", SOURCE_FRAMES),
+            // ADPCM fills its last block: 11 of 2041 frames for IMA, 11 of 2036 for
+            //  Microsoft. The `fact` chunk saying 22050 is ignored.
+            //  https://github.com/FFmpeg/FFmpeg/blob/894da5ca7d742e4429ffb2af534fcda0103ef593/libavcodec/adpcmenc.c#L132-L147
+            ("adpcm_ima.wav", 11 * 2041),
+            ("adpcm_ms.wav", 11 * 2036),
+            // Whole frames of 1152.
+            ("mp2.mp2", 20 * 1152),
+            // Whole frames of 1024 after 1024 frames of encoder delay, which ADTS has
+            //  no field to carry.
+            //  https://github.com/FFmpeg/FFmpeg/blob/894da5ca7d742e4429ffb2af534fcda0103ef593/libavcodec/aacenc.c#L1192
+            ("aac.aac", 23 * 1024),
+        ] {
+            let probe = decode_probe(name).unwrap();
+
+            assert_eq!(
+                (probe.frames, probe.channels, probe.rate),
+                (frames, 1, 44_100),
+                "{name}"
+            );
+        }
+    }
+
+    #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "the golden URI is pinned on Linux")]
     fn the_whole_pipeline_reproduces_the_golden_uri() {
         let signature =

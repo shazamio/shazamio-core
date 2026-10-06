@@ -72,6 +72,24 @@ rm chained_capacity_link1.ogg chained_capacity_link2.ogg
 
 rm probe.wav
 
+# One file per codec the matrix above leaves out, each in the container that probes
+#  it. Half a second of a sine is enough: these prove the decoder runs and how long
+#  its output is, not what it fingerprints to.
+codec() {
+  local name="$1"
+  shift
+  ffmpeg -y -f lavfi -i "sine=frequency=440:sample_rate=44100:duration=0.5" "$@" \
+    -flags:a +bitexact -fflags +bitexact "$name"
+}
+codec pcm_f32.wav -c:a pcm_f32le
+codec pcm_s16.aiff -c:a pcm_s16be
+codec pcm_s24.caf -c:a pcm_s24le
+codec adpcm_ima.wav -c:a adpcm_ima_wav
+codec adpcm_ms.wav -c:a adpcm_ms
+codec alac.m4a -c:a alac
+codec mp2.mp2 -c:a mp2 -b:a 64k
+codec aac.aac -c:a aac -b:a 64k -f adts
+
 # One expression per channel of the chord. The right channel is phase shifted and
 #  has every third partial pulled down, which is what makes the two correlated
 #  without being identical.
