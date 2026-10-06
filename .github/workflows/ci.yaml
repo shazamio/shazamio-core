@@ -346,9 +346,16 @@ jobs:
             exit 0
           fi
 
-          vertex=$(grep -oE '^#[0-9]+ exporting cache to' <<< "$logs" | cut -d ' ' -f 1 | head -n 1)
+          # The `gha` exporter's step name, which no other exporter shares.
+          #  https://github.com/moby/buildkit/blob/9734cd037bcf5d8f15740ed250e9b7c53d4d9137/cache/remotecache/gha/gha.go#L172-L174
+          vertex=$(grep -oE '^#[0-9]+ exporting to GitHub Actions Cache$' <<< "$logs" | cut -d ' ' -f 1 | head -n 1)
+          if [[ -z "$vertex" ]]; then
+            echo "::warning title=Cache export not checked (${{ matrix.name }})::no cache export step in the build record"
+            exit 0
+          fi
+
           error=$(grep -m 1 "^$vertex ERROR: " <<< "$logs" || true)
-          if [[ -n "$vertex" && -n "$error" ]]; then
+          if [[ -n "$error" ]]; then
             echo "::warning title=Cache export failed (${{ matrix.name }})::${error#"$vertex ERROR: "}"
           fi
 
