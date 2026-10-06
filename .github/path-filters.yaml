@@ -75,6 +75,14 @@ licenses:
   - *manifest
   - *notices
 
+# `Fixtures`, which regenerates `tests/data` inside the image and diffs it. The
+#  crate is in the set because the golden URIs are its output.
+fixtures:
+  - *harness
+  - *crate
+  - tests/data/**
+  - docker/regenerate.Dockerfile
+
 # `Harness lint`, which `shellcheck`s the scripts and `actionlint`s the workflows.
 #  `ci.yaml` arrives with `harness`; the Dependabot workflow decides no other check,
 #  so it is named here alone. The glob mirrors the `git ls-files` the recipe feeds
