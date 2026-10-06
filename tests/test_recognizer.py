@@ -16,9 +16,9 @@ https://github.com/shazamio/shazamio-core/actions/runs/32988035458
 
 For `.flac`, which decodes to identical samples everywhere, it is the resampler.
 `rubato` builds its sinc table from `sin` and `cos`, so its last bits follow the
-platform's libm. On `windows-latest` this file produced 162 peaks against 161, the
-extra one sitting on the detection threshold in the 520 to 1450 Hz band and every
-other peak identical.
+platform's libm. On `windows-latest` this file produced 162 peaks against the 161 of
+the Linux golden at the time, the extra one sitting on the detection threshold in the
+520 to 1450 Hz band and every other peak identical.
 https://github.com/shazamio/shazamio-core/actions/runs/33940712799
 
 Neither is a decode error: the sample counts match on every platform, and that is

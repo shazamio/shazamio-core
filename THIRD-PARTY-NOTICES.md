@@ -806,7 +806,7 @@ DEALINGS IN THE SOFTWARE.
 
 ## MIT License
 
-- `rubato 5.0.0` (https://github.com/HEnquist/rubato)
+- `rubato 5.0.1` (https://github.com/HEnquist/rubato)
 
 ```text
 Copyright (c) 2020 Henrik Enquist
