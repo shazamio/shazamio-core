@@ -25,6 +25,7 @@ Neither is a decode error: the sample counts match on every platform, and that i
 what the checks below assert, on every platform.
 """
 
+import asyncio
 import sys
 import time
 from pathlib import Path
@@ -167,3 +168,17 @@ async def test_the_timestamps_are_the_clock_in_milliseconds(*, recognizer: Recog
 
     assert before_ms <= signature.timestamp <= after_ms
     assert signature.signature.timestamp == signature.timestamp
+
+
+async def test_a_cancelled_call_leaves_the_recognizer_usable(*, recognizer: Recognizer) -> None:
+    # Cancelling drops the result, not the decode, which runs on to the end on its
+    #  worker thread; the `README` documents it, this holds the second half to it.
+    cancelled = recognizer.recognize_path(_probe(GOLDEN_AUDIO_FORMAT))
+    cancelled.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await cancelled
+
+    signature = await recognizer.recognize_path(_probe(GOLDEN_AUDIO_FORMAT))
+
+    assert signature.signature.samples == EXPECTED_DURATION_MS
