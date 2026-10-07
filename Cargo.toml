@@ -71,7 +71,6 @@ crc32fast = "1.5.0"
 base64 = { version = "0.23.1", features = [] }
 chfft = {version = "0.3.4"}
 futures = { version = "0.3.34", features = [] }
-serde = { version = "1.0.229", features = ["derive"] }
 # `abi3-py310` builds one wheel per platform that loads on every CPython from 3.10
 #  up, so 3.13 and 3.14 needed no wheel of their own, as they did under the old
 #  layout. 3.9 is past end of life, and `pyproject.toml` states the same floor.

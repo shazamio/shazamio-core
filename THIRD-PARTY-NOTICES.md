@@ -15,7 +15,7 @@ from is named beside it. None of them is patched here.
 
 Crates per licence:
 
-- MIT License (`MIT`): 58
+- MIT License (`MIT`): 55
 - Mozilla Public License 2.0 (`MPL-2.0`): 17
 - Apache License 2.0 (`Apache-2.0`): 2
 - BSD 3-Clause "New" or "Revised" License (`BSD-3-Clause`): 1
@@ -1065,9 +1065,6 @@ SOFTWARE.
 - `proc-macro2 1.0.107` (https://github.com/dtolnay/proc-macro2)
 - `quote 1.0.47` (https://github.com/dtolnay/quote)
 - `rustversion 1.0.23` (https://github.com/dtolnay/rustversion)
-- `serde 1.0.229` (https://github.com/serde-rs/serde)
-- `serde_core 1.0.229` (https://github.com/serde-rs/serde)
-- `serde_derive 1.0.229` (https://github.com/serde-rs/serde)
 - `syn 2.0.119` (https://github.com/dtolnay/syn)
 - `syn 3.0.3` (https://github.com/dtolnay/syn)
 - `unicode-ident 1.0.24` (https://github.com/dtolnay/unicode-ident)
