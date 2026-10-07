@@ -110,7 +110,9 @@ Anything the decoder cannot use raises `SignatureError`, and the message opens w
 | a path that is not there                             | `<input>: No such file or directory (os error 2)`                                               |
 | a stream nothing in this build reads, a directory included | `<input>: unsupported feature: no reader in this build recognises the stream`              |
 | a container that is read, holding a codec that is not | `<input>: unsupported feature: the stream carries no track with a codec this build can decode`  |
-| audio that stops before the segment does             | `<input>: unexpected end of file`                                                               |
+| a recording cut short                                | `<input>: unexpected end of file`                                                               |
+
+A recording cut short is refused rather than fingerprinted from what is left, with three exceptions. MP4 and Matroska fail before decoding starts and report that no reader recognises the stream. MP3 and MP2 decode up to the cut and are not refused, because a run of MPEG frames does not reliably say how long it is. A chained Ogg file cut inside a later link loses that link and is not refused either, which is a bug in `symphonia`.
 
 What follows the input is `symphonia`'s wording, or the operating system's, and differs between platforms.
 
