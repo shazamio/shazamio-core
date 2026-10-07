@@ -15,7 +15,7 @@ from is named beside it. None of them is patched here.
 
 Crates per licence:
 
-- MIT License (`MIT`): 76
+- MIT License (`MIT`): 54
 - Mozilla Public License 2.0 (`MPL-2.0`): 17
 - Apache License 2.0 (`Apache-2.0`): 2
 - BSD 3-Clause "New" or "Revised" License (`BSD-3-Clause`): 1
@@ -353,60 +353,6 @@ https://datatracker.ietf.org/ipr/1526/
 
 ## MIT License
 
-- `atomic-waker 1.1.2` (https://github.com/smol-rs/atomic-waker)
-- `futures-lite 2.6.1` (https://github.com/smol-rs/futures-lite)
-
-```text
-===============================================================================
-
-Copyright (c) 2016 Alex Crichton
-Copyright (c) 2017 The Tokio Authors
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-	http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
-===============================================================================
-
-Copyright (c) 2016 Alex Crichton
-Copyright (c) 2017 The Tokio Authors
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
-
-```
-
-## MIT License
-
 - `lazy_static 1.5.0` (https://github.com/rust-lang-nursery/lazy-static.rs)
 
 ```text
@@ -678,39 +624,6 @@ THE SOFTWARE.
 
 ```text
 Copyright (c) 2017 arc-swap developers
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
-
-```
-
-## MIT License
-
-- `bytes 1.12.1` (https://github.com/tokio-rs/bytes)
-
-```text
-Copyright (c) 2018 Carl Lerche
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -1092,32 +1005,6 @@ SOFTWARE.
 
 ## MIT License
 
-- `realfft 3.5.0` (https://github.com/HEnquist/realfft)
-
-```text
-MIT License
-
-Copyright (c) <year> <copyright holders>
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
-associated documentation files (the "Software"), to deal in the Software without restriction, including
-without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the
-following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial
-portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
-LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO
-EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
-USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-```
-
-## MIT License
-
 - `tokio 1.53.1` (https://github.com/tokio-rs/tokio)
 
 ```text
@@ -1147,31 +1034,14 @@ SOFTWARE.
 
 ## MIT License
 
-- `async-channel 2.5.0` (https://github.com/smol-rs/async-channel)
-- `async-task 4.7.1` (https://github.com/smol-rs/async-task)
-- `atomic-waker 1.1.2` (https://github.com/smol-rs/atomic-waker)
-- `blocking 1.7.0` (https://github.com/smol-rs/blocking)
-- `concurrent-queue 2.5.0` (https://github.com/smol-rs/concurrent-queue)
-- `event-listener-strategy 0.5.4` (https://github.com/smol-rs/event-listener-strategy)
-- `event-listener 5.4.2` (https://github.com/smol-rs/event-listener)
-- `fastrand 2.5.0` (https://github.com/smol-rs/fastrand)
-- `futures-lite 2.6.1` (https://github.com/smol-rs/futures-lite)
-- `itoa 1.0.18` (https://github.com/dtolnay/itoa)
 - `once_cell 1.21.4` (https://github.com/matklad/once_cell)
-- `parking 2.2.1` (https://github.com/smol-rs/parking)
 - `pin-project-lite 0.2.17` (https://github.com/taiki-e/pin-project-lite)
-- `piper 0.2.5` (https://github.com/smol-rs/piper)
 - `proc-macro2 1.0.107` (https://github.com/dtolnay/proc-macro2)
 - `quote 1.0.47` (https://github.com/dtolnay/quote)
 - `rustversion 1.0.23` (https://github.com/dtolnay/rustversion)
-- `serde 1.0.229` (https://github.com/serde-rs/serde)
-- `serde_core 1.0.229` (https://github.com/serde-rs/serde)
-- `serde_derive 1.0.229` (https://github.com/serde-rs/serde)
-- `serde_json 1.0.151` (https://github.com/serde-rs/json)
 - `syn 2.0.119` (https://github.com/dtolnay/syn)
 - `syn 3.0.3` (https://github.com/dtolnay/syn)
 - `unicode-ident 1.0.24` (https://github.com/dtolnay/unicode-ident)
-- `zmij 1.0.23` (https://github.com/dtolnay/zmij)
 
 ```text
 Permission is hereby granted, free of charge, to any
@@ -1227,41 +1097,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
-
-```
-
-## MIT License
-
-- `crossbeam-utils 0.8.22` (https://github.com/crossbeam-rs/crossbeam)
-
-```text
-The MIT License (MIT)
-
-Copyright (c) 2019 The Crossbeam Project Developers
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
 
 ```
 

@@ -1,7 +1,6 @@
 use crate::fingerprinting::algorithm::DEFAULT_SEGMENT_DURATION_SECONDS;
 use pyo3::exceptions::PyValueError;
 use pyo3::{pyclass, pymethods, PyResult};
-use serde::{Deserialize, Serialize};
 
 // A zero-second segment fingerprints nothing: it produced an empty signature and
 //  reported success. There is no upper bound to enforce, because a duration at or
@@ -16,7 +15,7 @@ pub(crate) fn validated_segment_duration_seconds(value: u32) -> PyResult<u32> {
     Ok(value)
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 #[pyclass(from_py_object, module = "shazamio_core")]
 pub(crate) struct SearchParams {
     pub(crate) segment_duration_seconds: u32,
