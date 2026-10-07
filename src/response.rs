@@ -1,4 +1,4 @@
-use pyo3::{pyclass, pymethods, PyResult};
+use pyo3::{pyclass, pymethods};
 
 #[derive(Clone)]
 #[pyclass(from_py_object, module = "shazamio_core")]
@@ -38,24 +38,24 @@ pub(crate) struct Signature {
 #[pymethods]
 impl Geolocation {
     #[new]
-    pub fn new(altitude: i16, latitude: i8, longitude: i8) -> PyResult<Self> {
-        Ok(Geolocation {
+    pub fn new(altitude: i16, latitude: i8, longitude: i8) -> Self {
+        Geolocation {
             altitude,
             latitude,
             longitude,
-        })
+        }
     }
 }
 
 #[pymethods]
 impl SignatureSong {
     #[new]
-    pub fn new(samples: u32, timestamp: u64, uri: String) -> PyResult<Self> {
-        Ok(SignatureSong {
+    pub fn new(samples: u32, timestamp: u64, uri: String) -> Self {
+        SignatureSong {
             samples,
             timestamp,
             uri,
-        })
+        }
     }
 }
 
@@ -67,12 +67,12 @@ impl Signature {
         signature: SignatureSong,
         timestamp: u64,
         timezone: String,
-    ) -> PyResult<Self> {
-        Ok(Signature {
+    ) -> Self {
+        Signature {
             geolocation,
             signature,
             timestamp,
             timezone,
-        })
+        }
     }
 }
