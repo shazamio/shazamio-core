@@ -168,23 +168,7 @@ Windows Media Audio decoded in earlier releases through an `ffmpeg` fallback tha
 
 ## Development
 
-Every check CI runs is a [`just`](https://github.com/casey/just) recipe, so the two cannot drift apart:
-
-```sh
-just --list      # what there is
-just install     # builds the extension, installs the test dependencies, `cargo-about` and the commit hooks
-just ci          # everything CI gates on
-```
-
-`just install` also wires the same recipes into `git commit` through [`pre-commit`](https://pre-commit.com), each one scoped to the files it gates: a change to a test fixture runs both suites, a change to the notices runs the licence check alone. CI scopes its jobs from the same sets, which also cover the release builds no checkout runs: `.github/path-filters.yaml`.
-
-`just install` needs the toolchain the Install section lists; `maturin` comes from `pyproject.toml` and is fetched automatically. `just` itself is packaged for most systems, listed under [Packages](https://github.com/casey/just#packages).
-
-`just test-rust` links `libpython`, so on Debian and Ubuntu the development package of the interpreter `cargo` picks up has to be present, or the build stops at `rust-lld: error: unable to find library -lpython3.14`:
-
-```sh
-sudo apt install libpython3.14-dev
-```
+Setting up a checkout, what to run before a pull request and how commits are shaped: [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## License
 
