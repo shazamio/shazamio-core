@@ -85,7 +85,7 @@ log = "0.4.33"
 #  https://github.com/pdeljanov/Symphonia/blob/ee35874b571a35a9a6e15d3bc9a3aaf8f11fbeee/README.md#L111
 symphonia = { version = "0.6.1", features = ["all"] }
 opus = "0.4.0"
-rubato = "5.0.1"
+rubato = { version = "5.0.1", default-features = false }
 
 [dev-dependencies]
 # Compares a golden URI against its file, and rewrites the file instead under
