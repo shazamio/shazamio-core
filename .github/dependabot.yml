@@ -19,8 +19,10 @@ updates:
 
   - package-ecosystem: cargo
     directory: /
+    # The crates are what the library runs, so a fix in one waits a week rather than
+    #  a month. The other ecosystems never change what it computes.
     schedule:
-      interval: monthly
+      interval: weekly
     commit-message:
       prefix: build
       include: scope
