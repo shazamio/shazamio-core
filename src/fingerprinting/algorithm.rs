@@ -510,6 +510,66 @@ mod tests {
         }
     }
 
+    fn first_half_of(name: &str) -> Vec<u8> {
+        let mut bytes = std::fs::read(probe_path(name)).unwrap();
+        bytes.truncate(bytes.len() / 2);
+
+        bytes
+    }
+
+    #[test]
+    fn a_recording_cut_short_is_refused() {
+        // Most readers stop on `unexpected end of file` part-way through. MP4 and
+        //  Matroska fail the probe itself, so they report that nothing reads the stream.
+        for name in [
+            "aac.aac",
+            "adpcm_ima.wav",
+            "adpcm_ms.wav",
+            "alac.m4a",
+            "chord.flac",
+            "matroska.webm",
+            "pcm_f32.wav",
+            "pcm_s16.aiff",
+            "pcm_s24.caf",
+            "probe.flac",
+            "probe.m4a",
+            "probe.ogg",
+            "probe.opus",
+            "surround.opus",
+        ] {
+            assert!(decode_bytes(first_half_of(name)).is_err(), "{name}");
+        }
+    }
+
+    #[test]
+    fn an_mpeg_audio_stream_cut_short_decodes_what_is_left() {
+        // A run of MPEG frames ends wherever the last whole frame does, so a cut file
+        //  reads as a shorter one. The MP3 header counts its frames, but without one the
+        //  reader estimates the count from the bitrate, so it cannot be held to it.
+        //  https://github.com/pdeljanov/Symphonia/blob/ee35874b571a35a9a6e15d3bc9a3aaf8f11fbeee/symphonia-bundle-mp3/src/demuxer.rs#L464-L469
+        for (name, frames) in [("probe.mp3", 175_151), ("mp2.mp2", 10 * 1152)] {
+            assert_eq!(
+                decode_bytes(first_half_of(name)).unwrap().frames,
+                frames,
+                "{name}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_chain_cut_inside_its_second_link_loses_that_link() {
+        // The reader hits the end while opening the second link and judges it by the
+        //  first, which has read its last page, so it reports a clean end. A fix upstream
+        //  fails this test, and the file then belongs with the refused ones above.
+        //  https://github.com/pdeljanov/Symphonia/blob/ee35874b571a35a9a6e15d3bc9a3aaf8f11fbeee/symphonia-format-ogg/src/demuxer.rs#L94
+        //  https://github.com/pdeljanov/Symphonia/blob/ee35874b571a35a9a6e15d3bc9a3aaf8f11fbeee/symphonia-format-ogg/src/demuxer.rs#L148-L152
+        const FIRST_LINK_FRAMES: usize = 16_000;
+
+        let probe = decode_bytes(first_half_of("chained_capacity.ogg")).unwrap();
+
+        assert_eq!(probe.frames, FIRST_LINK_FRAMES);
+    }
+
     #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "the golden URI is pinned on Linux")]
     fn the_whole_pipeline_reproduces_the_golden_uri() {
