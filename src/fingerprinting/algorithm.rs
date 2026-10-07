@@ -587,6 +587,68 @@ mod tests {
         );
     }
 
+    // `probe.flac` is lossless, so its audio is the `aevalsrc` expression in
+    //  `generate.sh`, restated here and mixed down to mono.
+    fn probe_source_sample(time_seconds: f64) -> f64 {
+        use std::f64::consts::PI;
+
+        let left = 0.30 * (2.0 * PI * (300.0 + 180.0 * time_seconds) * time_seconds).sin()
+            + 0.22 * (2.0 * PI * 1237.0 * time_seconds).sin()
+            + 0.16 * (2.0 * PI * 3001.0 * time_seconds).sin();
+        let right = 0.28 * (2.0 * PI * (450.0 + 240.0 * time_seconds) * time_seconds).sin()
+            + 0.20 * (2.0 * PI * 1601.0 * time_seconds).sin()
+            + 0.14 * (2.0 * PI * 2699.0 * time_seconds).sin();
+
+        (left + right) / 2.0
+    }
+
+    // The RMS difference between the segment and the source it should hold from
+    //  `first_sample` on, with the source read `shift` samples later.
+    fn rms_error_against_source(segment: &[i16], first_sample: usize, shift: f64) -> f64 {
+        let squared_error: f64 = segment
+            .iter()
+            .enumerate()
+            .map(|(index, &sample)| {
+                let time_seconds =
+                    (first_sample as f64 + index as f64 + shift) / f64::from(SAMPLE_RATE_HZ);
+                let resampled = f64::from(sample) / f64::from(i16::MAX);
+
+                (resampled - probe_source_sample(time_seconds)).powi(2)
+            })
+            .sum();
+
+        (squared_error / segment.len() as f64).sqrt()
+    }
+
+    #[test]
+    fn the_middle_window_holds_the_middle_of_the_source() {
+        // 4 s out of the 8 s probe spans 2 s to 6 s.
+        const SEGMENT_SECONDS: u32 = 4;
+        const FIRST_SAMPLE: usize = 2 * SAMPLE_RATE_HZ as usize;
+
+        let decoder = MonoDecoder::from_file(&probe_path("probe.flac")).unwrap();
+        let samples = SignatureGenerator::pcm_samples(decoder).unwrap();
+        let segment = SignatureGenerator::middle_segment(&samples, Some(SEGMENT_SECONDS));
+
+        // The resampled audio leads the source by about 0.6 of a sample, so the best
+        //  alignment is searched for in tenths. A window off by one whole sample moves
+        //  it out of 0 to 1, and a wrong decode or downmix leaves no alignment close.
+        let (best_shift, best_error) = (-20..=20)
+            .map(|tenths| {
+                let shift = f64::from(tenths) / 10.0;
+
+                (
+                    shift,
+                    rms_error_against_source(segment, FIRST_SAMPLE, shift),
+                )
+            })
+            .min_by(|left, right| left.1.total_cmp(&right.1))
+            .unwrap();
+
+        assert!(best_error < 0.01, "{best_error} at a shift of {best_shift}");
+        assert!((0.0..1.0).contains(&best_shift), "{best_shift}");
+    }
+
     #[test]
     fn a_duration_at_or_above_the_file_length_selects_the_whole_file() {
         // 8 s at 16 kHz, which is `probe.flac` resampled and not cut.
