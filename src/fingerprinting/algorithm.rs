@@ -11,7 +11,7 @@ use std::path::Path;
 //  signature declares.
 pub(crate) const SAMPLE_RATE_HZ: u32 = 16000;
 
-pub(crate) const DEFAULT_SEGMENT_DURATION_SECONDS: u32 = 10;
+pub(crate) const DEFAULT_SEGMENT_SECONDS: u32 = 10;
 
 pub struct SignatureGenerator {
     ring_buffer_of_samples: Vec<i16>,
@@ -43,7 +43,7 @@ impl SignatureGenerator {
     // A file no longer than the requested segment is fingerprinted whole; a longer one
     //  is cut from its middle, where recognition odds are best.
     fn middle_segment(samples: &[i16], segment_duration_seconds: Option<u32>) -> &[i16] {
-        let duration_seconds = segment_duration_seconds.unwrap_or(DEFAULT_SEGMENT_DURATION_SECONDS);
+        let duration_seconds = segment_duration_seconds.unwrap_or(DEFAULT_SEGMENT_SECONDS);
 
         // The product leaves `u32` at 268436 seconds, and `usize` is 32 bits wide on
         //  the `i686` wheel, so both are too narrow for a duration callers may pass:

@@ -5,12 +5,12 @@ mod response;
 mod utils;
 
 use crate::errors::SignatureError;
-use crate::params::{validated_segment_duration_seconds, SearchParams};
+use crate::params::{validated_segment_seconds, SearchParams};
 use crate::response::{Geolocation, Signature, SignatureSong};
 use crate::utils::convert_signature_to_py;
 use crate::utils::get_python_future;
 use crate::utils::unwrap_decoded_signature;
-use fingerprinting::algorithm::{SignatureGenerator, DEFAULT_SEGMENT_DURATION_SECONDS};
+use fingerprinting::algorithm::{SignatureGenerator, DEFAULT_SEGMENT_SECONDS};
 use log::{debug, info, LevelFilter};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
@@ -55,9 +55,8 @@ impl Recognizer {
     #[new]
     #[pyo3(signature = (segment_duration_seconds=None))]
     pub fn new(segment_duration_seconds: Option<u32>) -> PyResult<Self> {
-        let duration = validated_segment_duration_seconds(
-            segment_duration_seconds.unwrap_or(DEFAULT_SEGMENT_DURATION_SECONDS),
-        )?;
+        let duration =
+            validated_segment_seconds(segment_duration_seconds.unwrap_or(DEFAULT_SEGMENT_SECONDS))?;
         info!(
             "Recognizer created with segment_duration_seconds = {}",
             duration
@@ -74,7 +73,7 @@ impl Recognizer {
 
     #[setter]
     fn set_segment_duration_seconds(&mut self, value: u32) -> PyResult<()> {
-        self.segment_duration_seconds = validated_segment_duration_seconds(value)?;
+        self.segment_duration_seconds = validated_segment_seconds(value)?;
 
         Ok(())
     }
