@@ -778,11 +778,11 @@ DEALINGS IN THE SOFTWARE.
 
 ## MIT License
 
-- `pyo3-ffi 0.29.2` (https://github.com/pyo3/pyo3)
-- `pyo3-macros-backend 0.29.2` (https://github.com/pyo3/pyo3)
-- `pyo3-macros 0.29.2` (https://github.com/pyo3/pyo3)
-- `pyo3 0.29.2` (https://github.com/pyo3/pyo3)
-- `pyo3 0.29.2` (https://github.com/pyo3/pyo3)
+- `pyo3-ffi 0.29.3` (https://github.com/pyo3/pyo3)
+- `pyo3-macros-backend 0.29.3` (https://github.com/pyo3/pyo3)
+- `pyo3-macros 0.29.3` (https://github.com/pyo3/pyo3)
+- `pyo3 0.29.3` (https://github.com/pyo3/pyo3)
+- `pyo3 0.29.3` (https://github.com/pyo3/pyo3)
 
 ```text
 Copyright (c) 2023-present PyO3 Project and Contributors.  https://github.com/PyO3
