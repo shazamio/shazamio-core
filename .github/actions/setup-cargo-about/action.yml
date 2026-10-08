@@ -15,6 +15,6 @@ runs:
 
     # A prebuilt binary from the project's own releases. Building it from source
     #  costs about half a minute of the job for a check that runs in seconds.
-    - uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
+    - uses: taiki-e/install-action@e407f7bafb71fd004bc5c2da3032e5470cbb6ef0 # v2.87.24
       with:
         tool: cargo-about@${{ steps.tool.outputs.version }}
