@@ -53,9 +53,11 @@ impl DecodedSignature {
         cursor.write_u32::<LittleEndian>(0)?; // crc32 - Will write later
         cursor.write_u32::<LittleEndian>(0)?; // size_minus_header - Will write later
         cursor.write_u32::<LittleEndian>(0x94119c00)?; // magic2
+
         cursor.write_u32::<LittleEndian>(0)?; // void1
         cursor.write_u32::<LittleEndian>(0)?;
         cursor.write_u32::<LittleEndian>(0)?;
+
         cursor.write_u32::<LittleEndian>(
             match self.sample_rate_hz {
                 8000 => 1,
@@ -69,6 +71,7 @@ impl DecodedSignature {
                 }
             } << 27,
         )?; // shifted_sample_rate_id
+
         cursor.write_u32::<LittleEndian>(0)?; // void2
         cursor.write_u32::<LittleEndian>(0)?;
         cursor.write_u32::<LittleEndian>(
@@ -150,6 +153,7 @@ mod tests {
     const CRC32_OFFSET: usize = 4;
     const SIZE_MINUS_HEADER_OFFSET: usize = 8;
     const MAGIC2_OFFSET: usize = 12;
+
     const SHIFTED_SAMPLE_RATE_ID_OFFSET: usize = 28;
     const NUMBER_SAMPLES_PLUS_OFFSET: usize = 40;
     const FIXED_VALUE_OFFSET: usize = 44;
@@ -367,7 +371,7 @@ mod tests {
         };
 
         // Inserted highest band first, and `HashMap` iteration order is randomised per
-        //  process anyway -- the sort in `encode_to_binary` is the only thing making
+        //  process anyway: the sort in `encode_to_binary` is the only thing making
         //  the output stable, and the golden fingerprints depend on it.
         let encoded = signature_of(vec![
             (FrequencyBand::_3500_5500, vec![peak()]),

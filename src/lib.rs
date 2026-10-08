@@ -34,11 +34,12 @@ fn shazamio_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     info!("Initializing shazamio_core module");
 
     m.add_class::<Recognizer>()?;
+    m.add_class::<SearchParams>()?;
     m.add("SignatureError", m.py().get_type::<SignatureError>())?;
+
     m.add_class::<Geolocation>()?;
     m.add_class::<SignatureSong>()?;
     m.add_class::<Signature>()?;
-    m.add_class::<SearchParams>()?;
 
     info!("shazamio_core module initialized successfully");
     Ok(())

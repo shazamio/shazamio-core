@@ -145,8 +145,10 @@ mod tests {
         assert_eq!(converted.geolocation.altitude, altitude);
         assert_eq!(converted.geolocation.latitude, latitude);
         assert_eq!(converted.geolocation.longitude, longitude);
+
         assert_eq!(converted.signature.samples, samples);
         assert_eq!(converted.signature.uri, uri);
+
         assert_eq!(converted.timestamp, timestamp);
         assert_eq!(converted.timezone, timezone);
     }
