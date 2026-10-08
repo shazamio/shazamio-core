@@ -36,14 +36,14 @@ from conftest import DATA_DIRECTORY
 
 from shazamio_core import Recognizer, SearchParams
 
-AUDIO_FORMATS: Final[tuple[str, ...]] = ("mp3", "ogg", "opus", "flac")
+_AUDIO_FORMATS: Final[tuple[str, ...]] = ("mp3", "ogg", "opus", "flac")
 
-GOLDEN_AUDIO_FORMAT: Final[str] = "flac"
+_GOLDEN_AUDIO_FORMAT: Final[str] = "flac"
 
 # Every file encodes the same 8-second source and decodes to exactly that, because
 #  the reader trims the padding a lossy encoder writes. `.samples` is a duration in
 #  milliseconds, not a count: `src/fingerprinting/communication.rs` does the division.
-EXPECTED_DURATION_MS: Final[int] = 8000
+_EXPECTED_DURATION_MS: Final[int] = 8000
 
 
 def _probe(audio_format: str) -> Path:
@@ -52,14 +52,14 @@ def _probe(audio_format: str) -> Path:
 
 @pytest.mark.skipif(sys.platform != "linux", reason="the golden URI is pinned on Linux")
 async def test_the_flac_signature_matches_the_golden_uri(*, recognizer: Recognizer) -> None:
-    golden_uri = (DATA_DIRECTORY / f"probe.{GOLDEN_AUDIO_FORMAT}.uri").read_text().strip()
+    golden_uri = (DATA_DIRECTORY / f"probe.{_GOLDEN_AUDIO_FORMAT}.uri").read_text().strip()
 
-    signature = await recognizer.recognize_path(_probe(GOLDEN_AUDIO_FORMAT))
+    signature = await recognizer.recognize_path(_probe(_GOLDEN_AUDIO_FORMAT))
 
     assert signature.signature.uri == golden_uri
 
 
-@pytest.mark.parametrize("audio_format", AUDIO_FORMATS)
+@pytest.mark.parametrize("audio_format", _AUDIO_FORMATS)
 async def test_recognize_bytes_matches_recognize_path(
     audio_format: str,
     *,
@@ -73,7 +73,7 @@ async def test_recognize_bytes_matches_recognize_path(
     assert from_bytes.signature.uri == from_path.signature.uri
 
 
-@pytest.mark.parametrize("audio_format", AUDIO_FORMATS)
+@pytest.mark.parametrize("audio_format", _AUDIO_FORMATS)
 async def test_every_format_decodes_the_whole_file(
     audio_format: str,
     *,
@@ -81,7 +81,7 @@ async def test_every_format_decodes_the_whole_file(
 ) -> None:
     signature = await recognizer.recognize_path(_probe(audio_format))
 
-    assert signature.signature.samples == EXPECTED_DURATION_MS
+    assert signature.signature.samples == _EXPECTED_DURATION_MS
 
 
 @pytest.mark.parametrize(
@@ -115,11 +115,11 @@ async def test_a_segment_longer_than_the_file_analyses_it_whole(
     #  selected 544 ms of this 8-second file and the largest accepted value nothing
     #  at all, both reporting success.
     signature = await recognizer.recognize_path(
-        _probe(GOLDEN_AUDIO_FORMAT),
+        _probe(_GOLDEN_AUDIO_FORMAT),
         SearchParams(segment_duration_seconds),
     )
 
-    assert signature.signature.samples == EXPECTED_DURATION_MS
+    assert signature.signature.samples == _EXPECTED_DURATION_MS
 
 
 def test_a_zero_segment_duration_is_refused() -> None:
@@ -162,7 +162,7 @@ async def test_the_timestamps_are_the_clock_in_milliseconds(*, recognizer: Recog
     #  where a literal could only be rewritten each time it failed.
     before_ms: int = time.time_ns() // 1_000_000
 
-    signature = await recognizer.recognize_path(_probe(GOLDEN_AUDIO_FORMAT))
+    signature = await recognizer.recognize_path(_probe(_GOLDEN_AUDIO_FORMAT))
 
     after_ms: int = time.time_ns() // 1_000_000
 
@@ -173,12 +173,12 @@ async def test_the_timestamps_are_the_clock_in_milliseconds(*, recognizer: Recog
 async def test_a_cancelled_call_leaves_the_recognizer_usable(*, recognizer: Recognizer) -> None:
     # Cancelling drops the result, not the decode, which runs on to the end on its
     #  worker thread; the `README` documents it, this holds the second half to it.
-    cancelled = recognizer.recognize_path(_probe(GOLDEN_AUDIO_FORMAT))
+    cancelled = recognizer.recognize_path(_probe(_GOLDEN_AUDIO_FORMAT))
     cancelled.cancel()
 
     with pytest.raises(asyncio.CancelledError):
         await cancelled
 
-    signature = await recognizer.recognize_path(_probe(GOLDEN_AUDIO_FORMAT))
+    signature = await recognizer.recognize_path(_probe(_GOLDEN_AUDIO_FORMAT))
 
-    assert signature.signature.samples == EXPECTED_DURATION_MS
+    assert signature.signature.samples == _EXPECTED_DURATION_MS
