@@ -46,18 +46,18 @@ fn panic_message(payload: &(dyn Any + Send)) -> &str {
     }
 }
 
-pub fn convert_signature_to_py(signature: communication::Signature) -> PyResult<Signature> {
+pub fn convert_signature_to_py(signature: communication::Signature) -> Signature {
     Signature::new(
         Geolocation::new(
             signature.geolocation.altitude,
             signature.geolocation.latitude,
             signature.geolocation.longitude,
-        )?,
+        ),
         SignatureSong::new(
             signature.signature.samples,
             signature.signature.timestamp,
             signature.signature.uri,
-        )?,
+        ),
         signature.timestamp,
         signature.timezone,
     )
@@ -140,7 +140,7 @@ mod tests {
         let timezone = signature.timezone.clone();
         let uri = signature.signature.uri.clone();
 
-        let converted = convert_signature_to_py(signature).unwrap();
+        let converted = convert_signature_to_py(signature);
 
         assert_eq!(converted.geolocation.altitude, altitude);
         assert_eq!(converted.geolocation.latitude, latitude);

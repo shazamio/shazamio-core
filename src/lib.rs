@@ -118,7 +118,7 @@ impl Recognizer {
 
             debug!("Successfully generated signature from bytes");
             let signature = unwrap_decoded_signature(data);
-            convert_signature_to_py(signature?)
+            Ok(convert_signature_to_py(signature?))
         };
 
         let python_future = get_python_future(py, future);
@@ -165,7 +165,7 @@ impl Recognizer {
 
             debug!("Successfully generated signature from file");
             let signature = unwrap_decoded_signature(data);
-            convert_signature_to_py(signature?)
+            Ok(convert_signature_to_py(signature?))
         };
 
         let python_future = get_python_future(py, future);
