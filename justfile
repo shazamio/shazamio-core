@@ -9,6 +9,8 @@ set shell := ["bash", "-uc"]
 # An unpinned generator rewrites the notices and turns a green branch red with
 #  nobody having touched the tree. The `Licence notices` job reads this value with
 #  `just --evaluate` rather than restating it, so the version has one home.
+#  Bumped by hand: none of Dependabot's ecosystems reads a `cargo install` version.
+#  https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference#package-ecosystem-
 cargo_about_version := "0.9.2"
 
 # Named once so the recipe that writes the notices and the one that diffs them
