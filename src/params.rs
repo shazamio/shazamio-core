@@ -1,11 +1,11 @@
-use crate::fingerprinting::algorithm::DEFAULT_SEGMENT_DURATION_SECONDS;
+use crate::fingerprinting::algorithm::DEFAULT_SEGMENT_SECONDS;
 use pyo3::exceptions::PyValueError;
 use pyo3::{pyclass, pymethods, PyResult};
 
 // A zero-second segment fingerprints nothing: it produced an empty signature and
 //  reported success. There is no upper bound to enforce, because a duration at or
 //  above the file length uses the whole file.
-pub(crate) fn validated_segment_duration_seconds(value: u32) -> PyResult<u32> {
+pub(crate) fn validated_segment_seconds(value: u32) -> PyResult<u32> {
     if value == 0 {
         return Err(PyValueError::new_err(
             "segment_duration_seconds must be at least 1",
@@ -26,8 +26,8 @@ impl SearchParams {
     #[pyo3(signature = (segment_duration_seconds=None))]
     pub fn new(segment_duration_seconds: Option<u32>) -> PyResult<Self> {
         Ok(SearchParams {
-            segment_duration_seconds: validated_segment_duration_seconds(
-                segment_duration_seconds.unwrap_or(DEFAULT_SEGMENT_DURATION_SECONDS),
+            segment_duration_seconds: validated_segment_seconds(
+                segment_duration_seconds.unwrap_or(DEFAULT_SEGMENT_SECONDS),
             )?,
         })
     }
@@ -39,7 +39,7 @@ impl SearchParams {
 
     #[setter]
     fn set_segment_duration_seconds(&mut self, value: u32) -> PyResult<()> {
-        self.segment_duration_seconds = validated_segment_duration_seconds(value)?;
+        self.segment_duration_seconds = validated_segment_seconds(value)?;
 
         Ok(())
     }

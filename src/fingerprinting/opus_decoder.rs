@@ -295,6 +295,7 @@ impl RegisterableAudioDecoder for OpusDecoder {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use opus::{Application, Channels as OpusChannels, Encoder, MSEncoder};
     use symphonia::core::audio::Audio;
     use symphonia::core::packet::Packet;

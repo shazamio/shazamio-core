@@ -5,12 +5,12 @@ mod response;
 mod utils;
 
 use crate::errors::SignatureError;
-use crate::params::{validated_segment_duration_seconds, SearchParams};
+use crate::params::{validated_segment_seconds, SearchParams};
 use crate::response::{Geolocation, Signature, SignatureSong};
 use crate::utils::convert_signature_to_py;
 use crate::utils::get_python_future;
 use crate::utils::unwrap_decoded_signature;
-use fingerprinting::algorithm::{SignatureGenerator, DEFAULT_SEGMENT_DURATION_SECONDS};
+use fingerprinting::algorithm::{SignatureGenerator, DEFAULT_SEGMENT_SECONDS};
 use log::{debug, info, LevelFilter};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
@@ -34,11 +34,12 @@ fn shazamio_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     info!("Initializing shazamio_core module");
 
     m.add_class::<Recognizer>()?;
+    m.add_class::<SearchParams>()?;
     m.add("SignatureError", m.py().get_type::<SignatureError>())?;
+
     m.add_class::<Geolocation>()?;
     m.add_class::<SignatureSong>()?;
     m.add_class::<Signature>()?;
-    m.add_class::<SearchParams>()?;
 
     info!("shazamio_core module initialized successfully");
     Ok(())
@@ -55,9 +56,8 @@ impl Recognizer {
     #[new]
     #[pyo3(signature = (segment_duration_seconds=None))]
     pub fn new(segment_duration_seconds: Option<u32>) -> PyResult<Self> {
-        let duration = validated_segment_duration_seconds(
-            segment_duration_seconds.unwrap_or(DEFAULT_SEGMENT_DURATION_SECONDS),
-        )?;
+        let duration =
+            validated_segment_seconds(segment_duration_seconds.unwrap_or(DEFAULT_SEGMENT_SECONDS))?;
         info!(
             "Recognizer created with segment_duration_seconds = {}",
             duration
@@ -74,7 +74,7 @@ impl Recognizer {
 
     #[setter]
     fn set_segment_duration_seconds(&mut self, value: u32) -> PyResult<()> {
-        self.segment_duration_seconds = validated_segment_duration_seconds(value)?;
+        self.segment_duration_seconds = validated_segment_seconds(value)?;
 
         Ok(())
     }

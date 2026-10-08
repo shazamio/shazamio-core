@@ -11,6 +11,7 @@ use symphonia::core::formats::probe::Hint;
 use symphonia::core::formats::{FormatOptions, FormatReader};
 use symphonia::core::io::{MediaSource, MediaSourceStream};
 use symphonia::core::meta::MetadataOptions;
+use symphonia::core::packet::Packet;
 
 use crate::fingerprinting::opus_decoder::OpusDecoder;
 
@@ -93,26 +94,29 @@ impl PacketDecoder {
         })
     }
 
+    fn next_packet(&mut self) -> Result<Option<Packet>, Error> {
+        loop {
+            let packet = self.format.next_packet();
+            if !matches!(packet, Err(Error::ResetRequired)) {
+                return packet;
+            }
+
+            // A chained Ogg file opens a second logical stream, and the reader asks for
+            //  a new decoder rather than for the read to stop. Read as the end, a
+            //  four-second chained file decoded to 2013 ms and reported success.
+            //  https://www.rfc-editor.org/rfc/rfc7845#section-2
+            self.track_decoder = decoder_for(self.format.as_ref())?;
+        }
+    }
+
     /// Fills `mono_frames` with the next packet and reports the spec it decoded under,
     /// or `None` once the stream ends.
     fn next(&mut self, mono_frames: &mut Vec<f32>) -> Result<Option<AudioSpec>, Error> {
         mono_frames.clear();
 
         loop {
-            let packet = match self.format.next_packet() {
-                Ok(Some(packet)) => packet,
-                Ok(None) => return Ok(None),
-
-                // A chained Ogg file opens a second logical stream, and the reader asks
-                //  for a new decoder rather than for the read to stop. Read as the end, a
-                //  four-second chained file decoded to 2013 ms and reported success.
-                //  https://www.rfc-editor.org/rfc/rfc7845#section-2
-                Err(Error::ResetRequired) => {
-                    self.track_decoder = decoder_for(self.format.as_ref())?;
-                    continue;
-                }
-
-                Err(er) => return Err(er),
+            let Some(packet) = self.next_packet()? else {
+                return Ok(None);
             };
 
             // If the packet does not belong to the selected track, skip it.

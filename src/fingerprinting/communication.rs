@@ -85,9 +85,11 @@ mod tests {
 
         assert_eq!(signature.timestamp, signature.signature.timestamp);
         assert_eq!(signature.timezone, "Europe/Paris");
+
         assert_eq!(signature.geolocation.altitude, 300);
         assert_eq!(signature.geolocation.latitude, 45);
         assert_eq!(signature.geolocation.longitude, 2);
+
         assert_eq!(signature.signature.uri, expected_uri);
     }
 
