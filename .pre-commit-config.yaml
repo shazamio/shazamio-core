@@ -93,5 +93,5 @@ repos:
         entry: just
         args: [lint-harness]
         language: system
-        files: ^(\.pre-commit-config\.yaml|justfile|\.github/.*|.*\.sh|scripts/check_ci_(gate|filters)\.py)$
+        files: ^(\.pre-commit-config\.yaml|justfile|pyproject\.toml|uv\.lock|\.github/.*|.*\.sh|scripts/check_ci_(gate|filters)\.py)$
         pass_filenames: false

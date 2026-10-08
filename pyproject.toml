@@ -5,6 +5,7 @@
 dev = [
     { include-group = "tests" },
     { include-group = "lint" },
+    { include-group = "harness" },
 ]
 tests = [
     "pytest>=9.1.1",
@@ -18,6 +19,14 @@ lint = [
     # Locked here rather than left to each machine, which is what `just` itself
     #  has to be.
     "pre-commit>=4.6.0",
+]
+# What `just lint-harness` runs. Declared here rather than pinned in the
+#  `justfile` so the `uv` entry of `.github/dependabot.yml` bumps them; nothing
+#  reads a version out of a `justfile`.
+harness = [
+    "shellcheck-py>=0.11.0.1",
+    "actionlint-py>=1.7.12.24",
+    "pyyaml>=6.0.2",
 ]
 
 [build-system]

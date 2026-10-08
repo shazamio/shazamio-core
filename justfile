@@ -11,11 +11,6 @@ set shell := ["bash", "-uc"]
 #  `just --evaluate` rather than restating it, so the version has one home.
 cargo_about_version := "0.9.2"
 
-# Pinned for the same reason, and from PyPI so a checkout needs no second package
-#  manager to run them.
-shellcheck_version := "0.11.0.1"
-actionlint_version := "1.7.12.24"
-
 # Named once so the recipe that writes the notices and the one that diffs them
 #  cannot disagree about which file that is. `pyproject.toml` names it too, in
 #  `license-files`, because a manifest cannot read a recipe.
@@ -70,10 +65,10 @@ lint-rust:
 #  action is then reported as unexpected.
 [doc("Lint the scripts and the workflows, and check what the gate and the filters cover")]
 lint-harness:
-    uv run --no-project --with 'shellcheck-py=={{ shellcheck_version }}' shellcheck $(git ls-files '*.sh')
-    uv run --no-project --with 'shellcheck-py=={{ shellcheck_version }}' --with 'actionlint-py=={{ actionlint_version }}' actionlint
-    uv run --no-project --with pyyaml python scripts/check_ci_gate.py
-    uv run --no-project --with pyyaml python scripts/check_ci_filters.py
+    uv run --only-group harness shellcheck $(git ls-files '*.sh')
+    uv run --only-group harness actionlint
+    uv run --only-group harness python scripts/check_ci_gate.py
+    uv run --only-group harness python scripts/check_ci_filters.py
 
 [doc("Reformat the crate")]
 format:
