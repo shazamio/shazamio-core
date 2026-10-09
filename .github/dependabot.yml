@@ -18,7 +18,7 @@ updates:
       include: scope
 
   - package-ecosystem: cargo
-    # `/tools` holds the pins of the tools CI installs with `cargo install`.
+    # `/tools` holds the versions of the tools CI pins.
     directories:
       - /
       - /tools
@@ -56,7 +56,7 @@ updates:
       include: scope
     # `maturin` is the build backend, not a dependency: the floor in
     #  `build-system.requires` has its reason beside it, and Dependabot raised it to
-    #  whatever was newest. `MATURIN_VERSION` in `workflows/ci.yaml` is the pin.
+    #  whatever was newest. The pin is in `tools/Cargo.toml`, under the `cargo` entry.
     #  https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/controlling-dependencies-updated
     ignore:
       - dependency-name: maturin
