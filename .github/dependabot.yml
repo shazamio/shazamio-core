@@ -18,7 +18,10 @@ updates:
       include: scope
 
   - package-ecosystem: cargo
-    directory: /
+    # `/tools` holds the pins of the tools CI installs with `cargo install`.
+    directories:
+      - /
+      - /tools
     # The crates are what the library runs, so a fix in one waits a week rather than
     #  a month. The other ecosystems never change what it computes.
     schedule:

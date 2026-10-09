@@ -83,7 +83,7 @@ repos:
         entry: just
         args: [licenses-check]
         language: system
-        files: ^(\.pre-commit-config\.yaml|justfile|Cargo\.(toml|lock)|licenses/.*|THIRD-PARTY-NOTICES\.md)$
+        files: ^(\.pre-commit-config\.yaml|justfile|Cargo\.(toml|lock)|licenses/.*|THIRD-PARTY-NOTICES\.md|tools/.*)$
         pass_filenames: false
 
       # `.github/**` is the linted content here rather than a decider, so unlike
