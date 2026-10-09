@@ -93,7 +93,7 @@ harness_lint:
   - *harness
   - pyproject.toml
   - uv.lock
-  - .github/workflows/dependabot-licenses.yaml
+  - .github/workflows/dependabot-regenerate.yaml
   - "**/*.sh"
   - scripts/check_ci_gate.py
   - scripts/check_ci_filters.py

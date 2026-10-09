@@ -1,9 +1,10 @@
-name: Dependabot licence notices
+name: Dependabot generated files
 
-# Dependabot bumps `Cargo.lock` and never regenerates `THIRD-PARTY-NOTICES.md`, which
-#  names every crate with its version, so each cargo bump failed `Licence notices`
-#  with a one-line diff such as `crc32fast 1.5.1` against `crc32fast 1.5.2`. This
-#  regenerates the file on the bump's own branch and commits it there.
+# Dependabot bumps a pin and never regenerates what is generated from it, so the bump
+#  failed the check diffing that output. A cargo bump moves `THIRD-PARTY-NOTICES.md`,
+#  which names every crate with its version (`crc32fast 1.5.1` against `1.5.2`); a
+#  bump of an image in `docker/regenerate.Dockerfile` moves `tests/data`. This
+#  regenerates them on the bump's own branch and commits them there.
 on:
   pull_request:
     branches:
@@ -18,13 +19,18 @@ permissions:
 
 # A second push to the branch while this runs would race the commit below.
 concurrency:
-  group: dependabot-licenses-${{ github.head_ref }}
+  group: dependabot-generated-${{ github.head_ref }}
   cancel-in-progress: true
 
 jobs:
-  notices:
-    name: Regenerate the notices
-    if: github.event.pull_request.user.login == 'dependabot[bot]' && startsWith(github.head_ref, 'dependabot/cargo/')
+  # A cargo bump does not regenerate `tests/data`: a crate that moves a golden URI
+  #  changes what the library computes, which `Fixtures` should fail on for a person
+  #  to read, not have rewritten.
+  regenerate:
+    name: Regenerate the generated files
+    if: >-
+      github.event.pull_request.user.login == 'dependabot[bot]'
+      && (startsWith(github.head_ref, 'dependabot/cargo/') || startsWith(github.head_ref, 'dependabot/docker/'))
     runs-on: ubuntu-latest
     steps:
       # The branch itself rather than the merge ref `pull_request` checks out by
@@ -40,25 +46,37 @@ jobs:
           ref: ${{ github.head_ref }}
           token: ${{ secrets.DEPENDABOT_NOTICES_TOKEN || github.token }}
 
-      - uses: ./.github/actions/setup-cargo-about
+      - if: startsWith(github.head_ref, 'dependabot/cargo/')
+        uses: ./.github/actions/setup-cargo-about
 
       - name: Regenerate the notices from `Cargo.lock`
+        if: startsWith(github.head_ref, 'dependabot/cargo/')
         run: just licenses
 
-      # Nothing to commit once the notices match, which is also what ends the loop:
+      # Every `docker/` bump lands here, the `pypa` images included; for those the
+      #  rerun writes the committed bytes and the step below commits nothing.
+      - if: startsWith(github.head_ref, 'dependabot/docker/')
+        uses: ./.github/actions/setup-just
+
+      - name: Regenerate `tests/data` inside the bumped image
+        if: startsWith(github.head_ref, 'dependabot/docker/')
+        run: just regenerate
+
+      # Nothing to commit once the files match, which is also what ends the loop:
       #  the push below starts this workflow again, and that run finds no change.
       #
       # Dependabot stops rebasing a branch carrying a commit it did not write, unless
       #  the message says `[dependabot skip]`; with it the rebase drops this commit
       #  and the next run writes it again.
       #  https://docs.github.com/en/code-security/dependabot/working-with-dependabot/managing-pull-requests-for-dependency-updates#allowing-dependabot-to-rebase-and-force-push-over-extra-commits
-      - name: Commit the notices to the branch
+      - name: Commit the regenerated files to the branch
         run: |
-          if git diff --quiet -- THIRD-PARTY-NOTICES.md; then
+          git add -- THIRD-PARTY-NOTICES.md tests/data
+          if git diff --cached --quiet; then
             exit 0
           fi
 
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit --message 'build(licenses): regenerate the notices for the bumped crates [dependabot skip]' -- THIRD-PARTY-NOTICES.md
+          git commit --message 'build(deps): regenerate the files generated from the bumped pins [dependabot skip]'
           git push
