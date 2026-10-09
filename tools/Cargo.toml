@@ -1,0 +1,20 @@
+# Never built. The tools CI pins, named as dependencies so the `cargo` entry of
+#  `.github/dependabot.yml` bumps them: no Dependabot ecosystem reads a version from
+#  a `justfile` or a workflow `env`. Each consumer reads its version from here.
+[package]
+name = "tools"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# A package needs a target before `cargo` reads its manifest at all.
+[lib]
+path = "lib.rs"
+
+[dependencies]
+# Exact: another version rewrites `THIRD-PARTY-NOTICES.md` and turns a green branch
+#  red with nobody having touched the tree.
+cargo-about = "=0.9.2"
+# What every wheel of a release is built with, read by `.github/workflows/ci.yaml`.
+#  Released to `crates.io` and PyPI under the same version.
+maturin = "=1.14.1"

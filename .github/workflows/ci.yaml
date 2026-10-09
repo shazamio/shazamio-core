@@ -31,13 +31,6 @@ on:
 permissions:
   contents: read
 
-# The one place the built-with version is stated. `maturin-action` installs the
-#  latest release unless told otherwise, and the manylinux images take this as a
-#  build argument, so without it the Linux wheels and the macOS/Windows wheels of
-#  one release come out of different `maturin` versions.
-env:
-  MATURIN_VERSION: v1.14.1
-
 # Every command below lives in the `justfile`, so a local check and a CI job are one
 #  string rather than two copies that drift. Most jobs need `just`, so getting it is
 #  a local composite action rather than one copy of the same two commands per job:
@@ -63,8 +56,17 @@ jobs:
       licenses: ${{ steps.filter.outcome == 'skipped' || steps.filter.outputs.licenses == 'true' }}
       fixtures: ${{ steps.filter.outcome == 'skipped' || steps.filter.outputs.fixtures == 'true' }}
       harness_lint: ${{ steps.filter.outcome == 'skipped' || steps.filter.outputs.harness_lint == 'true' }}
+      maturin: ${{ steps.pins.outputs.maturin }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Read once and handed to every job that builds or uploads a wheel.
+      #  `maturin-action` falls back to the floor in `build-system.requires`, which
+      #  resolves to the newest release, and the manylinux images take it as a build
+      #  argument; without one version the wheels of a release mix `maturin` versions.
+      #  https://github.com/PyO3/maturin-action/blob/e83996d129638aa358a18fbd1dfb82f0b0fb5d3b/src/index.ts#L482-L505
+      - id: pins
+        run: echo "maturin=$(sed -n 's/^maturin = "=\(.*\)"$/\1/p' tools/Cargo.toml)" >> "$GITHUB_OUTPUT"
 
       # A tag push carries no diff to filter on, and `workflow_dispatch` is somebody
       #  asking for the whole matrix. The step then does not run and leaves its
@@ -201,7 +203,7 @@ jobs:
       - name: Build wheels
         uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         with:
-          maturin-version: ${{ env.MATURIN_VERSION }}
+          maturin-version: ${{ needs.changes.outputs.maturin }}
           target: ${{ matrix.target }}
           args: --release --out dist
           sccache: "true"
@@ -243,7 +245,7 @@ jobs:
       - name: Build wheels
         uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         with:
-          maturin-version: ${{ env.MATURIN_VERSION }}
+          maturin-version: ${{ needs.changes.outputs.maturin }}
           target: ${{ matrix.target }}
           args: --release --out dist
           sccache: "true"
@@ -309,7 +311,7 @@ jobs:
           #  that drifts from what is published here fails the build instead.
           build-args: |
             BASE_IMAGE=${{ matrix.base }}
-            MATURIN_VERSION=${{ env.MATURIN_VERSION }}
+            MATURIN_VERSION=${{ needs.changes.outputs.maturin }}
           tags: shazamio_core
           push: false
           load: true
@@ -393,7 +395,7 @@ jobs:
       - name: Build sdist
         uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         with:
-          maturin-version: ${{ env.MATURIN_VERSION }}
+          maturin-version: ${{ needs.changes.outputs.maturin }}
           command: sdist
           args: --out dist
 
@@ -499,7 +501,7 @@ jobs:
   #  real floor fails here and nowhere before the first person on that version.
   release:
     name: Release
-    needs: [ test, rust-test, lint, harness-lint, msrv, windows, macos, linux, sdist, licenses ]
+    needs: [ changes, test, rust-test, lint, harness-lint, msrv, windows, macos, linux, sdist, licenses ]
     # Tags only: a manual run of a branch would upload its version to PyPI and
     #  create a release named after the branch, since `tag_name` falls back to the
     #  ref name. A manual run started on a tag still has a `refs/tags/` ref.
@@ -523,7 +525,7 @@ jobs:
         env:
           MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
         with:
-          maturin-version: ${{ env.MATURIN_VERSION }}
+          maturin-version: ${{ needs.changes.outputs.maturin }}
           command: upload
           args: --skip-existing dist/*
 
