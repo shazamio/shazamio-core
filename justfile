@@ -6,10 +6,6 @@
 #  happens to have put on `PATH`.
 set shell := ["bash", "-uc"]
 
-# The pin lives in `tools/Cargo.toml`, where Dependabot bumps it. The `Licence
-#  notices` job reads it from here with `just --evaluate`.
-cargo_about_version := `sed -n 's/^cargo-about = "=\(.*\)"$/\1/p' tools/Cargo.toml`
-
 # Named once so the recipe that writes the notices and the one that diffs them
 #  cannot disagree about which file that is. `pyproject.toml` names it too, in
 #  `license-files`, because a manifest cannot read a recipe.
@@ -40,8 +36,20 @@ install-test:
 #  https://github.com/EmbarkStudios/cargo-about/blob/f7394d5c8f618623573072caadf6594821c789b6/Cargo.toml#L23-L26
 [doc("Everything a checkout needs: the dependencies, `cargo-about` and the `pre-commit` hooks")]
 install: install-test
-    cargo install cargo-about --locked --features cli --version '={{ cargo_about_version }}'
+    cargo install cargo-about --locked --features cli --version "=$(just _pin cargo-about)"
     uv run pre-commit install --install-hooks
+
+# A recipe rather than a `:=` variable: `just` evaluates every backtick before any
+#  recipe runs, and the source archive carries the `justfile` without `tools/`, so
+#  the `sdist` job died with `sed: can't read tools/Cargo.toml: No such file or directory`.
+[doc("Print the exact version `tools/Cargo.toml` pins a tool to")]
+_pin crate:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    version="$(sed -n 's/^{{ crate }} = "=\(.*\)"$/\1/p' tools/Cargo.toml)"
+    test -n "$version" || { echo "No exact pin for {{ crate }} in tools/Cargo.toml." >&2; exit 1; }
+    echo "$version"
 
 # --- Code quality ---
 
