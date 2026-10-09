@@ -11,8 +11,8 @@
 #  https://docs.docker.com/build/building/multi-platform/
 #  Tagged here rather than in the workflow, where Dependabot reads no image.
 ARG BASE_IMAGE
-FROM quay.io/pypa/manylinux_2_28:2026.08.24-1 AS manylinux
-FROM quay.io/pypa/musllinux_1_2:2026.08.24-1 AS musllinux
+FROM quay.io/pypa/manylinux_2_28:2026.10.03-1 AS manylinux
+FROM quay.io/pypa/musllinux_1_2:2026.10.03-1 AS musllinux
 FROM ${BASE_IMAGE} AS base
 
 # Only the minimum supported interpreter belongs here: the wheel is `abi3`, so one
