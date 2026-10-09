@@ -1,14 +1,18 @@
 # check=skip=InvalidDefaultArgInFrom
 
-# The base is an argument with no default: both tags live in the `linux` matrix of
-#  `.github/workflows/ci.yaml`, so a bare `docker build` fails rather than drifting
-#  from what CI publishes. Reporting that is what the check above does.
+# `BASE_IMAGE` names one of the two stages below and has no default, so a bare
+#  `docker build` fails rather than guessing which wheel to build; the `linux`
+#  matrix of `.github/workflows/ci.yaml` passes it. Reporting that is what the check
+#  above does. Only the named stage is built, so the other image is never pulled.
 #  https://docs.docker.com/reference/build-checks/invalid-default-arg-in-from/
 #  The two images lay their interpreters out alike, and both carry the `cmake` and
 #  C compiler that the bundled `libopus` build needs. Neither tag names an architecture:
 #  each is a manifest list, so buildx pulls the entry matching `platforms`.
 #  https://docs.docker.com/build/building/multi-platform/
+#  Tagged here rather than in the workflow, where Dependabot reads no image.
 ARG BASE_IMAGE
+FROM quay.io/pypa/manylinux_2_28:2026.08.24-1 AS manylinux
+FROM quay.io/pypa/musllinux_1_2:2026.08.24-1 AS musllinux
 FROM ${BASE_IMAGE} AS base
 
 # Only the minimum supported interpreter belongs here: the wheel is `abi3`, so one

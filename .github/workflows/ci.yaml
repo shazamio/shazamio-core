@@ -272,12 +272,12 @@ jobs:
           - name: manylinux-arm
             arch: aarch64
             os: ubuntu-24.04-arm
-            base: quay.io/pypa/manylinux_2_28:2026.08.24-1
+            base: manylinux
             smoketest: dist-smoketest
           - name: manylinux-x86
             arch: x86_64
             os: ubuntu-latest
-            base: quay.io/pypa/manylinux_2_28:2026.08.24-1
+            base: manylinux
             smoketest: dist-smoketest
           # A musl system matches neither `manylinux` tag, so an install on one built
           #  the crate from source instead: a Rust toolchain and a C compiler first,
@@ -285,12 +285,12 @@ jobs:
           - name: musllinux-arm
             arch: aarch64
             os: ubuntu-24.04-arm
-            base: quay.io/pypa/musllinux_1_2:2026.08.24-1
+            base: musllinux
             smoketest: dist-smoketest-musl
           - name: musllinux-x86
             arch: x86_64
             os: ubuntu-latest
-            base: quay.io/pypa/musllinux_1_2:2026.08.24-1
+            base: musllinux
             smoketest: dist-smoketest-musl
     runs-on: ${{ matrix.os }}
     steps:
