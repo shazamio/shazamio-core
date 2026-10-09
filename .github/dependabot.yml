@@ -44,6 +44,20 @@ updates:
       prefix: build
       include: scope
 
+  - package-ecosystem: docker
+    directory: /docker
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: build
+      include: scope
+    # `regenerate.Dockerfile` matches the file pattern too, and a bump of its images
+    #  rewrites `tests/data`, which nothing regenerates on a Dependabot branch yet.
+    #  https://github.com/dependabot/dependabot-core/blob/c96ebb6ae58f869c275e4e1d220d3bc00cd28be9/docker/lib/dependabot/docker/file_fetcher.rb#L12
+    ignore:
+      - dependency-name: mwader/static-ffmpeg
+      - dependency-name: rust
+
   - package-ecosystem: uv
     directory: /
     schedule:
