@@ -6,12 +6,9 @@
 #  happens to have put on `PATH`.
 set shell := ["bash", "-uc"]
 
-# An unpinned generator rewrites the notices and turns a green branch red with
-#  nobody having touched the tree. The `Licence notices` job reads this value with
-#  `just --evaluate` rather than restating it, so the version has one home.
-#  Bumped by hand: none of Dependabot's ecosystems reads a `cargo install` version.
-#  https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference#package-ecosystem-
-cargo_about_version := "0.9.2"
+# The pin lives in `tools/Cargo.toml`, where Dependabot bumps it. The `Licence
+#  notices` job reads it from here with `just --evaluate`.
+cargo_about_version := `sed -n 's/^cargo-about = "=\(.*\)"$/\1/p' tools/Cargo.toml`
 
 # Named once so the recipe that writes the notices and the one that diffs them
 #  cannot disagree about which file that is. `pyproject.toml` names it too, in

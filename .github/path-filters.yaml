@@ -70,10 +70,12 @@ dist:
   - *notices
 
 # `Licence notices`, which regenerates them and diffs against the committed file.
+#  `tools/**` pins the `cargo-about` that generates them.
 licenses:
   - *harness
   - *manifest
   - *notices
+  - tools/**
 
 # `Fixtures`, which regenerates `tests/data` inside the image and diffs it. The
 #  crate is in the set because the golden URIs are its output.
