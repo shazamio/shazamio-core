@@ -87,10 +87,12 @@ fixtures:
 #  `ci.yaml` arrives with `harness`; the Dependabot workflow decides no other check,
 #  so it is named here alone. The glob mirrors the `git ls-files` the recipe feeds
 #  `shellcheck`, and `**` collapses to nothing, so a script added anywhere is in
-#  the set.
+#  the set. `pyproject.toml` and `uv.lock` pin the tools it runs.
 #  https://github.com/dorny/paths-filter/blob/ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d/__tests__/filter.test.ts#L61-L64
 harness_lint:
   - *harness
+  - pyproject.toml
+  - uv.lock
   - .github/workflows/dependabot-licenses.yaml
   - "**/*.sh"
   - scripts/check_ci_gate.py
