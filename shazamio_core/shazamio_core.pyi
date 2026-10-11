@@ -10,7 +10,7 @@ https://github.com/PyO3/pyo3/blob/v0.29.2/guide/src/type-stub.md
 
 from collections.abc import Awaitable
 from os import PathLike
-from typing import final
+from typing import NoReturn, final
 
 __all__ = [
     "Recognizer",
@@ -25,12 +25,19 @@ __all__ = [
 #  `src/response.rs` declares them `#[pyo3(get)]`, so the runtime refuses an
 #  assignment that a plain attribute here would let a caller write.
 #  `tests/test_typing.py` holds the declarations to that.
+#
+# Neither declares a constructor in Rust, so the runtime raises `TypeError: cannot
+#  create 'shazamio_core.Signature' instances`. Without a `__new__` here a type
+#  checker falls back to `object()` and accepts the call; a required `NoReturn`
+#  argument no value can satisfy makes it reject one with any arguments.
 @final
 class SignatureSong:
     @property
     def samples(self) -> int: ...
     @property
     def uri(self) -> str: ...
+
+    def __new__(cls, unconstructible: NoReturn, /) -> SignatureSong: ...
 
 
 @final
@@ -41,6 +48,8 @@ class Signature:
     def timestamp(self) -> int: ...
     @property
     def timezone(self) -> str: ...
+
+    def __new__(cls, unconstructible: NoReturn, /) -> Signature: ...
 
 
 @final

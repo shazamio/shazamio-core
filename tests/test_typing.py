@@ -15,7 +15,7 @@ from typing import Final
 import pytest
 from conftest import DATA_DIRECTORY
 
-from shazamio_core import Recognizer, SearchParams
+from shazamio_core import Recognizer, SearchParams, Signature, SignatureSong
 
 _PROBE: Final[Path] = DATA_DIRECTORY / "probe.flac"
 
@@ -69,6 +69,15 @@ async def test_the_signature_fields_cannot_be_assigned(*, recognizer: Recognizer
 
     with pytest.raises(AttributeError):
         song.uri = "other"  # type: ignore[misc]
+
+
+def test_neither_response_class_can_be_built_by_hand() -> None:
+    """Only a recognition produces them; the stub refuses the call the runtime does."""
+    with pytest.raises(TypeError, match=r"^cannot create 'shazamio_core\.Signature' instances$"):
+        Signature()  # type: ignore[call-arg]
+
+    with pytest.raises(TypeError, match=r"^cannot create 'shazamio_core\.SignatureSong' instances$"):
+        SignatureSong()  # type: ignore[call-arg]
 
 
 def test_the_segment_duration_stays_writable() -> None:
