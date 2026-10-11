@@ -1,0 +1,54 @@
+name: Dependabot auto-merge
+
+# A minor or patch Dependabot bump lands by itself once `CI` passes. `--auto` only
+#  queues the merge, and the `master` ruleset requiring the `CI` check is what holds
+#  it until then. Without that rule, or with "Allow auto-merge" off in the repository
+#  settings, the step fails and nothing merges.
+#  https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/automate-dependabot-with-actions#enabling-automerge-on-a-pull-request
+on:
+  pull_request:
+    branches:
+      - "master"
+
+# Runs triggered by Dependabot get a read-only token, and a `permissions` key is
+#  what raises it.
+#  https://docs.github.com/en/code-security/dependabot/troubleshooting-dependabot/troubleshooting-dependabot-on-github-actions#changing-github_token-permissions
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: dependabot-auto-merge-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  auto-merge:
+    name: Queue the merge
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # `update-type` is the highest bump in the pull request, so one major inside a
+      #  group keeps the whole group for a person to read.
+      #  https://github.com/dependabot/fetch-metadata/blob/25dd0e34f4fe68f24cc83900b1fe3fe149efef98/README.md?plain=1#L66-L67
+      - name: Read what the pull request bumps
+        id: metadata
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+
+      # A major can break what `CI` never runs: the `release` job runs on a tag only.
+      #  The `regenerate` group is skipped at any level, see `dependabot.yml`.
+      #
+      # `--merge` keeps the bump and its regenerated-files commit together under one
+      #  merge commit, the shape every other change on `master` has. A merge made
+      #  through `GITHUB_TOKEN` starts no `push` run there; every bump was already
+      #  built merged with `master` by its own `CI`.
+      #  https://docs.github.com/en/actions/concepts/security/github_token#when-github_token-triggers-workflow-runs
+      - name: Queue the merge until `CI` passes
+        if: >-
+          steps.metadata.outputs.dependency-group != 'regenerate'
+          && (steps.metadata.outputs.update-type == 'version-update:semver-minor'
+          || steps.metadata.outputs.update-type == 'version-update:semver-patch')
+        run: gh pr merge --auto --merge "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ github.token }}
