@@ -7,7 +7,7 @@
 # A static build, so the encoder libraries travel inside the binary and not with
 #  whichever distro it lands on. Always the x86-64 one, which `qemu-x86_64` below
 #  runs on an arm64 host too, so that host writes the same bytes.
-FROM --platform=linux/amd64 mwader/static-ffmpeg:8.0.1@sha256:252705ff88532fa338e7065c21792756552f8fe7c212f84bc503d3c340689594 AS ffmpeg
+FROM --platform=linux/amd64 mwader/static-ffmpeg:9.0.2@sha256:7d9bdaaf887f7e6ce6151f67325c344074b5ff1fb75316011c3376503e449a7b AS ffmpeg
 
 FROM rust:1.99.0-slim-trixie@sha256:24e632c09342c20abf8312cf4f61430a911c01ed3a5e4c02b87292b1c39c5273
 
