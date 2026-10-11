@@ -27,11 +27,10 @@ _PYPROJECT: Final[Path] = Path("pyproject.toml")
 _DECIDER: Final[str] = "harness"
 
 # Tracked files no check reads. `.gitignore` and `.pre-commit-config.yaml` configure
-#  tools CI never runs, nothing validates `dependabot.yml` at all, and the other two
-#  are prose for contributors that no build ships.
+#  tools CI never runs, and the other two are prose for contributors that no build
+#  ships.
 _UNGATED: Final[frozenset[str]] = frozenset(
     {
-        ".github/dependabot.yml",
         ".github/pull_request_template.md",
         ".gitignore",
         ".pre-commit-config.yaml",
