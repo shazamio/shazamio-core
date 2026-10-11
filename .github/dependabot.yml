@@ -13,9 +13,25 @@ updates:
       - /.github/actions/*
     schedule:
       interval: monthly
+    # A release yanked within days of publishing never reaches a pull request.
+    #  Dependabot waits 3 days by default; the same 7 every ecosystem below uses.
+    #  https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#cooldown-
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: ci
       include: scope
+    # One pull request per ecosystem for every minor and patch bump, which
+    #  `workflows/dependabot-auto-merge.yaml` lands once `CI` passes. A major stays in
+    #  a pull request of its own, for a person to read.
+    #  https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#groups--
+    groups:
+      actions:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: cargo
     # `/tools` holds the versions of the tools CI pins.
@@ -26,6 +42,8 @@ updates:
     #  a month. The other ecosystems never change what it computes.
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: build
       include: scope
@@ -38,19 +56,37 @@ updates:
         patterns:
           - pyo3
           - pyo3-*
+      # A dependency lands in the first group it matches, so `pyo3` stays above.
+      crates:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: pre-commit
     directory: /
     schedule:
       interval: monthly
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: build
       include: scope
+    groups:
+      hooks:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: docker
     directory: /docker
     schedule:
       interval: monthly
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: build
       include: scope
@@ -65,14 +101,30 @@ updates:
       pypa:
         patterns:
           - pypa/*
+      # The images `tests/data` is generated in. A bump of them is committed with
+      #  the regenerated data, which `Fixtures` then compares with itself, so `CI`
+      #  passing proves nothing and the auto-merge workflow skips this group.
+      regenerate:
+        patterns:
+          - mwader/static-ffmpeg
+          - rust
 
   - package-ecosystem: uv
     directory: /
     schedule:
       interval: monthly
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: build
       include: scope
+    groups:
+      python:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
     # `maturin` is the build backend, not a dependency: the floor in
     #  `build-system.requires` has its reason beside it, and Dependabot raised it to
     #  whatever was newest. The pin is in `tools/Cargo.toml`, under the `cargo` entry.
