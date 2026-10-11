@@ -1,5 +1,4 @@
 from .shazamio_core import (
-    Geolocation,
     SignatureSong,
     Signature,
     SignatureError,
@@ -8,7 +7,6 @@ from .shazamio_core import (
 )
 
 __all__ = [
-    "Geolocation",
     "Recognizer",
     "SearchParams",
     "Signature",

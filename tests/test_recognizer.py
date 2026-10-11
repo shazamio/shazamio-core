@@ -156,8 +156,8 @@ async def test_recognize_path_accepts_a_string_too(*, recognizer: Recognizer) ->
     assert from_string.signature.uri == from_path.signature.uri
 
 
-async def test_the_timestamps_are_the_clock_in_milliseconds(*, recognizer: Recognizer) -> None:
-    # Both were cut to their low 32 bits before, which wraps every 49.7 days and dated
+async def test_the_timestamp_is_the_clock_in_milliseconds(*, recognizer: Recognizer) -> None:
+    # It was cut to its low 32 bits before, which wraps every 49.7 days and dated
     #  every response to the first fifty days of 1970. A bounded interval catches that,
     #  where a literal could only be rewritten each time it failed.
     before_ms: int = time.time_ns() // 1_000_000
@@ -167,7 +167,6 @@ async def test_the_timestamps_are_the_clock_in_milliseconds(*, recognizer: Recog
     after_ms: int = time.time_ns() // 1_000_000
 
     assert before_ms <= signature.timestamp <= after_ms
-    assert signature.signature.timestamp == signature.timestamp
 
 
 async def test_a_cancelled_call_leaves_the_recognizer_usable(*, recognizer: Recognizer) -> None:
