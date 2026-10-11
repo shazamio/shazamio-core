@@ -70,10 +70,12 @@ dist:
   - *notices
 
 # `Licence notices`, which regenerates them and diffs against the committed file.
+#  `tools/**` pins the `cargo-about` that generates them.
 licenses:
   - *harness
   - *manifest
   - *notices
+  - tools/**
 
 # `Fixtures`, which regenerates `tests/data` inside the image and diffs it. The
 #  crate is in the set because the golden URIs are its output.
@@ -87,13 +89,16 @@ fixtures:
 #  `ci.yaml` arrives with `harness`; the Dependabot workflow decides no other check,
 #  so it is named here alone. The glob mirrors the `git ls-files` the recipe feeds
 #  `shellcheck`, and `**` collapses to nothing, so a script added anywhere is in
-#  the set. `pyproject.toml` and `uv.lock` pin the tools it runs.
+#  the set. `pyproject.toml` and `uv.lock` pin the tools it runs, and
+#  `dependabot.yml` is what `check_dependabot.py` reads.
 #  https://github.com/dorny/paths-filter/blob/ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d/__tests__/filter.test.ts#L61-L64
 harness_lint:
   - *harness
   - pyproject.toml
   - uv.lock
+  - .github/dependabot.yml
   - .github/workflows/dependabot-licenses.yaml
   - "**/*.sh"
   - scripts/check_ci_gate.py
   - scripts/check_ci_filters.py
+  - scripts/check_dependabot.py

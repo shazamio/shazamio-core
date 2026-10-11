@@ -11,7 +11,7 @@ runs:
     #  disagree about which output is the correct one.
     - id: tool
       shell: bash
-      run: echo "version=$(just --evaluate cargo_about_version)" >> "$GITHUB_OUTPUT"
+      run: echo "version=$(just _pin cargo-about)" >> "$GITHUB_OUTPUT"
 
     # A prebuilt binary from the project's own releases. Building it from source
     #  costs about half a minute of the job for a check that runs in seconds.

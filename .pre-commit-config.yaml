@@ -83,7 +83,7 @@ repos:
         entry: just
         args: [licenses-check]
         language: system
-        files: ^(\.pre-commit-config\.yaml|justfile|Cargo\.(toml|lock)|licenses/.*|THIRD-PARTY-NOTICES\.md)$
+        files: ^(\.pre-commit-config\.yaml|justfile|Cargo\.(toml|lock)|licenses/.*|THIRD-PARTY-NOTICES\.md|tools/.*)$
         pass_filenames: false
 
       # `.github/**` is the linted content here rather than a decider, so unlike
@@ -93,5 +93,5 @@ repos:
         entry: just
         args: [lint-harness]
         language: system
-        files: ^(\.pre-commit-config\.yaml|justfile|pyproject\.toml|uv\.lock|\.github/.*|.*\.sh|scripts/check_ci_(gate|filters)\.py)$
+        files: ^(\.pre-commit-config\.yaml|justfile|pyproject\.toml|uv\.lock|\.github/.*|.*\.sh|scripts/check_(ci_gate|ci_filters|dependabot)\.py)$
         pass_filenames: false
