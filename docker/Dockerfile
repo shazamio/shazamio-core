@@ -19,14 +19,13 @@ FROM ${BASE_IMAGE} AS base
 #  is emitted whatever builds it, and this entry stays only so `pip3` below exists
 #  at all. Must match the `abi3-py*` feature in `Cargo.toml`.
 ENV PATH="/root/.cargo/bin:/opt/python/cp310-cp310/bin:$PATH"
-# The one pin lives in `MATURIN_VERSION` in `.github/workflows/ci.yaml` and arrives
-#  here as a build argument, so the Linux wheels and the macOS/Windows wheels of a
-#  release cannot come out of different `maturin` versions. Unset is a hard error
-#  rather than a default: a default is the second copy this removes. The tag carries
-#  a `v` that no other site uses, so it is stripped.
+# The one pin lives in `tools/Cargo.toml` and arrives here as a build argument, so
+#  the Linux wheels and the macOS/Windows wheels of a release cannot come out of
+#  different `maturin` versions. Unset is a hard error rather than a default: a
+#  default is the second copy this removes.
 ARG MATURIN_VERSION
 RUN : "${MATURIN_VERSION:?the MATURIN_VERSION build argument is required}" \
- && pip3 install "maturin==${MATURIN_VERSION#v}" patchelf
+ && pip3 install "maturin==${MATURIN_VERSION}" patchelf
 
 WORKDIR /opt
 COPY docker/install-build-deps.sh .
