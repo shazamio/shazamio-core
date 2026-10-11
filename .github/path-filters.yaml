@@ -87,8 +87,8 @@ fixtures:
   - docker/regenerate.Dockerfile
 
 # `Harness lint`, which `shellcheck`s the scripts and `actionlint`s the workflows.
-#  `ci.yaml` arrives with `harness`; the Dependabot workflow decides no other check,
-#  so it is named here alone. The glob mirrors the `git ls-files` the recipe feeds
+#  `ci.yaml` arrives with `harness`; the Dependabot workflows decide no other check,
+#  so they are named here alone. The glob mirrors the `git ls-files` the recipe feeds
 #  `shellcheck`, and `**` collapses to nothing, so a script added anywhere is in
 #  the set. `pyproject.toml` and `uv.lock` pin the tools it runs, and
 #  `dependabot.yml` is what `check_dependabot.py` reads.
@@ -98,6 +98,7 @@ harness_lint:
   - pyproject.toml
   - uv.lock
   - .github/dependabot.yml
+  - .github/workflows/dependabot-auto-merge.yaml
   - .github/workflows/dependabot-regenerate.yaml
   - "**/*.sh"
   - scripts/check_ci_gate.py
