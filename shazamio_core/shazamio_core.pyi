@@ -10,10 +10,9 @@ https://github.com/PyO3/pyo3/blob/v0.29.2/guide/src/type-stub.md
 
 from collections.abc import Awaitable
 from os import PathLike
-from typing import final
+from typing import NoReturn, final
 
 __all__ = [
-    "Geolocation",
     "Recognizer",
     "SearchParams",
     "Signature",
@@ -22,38 +21,27 @@ __all__ = [
 ]
 
 
-# Every field of the three classes below is a getter and nothing more:
+# Every field of the two classes below is a getter and nothing more:
 #  `src/response.rs` declares them `#[pyo3(get)]`, so the runtime refuses an
 #  assignment that a plain attribute here would let a caller write.
 #  `tests/test_typing.py` holds the declarations to that.
-@final
-class Geolocation:
-    @property
-    def altitude(self) -> int: ...
-    @property
-    def latitude(self) -> int: ...
-    @property
-    def longitude(self) -> int: ...
-
-    def __new__(cls, altitude: int, latitude: int, longitude: int) -> Geolocation: ...
-
-
+#
+# Neither declares a constructor in Rust, so the runtime raises `TypeError: cannot
+#  create 'shazamio_core.Signature' instances`. Without a `__new__` here a type
+#  checker falls back to `object()` and accepts the call; a required `NoReturn`
+#  argument no value can satisfy makes it reject one with any arguments.
 @final
 class SignatureSong:
     @property
     def samples(self) -> int: ...
     @property
-    def timestamp(self) -> int: ...
-    @property
     def uri(self) -> str: ...
 
-    def __new__(cls, samples: int, timestamp: int, uri: str) -> SignatureSong: ...
+    def __new__(cls, unconstructible: NoReturn, /) -> SignatureSong: ...
 
 
 @final
 class Signature:
-    @property
-    def geolocation(self) -> Geolocation: ...
     @property
     def signature(self) -> SignatureSong: ...
     @property
@@ -61,13 +49,7 @@ class Signature:
     @property
     def timezone(self) -> str: ...
 
-    def __new__(
-        cls,
-        geolocation: Geolocation,
-        signature: SignatureSong,
-        timestamp: int,
-        timezone: str,
-    ) -> Signature: ...
+    def __new__(cls, unconstructible: NoReturn, /) -> Signature: ...
 
 
 @final

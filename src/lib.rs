@@ -6,8 +6,7 @@ mod utils;
 
 use crate::errors::SignatureError;
 use crate::params::{validated_segment_seconds, SearchParams};
-use crate::response::{Geolocation, Signature, SignatureSong};
-use crate::utils::convert_signature_to_py;
+use crate::response::{Signature, SignatureSong};
 use crate::utils::get_python_future;
 use crate::utils::unwrap_decoded_signature;
 use fingerprinting::algorithm::{SignatureGenerator, DEFAULT_SEGMENT_SECONDS};
@@ -37,7 +36,6 @@ fn shazamio_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SearchParams>()?;
     m.add("SignatureError", m.py().get_type::<SignatureError>())?;
 
-    m.add_class::<Geolocation>()?;
     m.add_class::<SignatureSong>()?;
     m.add_class::<Signature>()?;
 
@@ -117,8 +115,7 @@ impl Recognizer {
             })?;
 
             debug!("Successfully generated signature from bytes");
-            let signature = unwrap_decoded_signature(data);
-            Ok(convert_signature_to_py(signature?))
+            unwrap_decoded_signature(data)
         };
 
         let python_future = get_python_future(py, future);
@@ -164,8 +161,7 @@ impl Recognizer {
             })?;
 
             debug!("Successfully generated signature from file");
-            let signature = unwrap_decoded_signature(data);
-            Ok(convert_signature_to_py(signature?))
+            unwrap_decoded_signature(data)
         };
 
         let python_future = get_python_future(py, future);
@@ -199,7 +195,6 @@ mod tests {
             shazamio_core(&module).unwrap();
 
             for name in [
-                "Geolocation",
                 "Recognizer",
                 "SearchParams",
                 "Signature",

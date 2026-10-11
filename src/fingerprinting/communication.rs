@@ -2,28 +2,7 @@ use std::error::Error;
 use std::time::SystemTime;
 
 use crate::fingerprinting::signature_format::DecodedSignature;
-
-#[derive(Debug)]
-pub struct GeolocationResponse {
-    pub(crate) altitude: i16,
-    pub(crate) latitude: i8,
-    pub(crate) longitude: i8,
-}
-
-#[derive(Debug)]
-pub struct SignatureSong {
-    pub(crate) samples: u32,
-    pub(crate) timestamp: u64,
-    pub(crate) uri: String,
-}
-
-#[derive(Debug)]
-pub struct Signature {
-    pub(crate) geolocation: GeolocationResponse,
-    pub(crate) signature: SignatureSong,
-    pub(crate) timestamp: u64,
-    pub(crate) timezone: String,
-}
+use crate::response::{Signature, SignatureSong};
 
 pub fn get_signature_json(signature: &DecodedSignature) -> Result<Signature, Box<dyn Error>> {
     // Epoch milliseconds, whole: the client posts this field to the endpoint as it
@@ -38,14 +17,8 @@ pub fn get_signature_json(signature: &DecodedSignature) -> Result<Signature, Box
     let samples =
         (signature.number_samples as f32 / signature.sample_rate_hz as f32 * 1000.) as u32;
     Ok(Signature {
-        geolocation: GeolocationResponse {
-            altitude: 300,
-            latitude: 45,
-            longitude: 2,
-        },
         signature: SignatureSong {
             samples,
-            timestamp: timestamp_ms,
             uri: signature.encode_to_uri()?,
         },
         timestamp: timestamp_ms,
@@ -83,13 +56,7 @@ mod tests {
         //  rate, truncated to whole milliseconds.
         assert_eq!(signature.signature.samples, 1531);
 
-        assert_eq!(signature.timestamp, signature.signature.timestamp);
         assert_eq!(signature.timezone, "Europe/Paris");
-
-        assert_eq!(signature.geolocation.altitude, 300);
-        assert_eq!(signature.geolocation.latitude, 45);
-        assert_eq!(signature.geolocation.longitude, 2);
-
         assert_eq!(signature.signature.uri, expected_uri);
     }
 

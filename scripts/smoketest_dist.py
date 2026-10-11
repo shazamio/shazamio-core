@@ -25,7 +25,7 @@ if loaded.is_relative_to(Path(sys.argv[1])):
     raise SystemExit(f"imported the checkout rather than the wheel: {loaded}")
 
 # Loading the extension proves it links; calling into it proves it runs.
-shazamio_core.Geolocation(altitude=300, latitude=45, longitude=2)
+shazamio_core.SearchParams(segment_duration_seconds=10)
 
 print(loaded)
 """

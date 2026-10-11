@@ -56,14 +56,14 @@ asyncio.run(main())
 
 Both return a `Signature`:
 
-| Field                                  | Meaning                                                                                                     |
-|----------------------------------------|-------------------------------------------------------------------------------------------------------------|
-| `signature.uri`                        | the fingerprint itself, base64 inside a `data:audio/vnd.shazam.sig` URI                                     |
-| `signature.samples`                    | duration of the analysed segment in milliseconds                                                            |
-| `timestamp`, `signature.timestamp`     | when the signature was produced, in epoch milliseconds. Both hold the same reading                          |
-| `timezone`, `geolocation`              | fixed values the request envelope carries. They are not read from the machine and mean nothing on their own |
+| Field               | Meaning                                                                                       |
+|---------------------|-----------------------------------------------------------------------------------------------|
+| `signature.uri`     | the fingerprint itself, base64 inside a `data:audio/vnd.shazam.sig` URI                       |
+| `signature.samples` | duration of the analysed segment in milliseconds                                              |
+| `timestamp`         | when the signature was produced, in epoch milliseconds                                        |
+| `timezone`          | a fixed value the request envelope carries. It is not read from the machine and means nothing |
 
-Every field above is read only: assigning to one raises `AttributeError`.
+Every field above is read only: assigning to one raises `AttributeError`. Neither class can be built by hand: `Signature()` raises `TypeError`.
 
 The URI is the part a client sends on:
 

@@ -26,7 +26,7 @@ def test_every_public_name_reports_the_package_as_its_module(name: str) -> None:
 
     `pyo3` builds `tp_name` from the `module` argument of `#[pyclass]` and falls back
     to `builtins`, which every class here used to inherit, so `repr()` read
-    `<builtins.Geolocation object at 0x...>` and `pickle` could not name the class.
+    `<builtins.Signature object at 0x...>` and `pickle` could not name the class.
     https://github.com/PyO3/pyo3/blob/v0.29.2/src/pyclass/create_type_object.rs#L610-L616
     """
     declared = getattr(shazamio_core, name)
