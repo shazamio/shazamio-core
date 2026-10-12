@@ -55,7 +55,9 @@ class Signature:
 @final
 class SearchParams:
     """
-    Search parameters for the recognize method.
+    Search parameters for one recognize call. Passed as `options`, they replace the
+    recognizer's `segment_duration_seconds` for that call, a bare `SearchParams()`
+    included.
 
     **segment_duration_seconds**: The duration (in seconds) of the audio segment to analyze.
         - **Default:** 10 seconds.
@@ -93,7 +95,8 @@ class Recognizer:
 
     def __new__(cls, segment_duration_seconds: int | None = None) -> Recognizer:
         """
-        :param segment_duration_seconds: The duration (in seconds) of the audio segment to analyze.
+        :param segment_duration_seconds: The duration (in seconds) of the audio segment to analyze,
+            for every recognize call that passes no `SearchParams` of its own.
             - **Default:** 10 seconds.
             - **If the audio file is longer than this duration**, a centered segment of the specified duration is selected.
               - Example: If the audio is **60 seconds** and `segment_duration_seconds = 10`, the extracted segment will be **from 25s to 35s**.
