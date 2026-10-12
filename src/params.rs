@@ -50,10 +50,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_segment_duration_defaults_to_ten_seconds() {
+    fn the_segment_duration_defaults_to_twelve_seconds() {
         assert_eq!(
             SearchParams::new(None).unwrap().segment_duration_seconds,
-            10
+            12
         );
         assert_eq!(
             SearchParams::new(Some(4)).unwrap().segment_duration_seconds,

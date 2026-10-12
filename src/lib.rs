@@ -176,8 +176,8 @@ mod tests {
 
     // The same default `SearchParams` carries, and `shazamio_core.pyi` documents.
     #[test]
-    fn a_recognizer_defaults_to_a_ten_second_segment() {
-        assert_eq!(Recognizer::new(None).unwrap().segment_duration_seconds, 10);
+    fn a_recognizer_defaults_to_a_twelve_second_segment() {
+        assert_eq!(Recognizer::new(None).unwrap().segment_duration_seconds, 12);
         assert_eq!(
             Recognizer::new(Some(4)).unwrap().segment_duration_seconds,
             4
