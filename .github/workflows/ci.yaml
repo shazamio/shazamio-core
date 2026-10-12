@@ -520,6 +520,28 @@ jobs:
           merge-multiple: true
           path: dist
 
+      # Tag `1.2.1` pointed at a tree still versioned `1.2.0`: the upload skipped
+      #  the `1.2.0` files as already on PyPI and the run went green, so release
+      #  `1.2.1` advertised a version never published. The files are what ships, so
+      #  their names are what is compared, the sdist included.
+      #  https://github.com/shazamio/shazamio-core/actions/runs/33964215267
+      - name: Refuse files not versioned as the tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          status=0
+          for path in dist/*; do
+            name=$(basename "$path")
+            version=${name#*-}
+            version=${version%%-*}
+            version=${version%.tar.gz}
+            if [ "$version" != "$TAG" ]; then
+              echo "::error::$name is version $version, the tag is $TAG"
+              status=1
+            fi
+          done
+          exit "$status"
+
       - name: Publish to PyPI
         uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         env:
