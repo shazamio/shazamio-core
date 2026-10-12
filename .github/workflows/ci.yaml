@@ -520,6 +520,27 @@ jobs:
           merge-multiple: true
           path: dist
 
+      # A tag on a tree whose `Cargo.toml` still holds the previous version builds
+      #  files of that version: `--skip-existing` skips them as already on PyPI, the
+      #  run goes green, and the GitHub release names a version never published. The
+      #  files are what ships, so their names are what is compared, the sdist included.
+      - name: Refuse files not versioned as the tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          status=0
+          for path in dist/*; do
+            name=$(basename "$path")
+            version=${name#*-}
+            version=${version%%-*}
+            version=${version%.tar.gz}
+            if [ "$version" != "$TAG" ]; then
+              echo "::error::$name is version $version, the tag is $TAG"
+              status=1
+            fi
+          done
+          exit "$status"
+
       - name: Publish to PyPI
         uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         env:
