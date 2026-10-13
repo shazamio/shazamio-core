@@ -144,6 +144,45 @@ def test_a_zero_segment_duration_is_refused_on_assignment_too() -> None:
     assert search_parameters.segment_duration_seconds == 12
 
 
+# What the `README` promises: the recognizer's value holds for a call with no
+#  `options`, and a `SearchParams` replaces it for that call, a bare one included.
+#  The recognizer's 3 and the call's 2 sit below the 8-second probe, so each decides
+#  the duration; a bare `SearchParams()` asks for more than the file holds, so it
+#  analyses all 8 seconds rather than the recognizer's 3.
+_PRECEDENCE_CASES: Final[pytest.MarkDecorator] = pytest.mark.parametrize(
+    ("options", "expected_duration_ms"),
+    [
+        pytest.param(None, 3000, id="no-options-uses-the-recognizer"),
+        pytest.param(SearchParams(2), 2000, id="search-params-override"),
+        pytest.param(SearchParams(), _EXPECTED_DURATION_MS, id="bare-search-params-uses-its-own-default"),
+    ],
+)
+
+
+@_PRECEDENCE_CASES
+async def test_recognize_path_prefers_the_call_options_to_the_recognizer(
+    options: SearchParams | None,
+    *,
+    expected_duration_ms: int,
+) -> None:
+    signature = await Recognizer(3).recognize_path(_probe(_GOLDEN_AUDIO_FORMAT), options)
+
+    assert signature.signature.samples == expected_duration_ms
+
+
+@_PRECEDENCE_CASES
+async def test_recognize_bytes_prefers_the_call_options_to_the_recognizer(
+    options: SearchParams | None,
+    *,
+    expected_duration_ms: int,
+) -> None:
+    audio = _probe(_GOLDEN_AUDIO_FORMAT).read_bytes()
+
+    signature = await Recognizer(3).recognize_bytes(audio, options)
+
+    assert signature.signature.samples == expected_duration_ms
+
+
 async def test_recognize_path_accepts_a_string_too(*, recognizer: Recognizer) -> None:
     # `recognize_path` extracts a Rust `PathBuf` through `os.fspath`, so a `str` and
     #  a `Path` both work. It used to extract a `String` and reject a `Path` with
