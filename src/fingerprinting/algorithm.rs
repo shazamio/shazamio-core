@@ -11,7 +11,9 @@ use std::path::Path;
 //  signature declares.
 pub(crate) const SAMPLE_RATE_HZ: u32 = 16000;
 
-pub(crate) const DEFAULT_SEGMENT_SECONDS: u32 = 10;
+// What SongRec takes from the middle of a file, the reference this crate follows.
+//  https://github.com/marin-m/SongRec/blob/eaa3ea3e1ce4da90e71881f9853564937db518a7/src/core/fingerprinting/algorithm.rs#L101-L107
+pub(crate) const DEFAULT_SEGMENT_SECONDS: u32 = 12;
 
 pub struct SignatureGenerator {
     ring_buffer_of_samples: Vec<i16>,

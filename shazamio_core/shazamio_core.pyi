@@ -60,7 +60,7 @@ class SearchParams:
     included.
 
     **segment_duration_seconds**: The duration (in seconds) of the audio segment to analyze.
-        - **Default:** 10 seconds.
+        - **Default:** 12 seconds.
         - **If the audio file is longer than this duration**, a centered segment of the specified duration is selected.
           - Example: If the audio is **60 seconds** and `segment_duration_seconds = 10`, the extracted segment will be **from 25s to 35s**.
         - **If the audio file is shorter than this duration**, the entire file is used.
@@ -97,7 +97,7 @@ class Recognizer:
         """
         :param segment_duration_seconds: The duration (in seconds) of the audio segment to analyze,
             for every recognize call that passes no `SearchParams` of its own.
-            - **Default:** 10 seconds.
+            - **Default:** 12 seconds.
             - **If the audio file is longer than this duration**, a centered segment of the specified duration is selected.
               - Example: If the audio is **60 seconds** and `segment_duration_seconds = 10`, the extracted segment will be **from 25s to 35s**.
             - **If the audio file is shorter than this duration**, the entire file is used.

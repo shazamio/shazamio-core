@@ -140,8 +140,8 @@ def test_a_zero_segment_duration_is_refused_on_assignment_too() -> None:
     with pytest.raises(ValueError):
         search_parameters.segment_duration_seconds = 0
 
-    assert recognizer.segment_duration_seconds == 10
-    assert search_parameters.segment_duration_seconds == 10
+    assert recognizer.segment_duration_seconds == 12
+    assert search_parameters.segment_duration_seconds == 12
 
 
 async def test_recognize_path_accepts_a_string_too(*, recognizer: Recognizer) -> None:
