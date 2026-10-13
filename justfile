@@ -18,11 +18,10 @@ regenerate_image := "shazamio-core-regenerate"
 default:
     @just --list
 
-# --- Setup ---
-
 # Separate from `install` because the CI test matrix wants the environment and
 #  nothing else: `cargo-about` and the hook environments cost minutes on each of
 #  the three runners, and neither is used to run a test.
+[group("setup")]
 [doc("The environment the tests need: the dependencies and the built extension")]
 install-test:
     uv sync
@@ -34,6 +33,7 @@ install-test:
 # Without `--features cli` the install builds no executable at all and says so
 #  only in a warning, because the `cargo-about` binary sits behind that feature.
 #  https://github.com/EmbarkStudios/cargo-about/blob/f7394d5c8f618623573072caadf6594821c789b6/Cargo.toml#L23-L26
+[group("setup")]
 [doc("Everything a checkout needs: the dependencies, `cargo-about` and the `pre-commit` hooks")]
 install: install-test
     cargo install cargo-about --locked --features cli --version "=$(just _pin cargo-about)"
@@ -51,14 +51,14 @@ _pin crate:
     test -n "$version" || { echo "No exact pin for {{ crate }} in tools/Cargo.toml." >&2; exit 1; }
     echo "$version"
 
-# --- Code quality ---
-
+[group("check")]
 [doc("Every check that reads and never writes")]
 lint: lint-rust lint-harness
 
 # `--all-targets` is what reaches the `#[cfg(test)]` modules. The default target
 #  set stops at the library, so every unit test would go unlinted.
 #  https://doc.rust-lang.org/cargo/commands/cargo-clippy.html#target-selection
+[group("check")]
 [doc("Check the formatting and run `clippy`")]
 lint-rust:
     cargo fmt --all --check
@@ -70,6 +70,7 @@ lint-rust:
 #  Given no path it globs the workflows itself. Given one it reads that file as a
 #  workflow, which `.github/actions/*/action.yml` is not: every key of a composite
 #  action is then reported as unexpected.
+[group("check")]
 [doc("Lint the scripts and the workflows, and check what the gate and the filters cover")]
 lint-harness:
     uv run --only-group harness shellcheck $(git ls-files '*.sh')
@@ -78,6 +79,7 @@ lint-harness:
     uv run --only-group harness python scripts/check_ci_filters.py
     uv run --only-group harness python scripts/check_dependabot.py
 
+[group("check")]
 [doc("Reformat the crate")]
 format:
     cargo fmt --all
@@ -89,20 +91,22 @@ format:
 # `stubtest` compares declarations and never reads a call site, so what a caller
 #  may do with what the entry points return is checked by type-checking the suite,
 #  which calls them.
+[group("check")]
 [doc("Check the type stub against the built extension, and the suite against the stub")]
 typecheck:
     uv run python -m mypy.stubtest shazamio_core.shazamio_core
     uv run mypy --strict tests
 
-# --- Tests ---
-
+[group("test")]
 [doc("Run both suites")]
 test: test-rust test-python
 
+[group("test")]
 [doc("Run the Python suite; extra arguments reach `pytest`")]
 test-python *args:
     uv run pytest {{ args }}
 
+[group("test")]
 [doc("Run the Rust suite; extra arguments reach `cargo test`")]
 test-rust *args:
     cargo test {{ args }}
@@ -111,6 +115,7 @@ test-rust *args:
 #  run, each rewriting its `.uri` rather than failing. Inside the image so the bytes
 #  do not depend on the local `ffmpeg` or `libm`; why it pins both is in its header.
 #  Cargo writes to `/tmp` so the host's `target` never mixes with the image's.
+[group("test")]
 [doc("Rewrite every fixture and golden URI in `tests/data`, inside the pinned image")]
 regenerate directory=".":
     docker build --quiet --file docker/regenerate.Dockerfile --tag {{ regenerate_image }} docker
@@ -119,6 +124,7 @@ regenerate directory=".":
       {{ regenerate_image }} bash -c 'tests/data/generate.sh && UPDATE_EXPECT=1 cargo test --lib golden_uri'
 
 # Runs on a copy of the tracked tree as it stands, so the check never writes.
+[group("test")]
 [doc("Check `tests/data` is what `regenerate` writes")]
 regenerate-check:
     #!/usr/bin/env bash
@@ -131,11 +137,10 @@ regenerate-check:
     just regenerate "$copy"
     diff --recursive tests/data "$copy/tests/data"
 
-# --- Release ---
-
 # Everything else builds with current stable, so a `cargo update` can raise the
 #  real floor and stay green. Whoever builds the sdist on a distro toolchain is
 #  the one who finds out.
+[group("release")]
 [doc("Check the crate against the Rust version it declares")]
 msrv:
     #!/usr/bin/env bash
@@ -151,6 +156,7 @@ msrv:
 # What the wheel ships beside `LICENSE`. Some crates carry their licence with
 #  CRLF or a trailing blank line, which the whitespace hooks rewrite: the diff
 #  below then fails on a later commit with no dependency having moved.
+[group("release")]
 [doc("Regenerate the third-party licence notices from `Cargo.lock`")]
 licenses output=notices:
     #!/usr/bin/env bash
@@ -165,6 +171,7 @@ licenses output=notices:
     printf '%s\n' "$(sed 's/[[:space:]]*$//' {{ output }})" > "$normalized"
     cp "$normalized" {{ output }}
 
+[group("release")]
 [doc("Check the committed notices still match `Cargo.lock`")]
 licenses-check:
     #!/usr/bin/env bash
@@ -182,6 +189,7 @@ licenses-check:
 #  a long description PyPI cannot render is reported at upload or not at all.
 #  What ships is decided by `include` in `Cargo.toml`, `license-files` in
 #  `pyproject.toml` and `maturin` itself, none of which can see the others.
+[group("release")]
 [doc("Check the built artifacts in a directory carry and declare what they should")]
 dist-check directory="dist":
     uv run --no-project python scripts/check_dist.py {{ quote(directory) }}
@@ -189,6 +197,7 @@ dist-check directory="dist":
 
 # What a user receives, as opposed to what a wheel contains: nothing else here
 #  installs one, and nothing else loads the extension it carries.
+[group("release")]
 [doc("Install a built wheel outside the checkout and import what it carries")]
 dist-smoketest directory="dist":
     uv run --no-project python scripts/smoketest_dist.py {{ quote(directory) }}
@@ -199,6 +208,7 @@ dist-smoketest directory="dist":
 #  Alpine instead, in an image carrying `uv`, a `python` and no compiler, pinned by
 #  digest for the reason every `uses:` in the workflow is. The wheels mount apart
 #  from the checkout, which the script needs as a directory to compare against.
+[group("release")]
 [doc("Install a built musl wheel inside Alpine and import what it carries")]
 dist-smoketest-musl directory="dist":
     docker run --rm \
@@ -208,7 +218,6 @@ dist-smoketest-musl directory="dist":
         ghcr.io/astral-sh/uv:python3.12-alpine@sha256:bba3bd4965901846f025ae7375402ba859862bb83181f19d7e4a82f0f1f8388e \
         python scripts/smoketest_dist.py /wheels
 
-# --- CI ---
-
+[group("check")]
 [doc("Everything CI gates on; the first run downloads the MSRV toolchain")]
 ci: lint typecheck test msrv licenses-check
