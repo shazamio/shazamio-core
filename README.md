@@ -89,7 +89,7 @@ async def main() -> None:
 
     signature = await recognizer.recognize_path(
         "track.mp3",
-        SearchParams(segment_duration_seconds=15),
+        SearchParams(segment_duration_seconds=8),
     )
 
     print(signature.signature.samples)
@@ -102,6 +102,9 @@ asyncio.run(main())
 `SearchParams()` analyses 10 seconds, not the recognizer's 5. The duration must be
 at least 1; zero raises `ValueError`. A value at or above the length of the file
 analyses it whole, whatever the value.
+
+Shazam returns no matches for a segment of 15 seconds or more:
+https://github.com/shazamio/ShazamIO/issues/150
 
 ### Errors
 
