@@ -75,7 +75,8 @@ data:audio/vnd.shazam.sig;base64,gCX+ypQoAnWcBQAAAJwRlAAAAAA...
 
 Ten seconds by default, taken from the middle of the file. A file shorter than the segment is used whole. Audio is converted to mono and downsampled to 16 kHz before analysis, whatever it started as.
 
-Set it per recognizer, or per call:
+`Recognizer` holds the default for every call; a `SearchParams` passed to one call
+replaces it for that call only, so one recognizer serves both lengths:
 
 ```python
 import asyncio
@@ -88,7 +89,7 @@ async def main() -> None:
 
     signature = await recognizer.recognize_path(
         "track.mp3",
-        SearchParams(segment_duration_seconds=15),
+        SearchParams(segment_duration_seconds=8),
     )
 
     print(signature.signature.samples)
@@ -97,9 +98,13 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-`SearchParams` wins where both are given. The duration must be at least 1; zero
-raises `ValueError`. A value at or above the length of the file analyses it whole,
-whatever the value.
+`SearchParams` wins where both are given, its own default included: a bare
+`SearchParams()` analyses 10 seconds, not the recognizer's 5. The duration must be
+at least 1; zero raises `ValueError`. A value at or above the length of the file
+analyses it whole, whatever the value.
+
+Shazam returns no matches for a segment of 15 seconds or more:
+https://github.com/shazamio/ShazamIO/issues/150
 
 ### Errors
 
