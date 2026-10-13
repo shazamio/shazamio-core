@@ -3,9 +3,9 @@
 `mypy.stubtest` compares declarations against the extension and never reads a call
 site, so nothing else here notices the stub promising a coroutine the runtime does
 not build, a writable attribute it refuses to assign, or an argument it refuses at
-the call. `just typecheck` runs `mypy --strict` over this file, where every ignore
-below goes unused the moment the stub goes back to what it said before and
-`--warn-unused-ignores` fails on it.
+the call. `just typecheck` runs `mypy --strict` over the suite, this file included,
+where every ignore below goes unused the moment the stub goes back to what it said
+before and `--warn-unused-ignores` fails on it.
 """
 
 import asyncio
@@ -39,6 +39,21 @@ async def test_both_entry_points_schedule_without_being_awaited(*, recognizer: R
 
     assert (await pending).signature.uri
     assert len(await gathered) == 1
+
+
+async def test_both_entry_points_can_be_cancelled(*, recognizer: Recognizer) -> None:
+    """The `README` documents cancelling a call, which only a `Future` can declare."""
+    from_path = recognizer.recognize_path(_PROBE)
+    from_bytes = recognizer.recognize_bytes(_PROBE.read_bytes())
+
+    assert from_path.cancel()
+    assert from_bytes.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await from_path
+
+    with pytest.raises(asyncio.CancelledError):
+        await from_bytes
 
 
 async def test_scheduling_the_call_as_a_task_fails(*, recognizer: Recognizer) -> None:

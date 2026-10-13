@@ -13,8 +13,8 @@ tests = [
 ]
 lint = [
     # For `mypy.stubtest`, which checks `shazamio_core.pyi` against the built
-    #  extension, and for `mypy --strict` over `tests/test_typing.py`, the one file
-    #  here it reads. The rest of the tree is checked by neither.
+    #  extension, and for `mypy --strict` over `tests`, which holds the stub to what
+    #  the suite does with it.
     "mypy>=2.3.1",
     # Locked here rather than left to each machine, which is what `just` itself
     #  has to be.

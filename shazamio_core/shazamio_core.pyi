@@ -8,7 +8,7 @@ https://github.com/PyO3/pyo3/blob/v0.29.2/guide/src/type-stub.md
 `mypy.stubtest` checks this file against the compiled module in CI.
 """
 
-from collections.abc import Awaitable
+from asyncio import Future
 from os import PathLike
 from typing import NoReturn, final
 
@@ -108,14 +108,14 @@ class Recognizer:
         """
 
     # The runtime hands back `loop.create_future()` and spawns the work straight
-    #  after, so what these return is an awaitable and never a coroutine.
-    #  `tests/test_typing.py` holds the declaration below to what a caller may do.
+    #  after, so what these return is that `asyncio.Future`, never a coroutine.
+    #  `just typecheck` holds the declaration below to what the test suite does with it.
     #  https://github.com/PyO3/pyo3-async-runtimes/blob/58d42b7a3eb239719175c5587b2b7debd9ee134b/src/generic.rs#L620-L631
     def recognize_path(
         self,
         value: str | PathLike[str],
         options: SearchParams | None = None,
-    ) -> Awaitable[Signature]:
+    ) -> Future[Signature]:
         """
         Recognize audio from a file path.
 
@@ -123,7 +123,7 @@ class Recognizer:
 
         :param value: Path to an audio file.
         :param options: Search parameters.
-        :return: `Awaitable` resolving to a `Signature`.
+        :return: `asyncio.Future` resolving to a `Signature`.
         :raises SignatureError: if an error occurs.
         """
 
@@ -131,7 +131,7 @@ class Recognizer:
         self,
         value: bytes,
         options: SearchParams | None = None,
-    ) -> Awaitable[Signature]:
+    ) -> Future[Signature]:
         """
         Recognize audio from raw bytes.
 
@@ -139,6 +139,6 @@ class Recognizer:
 
         :param value: Raw audio file as bytes.
         :param options: Search parameters.
-        :return: `Awaitable` resolving to a `Signature`.
+        :return: `asyncio.Future` resolving to a `Signature`.
         :raises SignatureError: if an error occurs.
         """
