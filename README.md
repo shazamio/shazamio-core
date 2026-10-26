@@ -18,12 +18,12 @@ uv add shazamio-core
 
 Python 3.11 and newer. Prebuilt wheels:
 
-| Platform                                     | CPython 3.11+ (`abi3`) | PyPy 3.11 |
-|----------------------------------------------|------------------------|-----------|
-| Linux `x86_64`, `aarch64` (`manylinux_2_28`) | yes                    | yes       |
-| Linux `x86_64`, `aarch64` (`musllinux_1_2`)  | yes                    | no        |
-| macOS `x86_64` (10.12+), `arm64` (11.0+)     | yes                    | no        |
-| Windows `win_amd64`, `win32`                 | yes                    | no        |
+| Platform                                     | CPython 3.11+ (`abi3`) | PyPy 3.11, 3.12 |
+|----------------------------------------------|------------------------|-----------------|
+| Linux `x86_64`, `aarch64` (`manylinux_2_28`) | yes                    | yes             |
+| Linux `x86_64`, `aarch64` (`musllinux_1_2`)  | yes                    | no              |
+| macOS `x86_64` (10.12+), `arm64` (11.0+)     | yes                    | no              |
+| Windows `win_amd64`, `win32`                 | yes                    | no              |
 
 Everything else builds from the source distribution, which needs a Rust toolchain 1.87 or newer, CMake and a C compiler. `libopus` is built from vendored sources rather than linked against a system copy, so without CMake the build stops on `is 'cmake' not installed?`.
 
