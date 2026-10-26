@@ -1,9 +1,9 @@
 name: Dependabot auto-merge
 
-# A minor or patch Dependabot bump lands by itself once `CI` passes. Auto-merge only
-#  queues the merge, and the `master` ruleset requiring the `CI` check is what holds
-#  it until then. Without that rule, or with "Allow auto-merge" off in the repository
-#  settings, the step fails and nothing merges.
+# A minor or patch Dependabot bump lands by itself once `CI` passes. The `master`
+#  ruleset requiring the `CI` check is what holds the merge until then. Without that
+#  rule the step fails and nothing merges; with "Allow auto-merge" off in the
+#  repository settings it fails on a pull request still waiting for `CI`.
 #  https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/automate-dependabot-with-actions#enabling-automerge-on-a-pull-request
 on:
   pull_request:
@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   auto-merge:
-    name: Queue the merge
+    name: Merge once `CI` passes
     if: github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -60,7 +60,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
 
       # A major can break what `CI` never runs: the `release` job runs on a tag only.
-      - name: Queue the merge until `CI` passes
+      - name: Merge now, or once `CI` passes
         if: >-
           steps.changes.outputs.regenerate != 'true'
           && steps.changes.outputs.moved-uri != 'true'
