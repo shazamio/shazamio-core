@@ -16,9 +16,9 @@ Or with [uv](https://docs.astral.sh/uv/):
 uv add shazamio-core
 ```
 
-Python 3.10 and newer. Prebuilt wheels:
+Python 3.11 and newer. Prebuilt wheels:
 
-| Platform                                     | CPython 3.10+ (`abi3`) | PyPy 3.11 |
+| Platform                                     | CPython 3.11+ (`abi3`) | PyPy 3.11 |
 |----------------------------------------------|------------------------|-----------|
 | Linux `x86_64`, `aarch64` (`manylinux_2_28`) | yes                    | yes       |
 | Linux `x86_64`, `aarch64` (`musllinux_1_2`)  | yes                    | no        |

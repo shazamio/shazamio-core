@@ -175,8 +175,8 @@ jobs:
   #  because `cargo about` resolves the dependency tree per target and cannot read
   #  a workflow. Adding a target here means adding it there.
 
-  # The wheels below are abi3: one per platform, loading on every CPython from 3.10
-  #  up. There is no per-interpreter matrix any more, so a new CPython release
+  # The wheels below are abi3: one per platform, loading on every CPython from the
+  #  floor up. There is no per-interpreter matrix any more, so a new CPython release
   #  needs no change here and no new release. The floor lives in `Cargo.toml`.
   windows:
     name: Wheel (windows ${{ matrix.target }})
