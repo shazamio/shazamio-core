@@ -102,8 +102,9 @@ updates:
         patterns:
           - pypa/*
       # The images `tests/data` is generated in. A bump of them is committed with
-      #  the regenerated data, which `Fixtures` then compares with itself, so `CI`
-      #  passing proves nothing and the auto-merge workflow skips this group.
+      #  the regenerated data, golden URIs included, which `Fixtures` then compares
+      #  with itself, so `workflows/dependabot-regenerate.yaml` queues the merge
+      #  only while no `.uri` moves, and the auto-merge workflow skips them.
       regenerate:
         patterns:
           - mwader/static-ffmpeg

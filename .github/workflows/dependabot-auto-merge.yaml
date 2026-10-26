@@ -40,11 +40,30 @@ jobs:
         id: metadata
         uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
 
+      # A bump of a `regenerate.Dockerfile` image, grouped or not, is queued by
+      #  `dependabot-regenerate.yaml` instead, which alone sees whether the regenerated
+      #  files moved a golden URI. A moved golden URI waits for a person on any bump,
+      #  since `Fixtures` compares it with itself.
+      - name: Read what the pull request changes
+        id: changes
+        run: |
+          files=$(gh pr diff "$PR_NUMBER" --name-only)
+          if grep --quiet --line-regexp 'docker/regenerate.Dockerfile' <<< "$files"; then
+            echo "regenerate=true" >> "$GITHUB_OUTPUT"
+          fi
+
+          if grep --quiet '^tests/data/.*\.uri$' <<< "$files"; then
+            echo "moved-uri=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
+
       # A major can break what `CI` never runs: the `release` job runs on a tag only.
-      #  The `regenerate` group is skipped at any level, see `dependabot.yml`.
       - name: Queue the merge until `CI` passes
         if: >-
-          steps.metadata.outputs.dependency-group != 'regenerate'
+          steps.changes.outputs.regenerate != 'true'
+          && steps.changes.outputs.moved-uri != 'true'
           && (steps.metadata.outputs.update-type == 'version-update:semver-minor'
           || steps.metadata.outputs.update-type == 'version-update:semver-patch')
         uses: ./.github/actions/auto-merge
