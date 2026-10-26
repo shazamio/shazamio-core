@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Check that a built wheel or source distribution carries what it should."""
 
+import re
 import sys
 import tarfile
 import zipfile
@@ -8,6 +9,8 @@ from dataclasses import dataclass
 from fnmatch import fnmatch
 from pathlib import Path
 from typing import Final
+
+_FLOOR: Final[re.Pattern[str]] = re.compile(r">=3\.(\d+)")
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,12 +86,12 @@ _SDIST: Final[Rules] = Rules(
 
 # A CPython wheel is built against the `pyo3/abi3-py*` floor, so `maturin` tags it
 #  `cp3XY-abi3` and it claims to load on every CPython from that floor up. Drop that
-#  feature and the build silently goes back to one wheel per interpreter version:
-#  the entries and the metadata are identical, so nothing else here would see it.
-#  PyPy has no stable ABI and is tagged after its interpreter on purpose, which is
-#  argued in `docker/build-wheels.sh`.
-def _tag_problems(name: str) -> list[str]:
-    """Report what is wrong with a wheel's compatibility tags, read from its name."""
+#  feature and the build silently goes back to one wheel per interpreter version,
+#  with identical entries and metadata. That floor is set in `Cargo.toml` and the
+#  `Requires-Python` one in `pyproject.toml`, so they can drift apart. PyPy has no
+#  stable ABI and is tagged after its interpreter, argued in `docker/build-wheels.sh`.
+def _tag_problems(name: str, *, requires_python: str | None) -> list[str]:
+    """Report what is wrong with a wheel's tags, read from its name, given its `Requires-Python`."""
     python_tag, abi_tag = name.removesuffix(".whl").split("-")[-3:-1]
 
     if not python_tag.startswith("cp"):
@@ -96,6 +99,18 @@ def _tag_problems(name: str) -> list[str]:
 
     if abi_tag != "abi3":
         return [f"is tagged `{python_tag}-{abi_tag}`, so it is not a limited API wheel"]
+
+    # A missing field is reported with the rest of the metadata.
+    if requires_python is None:
+        return []
+
+    floor = _FLOOR.fullmatch(requires_python)
+
+    if floor is None:
+        return [f"declares `Requires-Python: {requires_python}`, which is not the `>=3.N` form compared with the tag"]
+
+    if python_tag != f"cp3{floor[1]}":
+        return [f"is tagged `{python_tag}` but declares `Requires-Python: {requires_python}`"]
 
     return []
 
@@ -135,8 +150,8 @@ def _read_sdist(path: Path) -> Artifact:
     )
 
 
-def _declared_fields(metadata: str) -> set[str]:
-    fields: set[str] = set()
+def _headers(metadata: str) -> dict[str, str]:
+    headers: dict[str, str] = {}
 
     # Only the headers: the body after the first blank line is the long description,
     #  and a line of it can look exactly like one.
@@ -147,9 +162,9 @@ def _declared_fields(metadata: str) -> set[str]:
         name, separator, value = line.partition(":")
 
         if separator and value.strip():
-            fields.add(name)
+            headers[name] = value.strip()
 
-    return fields
+    return headers
 
 
 def _problems(artifact: Artifact, *, rules: Rules) -> list[str]:
@@ -164,7 +179,7 @@ def _problems(artifact: Artifact, *, rules: Rules) -> list[str]:
             matched = "" if entry == pattern else f", matched by `{pattern}`"
             found.append(f"ships {entry}{matched}")
 
-    declared = _declared_fields(artifact.metadata)
+    declared = _headers(artifact.metadata)
 
     for field in _REQUIRED_METADATA:
         if field not in declared:
@@ -202,11 +217,15 @@ def main() -> int:
     failed: bool = False
 
     for path in wheels:
+        artifact = _read_wheel(path)
         failed |= _check(
             path,
-            artifact=_read_wheel(path),
+            artifact=artifact,
             rules=_WHEEL,
-            name_problems=_tag_problems(path.name),
+            name_problems=_tag_problems(
+                path.name,
+                requires_python=_headers(artifact.metadata).get("Requires-Python"),
+            ),
         )
 
     for path in sdists:
