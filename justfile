@@ -218,6 +218,23 @@ dist-smoketest-musl directory="dist":
         ghcr.io/astral-sh/uv:python3.12-alpine@sha256:bba3bd4965901846f025ae7375402ba859862bb83181f19d7e4a82f0f1f8388e \
         python scripts/smoketest_dist.py /wheels
 
+# PyPy has no stable ABI, so `docker/build-wheels.sh` builds one wheel per PyPy the
+#  manylinux image ships, and the runner's CPython installs none of them. The script
+#  runs under each of them inside that image, which carries `uv` and is built from its
+#  own stage so the tag stays in the `Dockerfile`; `UV_PYTHON` names the interpreter.
+#  https://github.com/astral-sh/uv/blob/46776a95d6686ac0160c10611327ce491e6b202f/crates/uv-cli/src/lib.rs#L3465-L3474
+[group("release")]
+[doc("Install each PyPy wheel under the PyPy it was built for and import what it carries")]
+dist-smoketest-pypy directory="dist":
+    docker build --quiet --load --build-arg BASE_IMAGE=manylinux --target manylinux \
+        --tag shazamio_core-manylinux --file docker/Dockerfile {{ quote(justfile_directory()) }}
+    docker run --rm \
+        --volume {{ quote(justfile_directory()) }}:/src:ro \
+        --volume "$(cd {{ quote(directory) }} && pwd)":/wheels:ro \
+        --workdir /src \
+        shazamio_core-manylinux \
+        bash -ec 'for python in /opt/python/pp*/bin/python; do UV_PYTHON="$python" "$python" scripts/smoketest_dist.py /wheels; done'
+
 [group("check")]
 [doc("Everything CI gates on; the first run downloads the MSRV toolchain")]
 ci: lint typecheck test msrv licenses-check

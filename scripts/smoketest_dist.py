@@ -24,6 +24,11 @@ loaded = Path(shazamio_core.shazamio_core.__file__).resolve()
 if loaded.is_relative_to(Path(sys.argv[1])):
     raise SystemExit(f"imported the checkout rather than the wheel: {loaded}")
 
+# Without `UV_PYTHON`, `uv` runs the probe on the first interpreter it finds, and the
+#  `abi3` wheel in the same directory then installs and passes in its place.
+if sys.implementation.name != sys.argv[2]:
+    raise SystemExit(f"ran on {sys.implementation.name} rather than {sys.argv[2]}")
+
 # Loading the extension proves it links; calling into it proves it runs.
 shazamio_core.SearchParams(segment_duration_seconds=10)
 
@@ -62,7 +67,7 @@ def main() -> int:
         command = [
             "uv", "run", "--no-project", "--no-index", "--find-links", ".",
             "--with", "shazamio_core",
-            "python", "-c", _PROBE, str(checkout),
+            "python", "-c", _PROBE, str(checkout), sys.implementation.name,
         ]
 
         completed = subprocess.run(
