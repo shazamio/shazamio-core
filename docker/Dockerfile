@@ -18,7 +18,7 @@ FROM ${BASE_IMAGE} AS base
 # Only the minimum supported interpreter belongs here: the wheel is `abi3`, so one
 #  is emitted whatever builds it, and this entry stays only so `pip3` below exists
 #  at all. Must match the `abi3-py*` feature in `Cargo.toml`.
-ENV PATH="/root/.cargo/bin:/opt/python/cp310-cp310/bin:$PATH"
+ENV PATH="/root/.cargo/bin:/opt/python/cp311-cp311/bin:$PATH"
 # The one pin lives in `tools/Cargo.toml` and arrives here as a build argument, so
 #  the Linux wheels and the macOS/Windows wheels of a release cannot come out of
 #  different `maturin` versions. Unset is a hard error rather than a default: a

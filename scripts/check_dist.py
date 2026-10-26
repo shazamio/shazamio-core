@@ -81,8 +81,8 @@ _SDIST: Final[Rules] = Rules(
 )
 
 
-# A CPython wheel is built against `pyo3/abi3-py310`, so `maturin` tags it
-#  `cp310-abi3` and it claims to load on every CPython from 3.10 up. Drop that
+# A CPython wheel is built against the `pyo3/abi3-py*` floor, so `maturin` tags it
+#  `cp3XY-abi3` and it claims to load on every CPython from that floor up. Drop that
 #  feature and the build silently goes back to one wheel per interpreter version:
 #  the entries and the metadata are identical, so nothing else here would see it.
 #  PyPy has no stable ABI and is tagged after its interpreter on purpose, which is
