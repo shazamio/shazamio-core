@@ -28,6 +28,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/actions
+          persist-credentials: false
+
       # `update-type` is the highest bump in the pull request, so one major inside a
       #  group keeps the whole group for a person to read.
       #  https://github.com/dependabot/fetch-metadata/blob/25dd0e34f4fe68f24cc83900b1fe3fe149efef98/README.md?plain=1#L66-L67
@@ -35,33 +40,32 @@ jobs:
         id: metadata
         uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
 
+      # A bump of a `regenerate.Dockerfile` image, grouped or not, is queued by
+      #  `dependabot-regenerate.yaml` instead, which alone sees whether the regenerated
+      #  files moved a golden URI. A moved golden URI waits for a person on any bump,
+      #  since `Fixtures` compares it with itself.
+      - name: Read what the pull request changes
+        id: changes
+        run: |
+          files=$(gh pr diff "$PR_NUMBER" --name-only)
+          if grep --quiet --line-regexp 'docker/regenerate.Dockerfile' <<< "$files"; then
+            echo "regenerate=true" >> "$GITHUB_OUTPUT"
+          fi
+
+          if grep --quiet '^tests/data/.*\.uri$' <<< "$files"; then
+            echo "moved-uri=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
+
       # A major can break what `CI` never runs: the `release` job runs on a tag only.
-      #  The `regenerate` group is skipped at any level, see `dependabot.yml`.
-      #
-      # The mutation rather than `gh`: on a pull request GitHub already reports as
-      #  `CLEAN`, which is every one while no check is required, `gh` merges at once
-      #  instead of enabling auto-merge, and a `pypa` bump landed before its `CI` ended.
-      #  The mutation only ever enables auto-merge, and on a `CLEAN` pull request it
-      #  fails with `Pull request is in clean status`, so a missing setting fails the
-      #  step instead of merging.
-      #  https://github.com/cli/cli/blob/ec5b512045db67e5a2a4ff4a1b02660b2fb24390/pkg/cmd/pr/merge/merge.go#L593
-      #  https://github.com/peter-evans/enable-pull-request-automerge/issues/1118
-      #
-      # `MERGE` keeps the bump and its regenerated-files commit together under one
-      #  merge commit, the shape every other change on `master` has. A merge made
-      #  through `GITHUB_TOKEN` starts no `push` run there; every bump was already
-      #  built merged with `master` by its own `CI`.
-      #  https://docs.github.com/en/actions/concepts/security/github_token#when-github_token-triggers-workflow-runs
       - name: Queue the merge until `CI` passes
         if: >-
-          steps.metadata.outputs.dependency-group != 'regenerate'
+          steps.changes.outputs.regenerate != 'true'
+          && steps.changes.outputs.moved-uri != 'true'
           && (steps.metadata.outputs.update-type == 'version-update:semver-minor'
           || steps.metadata.outputs.update-type == 'version-update:semver-patch')
-        run: gh api graphql -f query="$MUTATION" -f id="$PR_ID"
-        env:
-          MUTATION: >-
-            mutation($id: ID!) {
-            enablePullRequestAutoMerge(input: {pullRequestId: $id, mergeMethod: MERGE})
-            { clientMutationId } }
-          PR_ID: ${{ github.event.pull_request.node_id }}
-          GH_TOKEN: ${{ github.token }}
+        uses: ./.github/actions/auto-merge
+        with:
+          enabled: true
