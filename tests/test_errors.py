@@ -17,10 +17,11 @@ from conftest import DATA_DIRECTORY
 
 from shazamio_core import Recognizer, SignatureError
 
-# The first 2 KiB of the file carry the FLAC header, so the probe recognises the
-#  format and then runs out of stream. That is a different failure from a payload
-#  nothing recognises at all, and both are asserted below.
-_TRUNCATED_AUDIO: Final[bytes] = (DATA_DIRECTORY / "probe.flac").read_bytes()[:2048]
+# The first 2 KiB end inside the FLAC metadata, before the first audio frame, so
+#  the probe recognises the format and then runs out of stream. That is a
+#  different failure from a payload nothing recognises at all, and both are
+#  asserted below.
+_CUT_BEFORE_AUDIO: Final[bytes] = (DATA_DIRECTORY / "probe.flac").read_bytes()[:2048]
 
 _UNREADABLE: Final[str] = "unsupported feature: no reader in this build recognises the stream"
 
@@ -49,9 +50,9 @@ async def test_a_path_that_cannot_be_read_names_itself(
         pytest.param(b"", f"the byte payload: {_UNREADABLE}", id="empty"),
         pytest.param(b"not audio at all", f"the byte payload: {_UNREADABLE}", id="not-audio"),
         pytest.param(
-            _TRUNCATED_AUDIO,
+            _CUT_BEFORE_AUDIO,
             "the byte payload: unexpected end of file",
-            id="truncated-audio",
+            id="cut-before-audio",
         ),
     ],
 )
