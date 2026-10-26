@@ -3,7 +3,7 @@
 `maturin --generate-stubs` cannot produce it: the introspection behind it only
 covers a declarative `#[pymodule] mod`, and on a function-form module like ours it
 emits a `__getattr__` returning `Incomplete`, which types every name as `Any`.
-https://github.com/PyO3/pyo3/blob/a70d17f898df41b3d1632ee987f624f5222d8d39/guide/src/type-stub.md#L86-L89
+https://github.com/PyO3/pyo3/blob/a70d17f898df41b3d1632ee987f624f5222d8d39/guide/src/type-stub.md?plain=1#L85-L89
 
 `mypy.stubtest` checks this file against the compiled module in CI.
 """

@@ -16,7 +16,7 @@ def test_package_exports_everything_the_extension_declares() -> None:
     """
     # `pyo3` appends every name to the module's `__all__` as it is added, so the
     #  extension's list is the whole surface the Rust side declares.
-    #  https://github.com/PyO3/pyo3/blob/v0.29.2/src/types/module.rs#L497-L502
+    #  https://github.com/PyO3/pyo3/blob/a70d17f898df41b3d1632ee987f624f5222d8d39/src/types/module.rs#L497-L502
     assert sorted(shazamio_core.__all__) == sorted(extension.__all__)
 
 
@@ -27,7 +27,7 @@ def test_every_public_name_reports_the_package_as_its_module(name: str) -> None:
     `pyo3` builds `tp_name` from the `module` argument of `#[pyclass]` and falls back
     to `builtins`, which every class here used to inherit, so `repr()` read
     `<builtins.Signature object at 0x...>` and `pickle` could not name the class.
-    https://github.com/PyO3/pyo3/blob/v0.29.2/src/pyclass/create_type_object.rs#L610-L616
+    https://github.com/PyO3/pyo3/blob/a70d17f898df41b3d1632ee987f624f5222d8d39/src/pyclass/create_type_object.rs#L610-L616
     """
     declared = getattr(shazamio_core, name)
 

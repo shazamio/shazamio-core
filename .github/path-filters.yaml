@@ -1,7 +1,7 @@
 # Which paths gate which check. `.github/workflows/ci.yaml` reads these outputs;
 #  `.pre-commit-config.yaml` restates the same sets as `re` patterns, because
 #  neither format can read the other.
-#  https://github.com/dorny/paths-filter/blob/ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d/README.md#L115
+#  https://github.com/dorny/paths-filter/blob/ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d/README.md?plain=1#L115
 
 # Whatever decides is in every set below: a change to the workflow, to this file
 #  or to a recipe runs the whole matrix, rather than the part an older decision
