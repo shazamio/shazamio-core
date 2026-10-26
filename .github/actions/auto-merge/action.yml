@@ -1,22 +1,22 @@
-name: Queue or cancel auto-merge
-description: Enable or disable auto-merge on the pull request that triggered the run.
+name: Merge once `CI` passes, or cancel
+description: Merge the pull request that triggered the run once the required checks pass, at once if they already have, or cancel its queued merge.
 
 inputs:
   enabled:
-    description: "`true` queues the merge until the required checks pass, `false` cancels it."
+    description: "`true` merges once the required checks pass, at once if they already have; `false` cancels a queued merge."
     required: true
 
 runs:
   using: composite
   steps:
-    # The mutation rather than `gh`: on a pull request GitHub already reports as
-    #  `CLEAN`, which is every one while no check is required, `gh` merges at once
-    #  instead of enabling auto-merge, and a `pypa` bump landed before its `CI` ended.
-    #  The mutation only ever enables auto-merge, and on a `CLEAN` pull request it
-    #  fails with `Pull request is in clean status`, so a missing setting fails the
-    #  step instead of merging.
+    # On a pull request GitHub reports as `CLEAN`, `UNSTABLE` or `HAS_HOOKS`,
+    #  `gh pr merge --auto` merges at once, since GitHub refuses auto-merge on one that can be
+    #  merged now; a run starting after `CI` passed, a rerun included, then lands the
+    #  bump instead of failing with `Pull request is in clean status`. While no check
+    #  is required every pull request is such, and a `pypa` bump landed before its
+    #  `CI` ended, so the step first fails unless the base requires `CI`.
     #  https://github.com/cli/cli/blob/ec5b512045db67e5a2a4ff4a1b02660b2fb24390/pkg/cmd/pr/merge/merge.go#L593
-    #  https://github.com/peter-evans/enable-pull-request-automerge/issues/1118
+    #  https://github.com/github/docs/blob/b1cce113b64ba25d6c42021e91d788c3adbed6bc/data/reusables/pull_requests/auto-merge-requires-branch-protection.md?plain=1#L2
     #
     # `MERGE` keeps the bump and its regenerated-files commit together under one
     #  merge commit, the shape every other change on `master` has. A merge made
@@ -25,13 +25,19 @@ runs:
     #  https://docs.github.com/en/actions/concepts/security/github_token#when-github_token-triggers-workflow-runs
     - if: inputs.enabled == 'true'
       shell: bash
-      run: gh api graphql -f query="$MUTATION" -f id="$PR_ID"
+      run: |
+        required=$(gh api "repos/$REPO/rules/branches/$BASE" \
+          --jq '.[] | select(.type == "required_status_checks")
+            | .parameters.required_status_checks[].context')
+        grep -qx CI <<< "$required" \
+          || { echo "::error::$BASE does not require the CI check, so the merge would not wait for it"; exit 1; }
+        gh pr merge --auto --merge "$PR_URL"
+        # Off a terminal `gh` prints nothing on success, so say which path ran.
+        gh pr view "$PR_URL" --json state,autoMergeRequest
       env:
-        MUTATION: >-
-          mutation($id: ID!) {
-          enablePullRequestAutoMerge(input: {pullRequestId: $id, mergeMethod: MERGE})
-          { clientMutationId } }
-        PR_ID: ${{ github.event.pull_request.node_id }}
+        REPO: ${{ github.repository }}
+        BASE: ${{ github.base_ref }}
+        PR_URL: ${{ github.event.pull_request.html_url }}
         GH_TOKEN: ${{ github.token }}
 
     - if: inputs.enabled == 'false'
