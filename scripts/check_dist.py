@@ -36,7 +36,7 @@ _REQUIRED_METADATA: Final[tuple[str, ...]] = ("Summary", "License-Expression", "
 
 # A group is one requirement: at least one of its patterns has to match. The
 #  extension is a group because its suffix is `.pyd` on Windows and `.so` elsewhere,
-#  and the PyPy wheel names it after the interpreter rather than `abi3`. Nothing is
+#  and the PyPy wheels name it after the interpreter rather than `abi3`. Nothing is
 #  forbidden: `[tool.maturin]` names no `include`, so what a wheel carries is
 #  `maturin`'s decision alone.
 _WHEEL: Final[Rules] = Rules(
