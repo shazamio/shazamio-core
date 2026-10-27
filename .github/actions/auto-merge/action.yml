@@ -5,6 +5,8 @@ inputs:
   enabled:
     description: "`true` merges once the required checks pass, at once if they already have; `false` cancels a queued merge."
     required: true
+  token:
+    description: The token that merges, read only when `enabled` is `true`; the comment above the merge step says which one and why.
 
 runs:
   using: composite
@@ -19,19 +21,34 @@ runs:
     #  https://github.com/github/docs/blob/b1cce113b64ba25d6c42021e91d788c3adbed6bc/data/reusables/pull_requests/auto-merge-requires-branch-protection.md?plain=1#L2
     #
     # `MERGE` keeps the bump and its regenerated-files commit together under one
-    #  merge commit, the shape every other change on `master` has. A merge made
-    #  through `GITHUB_TOKEN` starts no `push` run there; every bump was already
-    #  built merged with `master` by its own `CI`.
+    #  merge commit, the shape every other change on `master` has.
+    #
+    # A merge made with `GITHUB_TOKEN` starts no `push` run on `master`, the only
+    #  run that builds what two bumps merged minutes apart leave there, since the
+    #  base need not be up to date. `GITHUB_TOKEN` also cannot hold the `workflows`
+    #  permission, so a bump editing `.github/workflows/` fails to queue. The caller
+    #  passes a token with Contents, Pull requests and Workflows write; without the
+    #  secret it passes `github.token`, and both gaps come back.
     #  https://docs.github.com/en/actions/concepts/security/github_token#when-github_token-triggers-workflow-runs
+    #  https://github.com/github/docs/blob/9568e964d18d76267faf57050dc662c450a13214/data/reusables/actions/github-token-available-permissions.md?plain=1#L4-L22
+    #  https://github.com/kairos-io/packages/actions/runs/36784840467/job/110123662107
     - if: inputs.enabled == 'true'
       shell: bash
       run: |
+        # A run anyone else started, the token's owner pushing regenerated files
+        #  included, sees no Dependabot secret and would merge with `github.token`.
+        #  `github.actor` stays the first actor on a rerun.
+        #  https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
+        if [[ $ACTOR != 'dependabot[bot]' ]]; then
+          echo "$ACTOR started this run, not Dependabot, so this run queues nothing."
+          exit 0
+        fi
         required=$(gh api "repos/$REPO/rules/branches/$BASE" \
           --jq '.[] | select(.type == "required_status_checks")
             | .parameters.required_status_checks[].context')
         grep -qx CI <<< "$required" \
           || { echo "::error::$BASE does not require the CI check, so the merge would not wait for it"; exit 1; }
-        gh pr merge --auto --merge "$PR_URL"
+        GH_TOKEN="$MERGE_TOKEN" gh pr merge --auto --merge "$PR_URL"
         # Off a terminal `gh` prints nothing on success, so say which path ran.
         gh pr view "$PR_URL" --json state,autoMergeRequest
       env:
@@ -39,6 +56,8 @@ runs:
         BASE: ${{ github.base_ref }}
         PR_URL: ${{ github.event.pull_request.html_url }}
         GH_TOKEN: ${{ github.token }}
+        MERGE_TOKEN: ${{ inputs.token }}
+        ACTOR: ${{ github.actor }}
 
     - if: inputs.enabled == 'false'
       shell: bash

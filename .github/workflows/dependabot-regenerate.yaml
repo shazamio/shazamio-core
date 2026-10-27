@@ -129,6 +129,7 @@ jobs:
         uses: ./.github/actions/auto-merge
         with:
           enabled: true
+          token: ${{ secrets.DEPENDABOT_PUSH_TOKEN || github.token }}
 
       - name: Leave a regenerated golden URI for a person
         if: >-
