@@ -153,7 +153,7 @@ impl OpusHead {
 /// `symphonia` demuxes Ogg Opus and hands out `CODEC_ID_OPUS` packets already, so
 /// only the codec itself is missing: the status table lists Opus as unsupported and
 /// no `symphonia-codec-opus` crate exists.
-/// https://github.com/pdeljanov/Symphonia#codecs-decoders
+/// https://github.com/pdeljanov/Symphonia/blob/ee35874b571a35a9a6e15d3bc9a3aaf8f11fbeee/README.md?plain=1#L111
 pub struct OpusDecoder {
     decoder: LibopusDecoder,
     codec_parameters: AudioCodecParameters,

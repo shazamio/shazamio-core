@@ -10,7 +10,6 @@ repos:
       - id: check-shebang-scripts-are-executable
       - id: check-symlinks
       - id: check-toml
-      - id: check-vcs-permalinks
       - id: check-yaml
       - id: destroyed-symlinks
       - id: detect-private-key
@@ -95,3 +94,15 @@ repos:
         language: system
         files: ^(\.pre-commit-config\.yaml|justfile|pyproject\.toml|uv\.lock|\.github/.*|.*\.sh|scripts/check_(ci_gate|ci_filters|dependabot)\.py)$
         pass_filenames: false
+
+      # Replaces `check-vcs-permalinks`, whose ref pattern excludes dots, so a tag
+      #  such as `v0.29.2` passed it. A line anchor into a rendered file (Markdown,
+      #  reStructuredText, AsciiDoc, Org) also needs `?plain=1`, or GitHub drops
+      #  the anchor.
+      #  https://github.com/pre-commit/pre-commit-hooks/blob/3e8a8703264a2f4a69428a0aa4dcb512790b2c8c/pre_commit_hooks/check_vcs_permalinks.py#L11-L14
+      #  https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/creating-a-permanent-link-to-a-code-snippet#linking-to-markdown
+      - id: github-permalinks
+        name: links · GitHub links pin a commit, rendered-file anchors carry `?plain=1`
+        entry: 'github\.com/[^/\s]+/[^/\s]+/(blob|tree|blame|raw)/(?![0-9a-fA-F]{40}(?![0-9A-Za-z]))|raw\.githubusercontent\.com/[^/\s]+/[^/\s]+/(?![0-9a-fA-F]{40}/)|github\.com/\S+\.(?i:md|markdown|mdx|rst|adoc|asciidoc|org)#L'
+        language: pygrep
+        types: [text]
