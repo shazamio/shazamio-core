@@ -316,23 +316,17 @@ impl SignatureGenerator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
+    use crate::fingerprinting::{probe_path, DATA_DIRECTORY};
     use symphonia::core::errors::Error as SymphoniaError;
 
-    // The probes and their pinned URIs are the ones `tests/` uses;
-    //  `tests/data/generate.sh` regenerates the audio. Reading them here rather than
+    // The pinned URIs are the ones `tests/` uses. Reading them here rather than
     //  restating the expected bytes keeps one copy of each golden.
     //
     //  A golden URI holds on Linux only, so every test comparing one is ignored
     //  elsewhere. The module docstring of `tests/test_recognizer.py` has the reason
     //  and the CI runs that showed it.
-    const DATA_DIRECTORY: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data");
-
-    fn probe_path(name: &str) -> PathBuf {
-        Path::new(DATA_DIRECTORY).join(name)
-    }
-
-    // `UPDATE_EXPECT=1` rewrites the file instead of failing; `just regenerate` sets it.
+    //
+    //  `UPDATE_EXPECT=1` rewrites the file instead of failing; `just regenerate` sets it.
     fn assert_golden_uri(signature: &DecodedSignature, name: &str) {
         expect_test::expect_file![format!("{DATA_DIRECTORY}/{name}.uri")]
             .assert_eq(&format!("{}\n", signature.encode_to_uri().unwrap()));
@@ -520,27 +514,81 @@ mod tests {
     }
 
     #[test]
-    fn a_recording_cut_short_is_refused() {
-        // Most readers stop on `unexpected end of file` part-way through. MP4 and
-        //  Matroska fail the probe itself, so they report that nothing reads the stream.
+    fn a_recording_cut_short_decodes_what_was_read() {
         for name in [
             "aac.aac",
             "adpcm_ima.wav",
             "adpcm_ms.wav",
-            "alac.m4a",
             "chord.flac",
-            "matroska.webm",
             "pcm_f32.wav",
-            "pcm_s16.aiff",
-            "pcm_s24.caf",
             "probe.flac",
-            "probe.m4a",
             "probe.ogg",
             "probe.opus",
             "surround.opus",
         ] {
+            let whole = decode_probe(name).unwrap().frames;
+            let cut = decode_bytes(first_half_of(name)).unwrap().frames;
+
+            assert!(0 < cut && cut < whole, "{name}: {cut} of {whole} frames");
+        }
+    }
+
+    #[test]
+    fn a_recording_read_past_its_audio_on_open_is_refused_cut_short() {
+        // AIFF and CAF skip over the audio to the chunks after it, and MP4 and Matroska
+        //  look for the index `ffmpeg` writes last, so the cut fails before any packet.
+        //  https://github.com/pdeljanov/Symphonia/blob/ee35874b571a35a9a6e15d3bc9a3aaf8f11fbeee/symphonia-format-riff/src/aiff/mod.rs#L138-L142
+        for name in [
+            "alac.m4a",
+            "matroska.webm",
+            "pcm_s16.aiff",
+            "pcm_s24.caf",
+            "probe.m4a",
+        ] {
             assert!(decode_bytes(first_half_of(name)).is_err(), "{name}");
         }
+    }
+
+    #[test]
+    fn a_wav_streamed_with_its_sizes_unset_decodes_whole() {
+        // What `ffmpeg -f wav -` writes: both RIFF sizes `0xFFFFFFFF`, since a pipe
+        //  cannot seek back to fill them in.
+        for name in ["pcm_f32.wav", "adpcm_ms.wav"] {
+            let mut bytes = std::fs::read(probe_path(name)).unwrap();
+            let data = bytes.windows(4).position(|tag| tag == b"data").unwrap();
+
+            for size in [4, data + 4] {
+                bytes[size..size + 4].copy_from_slice(&u32::MAX.to_le_bytes());
+            }
+
+            assert_eq!(
+                decode_bytes(bytes).unwrap().frames,
+                decode_probe(name).unwrap().frames,
+                "{name}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_stream_cut_before_its_audio_is_refused() {
+        let wav = std::fs::read(probe_path("pcm_f32.wav")).unwrap();
+        let data = wav.windows(4).position(|tag| tag == b"data").unwrap();
+
+        let Err(error) = decode_bytes(wav[..data + 4].to_vec()) else {
+            panic!("a stream cut inside its header decoded");
+        };
+        assert!(
+            matches!(&error, SymphoniaError::IoError(io_error) if io_error.kind() == std::io::ErrorKind::UnexpectedEof),
+            "{error}"
+        );
+
+        let Err(error) = decode_bytes(wav[..data + 8].to_vec()) else {
+            panic!("a stream with no audio decoded");
+        };
+        assert_eq!(
+            error.to_string(),
+            "malformed stream: the stream carries no decodable audio"
+        );
     }
 
     #[test]
@@ -562,7 +610,7 @@ mod tests {
     fn a_chain_cut_inside_its_second_link_loses_that_link() {
         // The reader hits the end while opening the second link and judges it by the
         //  first, which has read its last page, so it reports a clean end. A fix upstream
-        //  fails this test, and the file then belongs with the refused ones above.
+        //  fails this test, as what was read of the second link then decodes too.
         //  https://github.com/pdeljanov/Symphonia/blob/ee35874b571a35a9a6e15d3bc9a3aaf8f11fbeee/symphonia-format-ogg/src/demuxer.rs#L94
         //  https://github.com/pdeljanov/Symphonia/blob/ee35874b571a35a9a6e15d3bc9a3aaf8f11fbeee/symphonia-format-ogg/src/demuxer.rs#L148-L152
         const FIRST_LINK_FRAMES: usize = 16_000;

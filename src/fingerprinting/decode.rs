@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::Cursor;
+use std::io::{Cursor, ErrorKind};
 use std::path::Path;
 use std::sync::OnceLock;
 
@@ -55,6 +55,10 @@ fn decoder_for(format: &dyn FormatReader) -> Result<TrackDecoder, Error> {
     Ok(TrackDecoder { track_id, decoder })
 }
 
+fn is_unexpected_eof(error: &Error) -> bool {
+    matches!(error, Error::IoError(error) if error.kind() == ErrorKind::UnexpectedEof)
+}
+
 /// Reads the packets of one track, decoded and mixed down to mono.
 struct PacketDecoder {
     format: Box<dyn FormatReader>,
@@ -85,6 +89,10 @@ impl PacketDecoder {
                 other => other,
             })?;
 
+        PacketDecoder::from_format(format)
+    }
+
+    fn from_format(format: Box<dyn FormatReader>) -> Result<Self, Error> {
         let track_decoder = decoder_for(format.as_ref())?;
 
         Ok(PacketDecoder {
@@ -97,6 +105,17 @@ impl PacketDecoder {
     fn next_packet(&mut self) -> Result<Option<Packet>, Error> {
         loop {
             let packet = self.format.next_packet();
+
+            // A stream written to a pipe cannot seek back to fill in its length, so
+            //  `ffmpeg -f wav -` declares `0xFFFFFFFF` and the reader runs out first.
+            //  Refused, it raised `unexpected end of file`; Shazam needs only seconds,
+            //  so what was read is fingerprinted, as MPEG audio always was. A frame
+            //  whose length field is damaged runs out the same way, and is cut short too.
+            //  https://github.com/FFmpeg/FFmpeg/blob/894da5ca7d742e4429ffb2af534fcda0103ef593/libavformat/wavenc.c#L313
+            if matches!(&packet, Err(error) if is_unexpected_eof(error)) {
+                return Ok(None);
+            }
+
             if !matches!(packet, Err(Error::ResetRequired)) {
                 return packet;
             }
@@ -107,6 +126,14 @@ impl PacketDecoder {
             //  https://www.rfc-editor.org/rfc/rfc7845#section-2
             self.track_decoder = decoder_for(self.format.as_ref())?;
         }
+    }
+
+    fn end_of_stream_or(&mut self, error: Error) -> Result<Option<AudioSpec>, Error> {
+        if matches!(error, Error::IoError(_)) && self.next_packet()?.is_none() {
+            return Ok(None);
+        }
+
+        Err(error)
     }
 
     /// Fills `mono_frames` with the next packet and reports the spec it decoded under,
@@ -124,7 +151,17 @@ impl PacketDecoder {
                 continue;
             }
 
-            let audio_buffer = self.track_decoder.decoder.decode(&packet)?;
+            // The reader hands over what was left as a short last packet: ADPCM refused
+            //  it with `buffer underrun`, FLAC with `unexpected end of bitstream`, whose
+            //  kind is `Other`. A decoder reads only the packet, so any I/O error means it
+            //  ran short; mid-stream, that still means a damaged packet.
+            //  https://github.com/pdeljanov/Symphonia/blob/ee35874b571a35a9a6e15d3bc9a3aaf8f11fbeee/symphonia-core/src/io/mod.rs#L345-L347
+            //  https://github.com/pdeljanov/Symphonia/blob/ee35874b571a35a9a6e15d3bc9a3aaf8f11fbeee/symphonia-core/src/io/bit.rs#L14-L16
+            if let Err(error) = self.track_decoder.decoder.decode(&packet) {
+                return self.end_of_stream_or(error);
+            }
+
+            let audio_buffer = self.track_decoder.decoder.last_decoded();
             let spec = audio_buffer.spec().clone();
             let channel_count = spec.channels().count();
 
@@ -205,5 +242,234 @@ impl MonoDecoder {
         }
 
         Ok(true)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use symphonia::core::formats::{FormatInfo, MediaInfo, SeekMode, SeekTo, SeekedTo, Track};
+    use symphonia::core::meta::Metadata;
+
+    use crate::fingerprinting::probe_path;
+
+    fn probe(name: &str) -> Box<dyn FormatReader> {
+        let file = File::open(probe_path(name)).unwrap();
+
+        symphonia::default::get_probe()
+            .probe(
+                &Hint::new(),
+                MediaSourceStream::new(Box::new(file), Default::default()),
+                FormatOptions::default(),
+                MetadataOptions::default(),
+            )
+            .unwrap()
+    }
+
+    /// Halves the third packet, where a cut only ever shortens the last one.
+    struct HalvesThirdPacket {
+        format: Box<dyn FormatReader>,
+        packets_read: usize,
+    }
+
+    impl FormatReader for HalvesThirdPacket {
+        fn format_info(&self) -> &FormatInfo {
+            self.format.format_info()
+        }
+
+        fn media_info(&self) -> &MediaInfo {
+            self.format.media_info()
+        }
+
+        fn metadata(&mut self) -> Metadata<'_> {
+            self.format.metadata()
+        }
+
+        fn seek(&mut self, mode: SeekMode, to: SeekTo) -> Result<SeekedTo, Error> {
+            self.format.seek(mode, to)
+        }
+
+        fn tracks(&self) -> &[Track] {
+            self.format.tracks()
+        }
+
+        fn next_packet(&mut self) -> Result<Option<Packet>, Error> {
+            let Some(mut packet) = self.format.next_packet()? else {
+                return Ok(None);
+            };
+
+            self.packets_read += 1;
+            if self.packets_read == 3 {
+                packet.data = packet.data[..packet.data.len() / 2].into();
+            }
+
+            Ok(Some(packet))
+        }
+
+        fn into_inner<'s>(self: Box<Self>) -> MediaSourceStream<'s> {
+            self.format.into_inner()
+        }
+    }
+
+    #[test]
+    fn a_short_packet_mid_stream_is_refused() {
+        let mut packets = PacketDecoder::from_format(Box::new(HalvesThirdPacket {
+            format: probe("adpcm_ms.wav"),
+            packets_read: 0,
+        }))
+        .unwrap();
+        let mut mono_frames = Vec::new();
+
+        let error = loop {
+            match packets.next(&mut mono_frames) {
+                Ok(Some(_)) => continue,
+                Ok(None) => panic!("the stream ended at the short packet"),
+                Err(error) => break error,
+            }
+        };
+
+        assert!(is_unexpected_eof(&error), "{error}");
+    }
+
+    /// Halves the last packet, as a cut inside it does.
+    struct HalvesLastPacket {
+        format: Box<dyn FormatReader>,
+        next: Option<Packet>,
+    }
+
+    impl FormatReader for HalvesLastPacket {
+        fn format_info(&self) -> &FormatInfo {
+            self.format.format_info()
+        }
+
+        fn media_info(&self) -> &MediaInfo {
+            self.format.media_info()
+        }
+
+        fn metadata(&mut self) -> Metadata<'_> {
+            self.format.metadata()
+        }
+
+        fn seek(&mut self, mode: SeekMode, to: SeekTo) -> Result<SeekedTo, Error> {
+            self.format.seek(mode, to)
+        }
+
+        fn tracks(&self) -> &[Track] {
+            self.format.tracks()
+        }
+
+        fn next_packet(&mut self) -> Result<Option<Packet>, Error> {
+            let Some(mut packet) = self
+                .next
+                .take()
+                .map_or_else(|| self.format.next_packet(), |packet| Ok(Some(packet)))?
+            else {
+                return Ok(None);
+            };
+
+            self.next = self.format.next_packet()?;
+            if self.next.is_none() {
+                packet.data = packet.data[..packet.data.len() / 2].into();
+            }
+
+            Ok(Some(packet))
+        }
+
+        fn into_inner<'s>(self: Box<Self>) -> MediaSourceStream<'s> {
+            self.format.into_inner()
+        }
+    }
+
+    #[test]
+    fn a_flac_frame_cut_short_ends_the_stream() {
+        let mut packets = PacketDecoder::from_format(Box::new(HalvesLastPacket {
+            format: probe("chord.flac"),
+            next: None,
+        }))
+        .unwrap();
+        let mut mono_frames = Vec::new();
+        let mut frames = 0;
+
+        while packets.next(&mut mono_frames).unwrap().is_some() {
+            frames += mono_frames.len();
+        }
+
+        assert!(frames > 0);
+    }
+
+    fn decode_to_end(source: Box<dyn MediaSource>) -> Result<usize, Error> {
+        let mut decoder = MonoDecoder::new(source)?;
+        let mut mono_frames = Vec::new();
+        let mut frames = 0;
+
+        while decoder.next_chunk(&mut mono_frames)? {
+            frames += mono_frames.len();
+        }
+
+        Ok(frames)
+    }
+
+    #[test]
+    fn a_damaged_last_packet_is_refused() {
+        let mut wav = std::fs::read(probe_path("adpcm_ms.wav")).unwrap();
+
+        let fmt = wav.windows(4).position(|tag| tag == b"fmt ").unwrap();
+        let data = wav.windows(4).position(|tag| tag == b"data").unwrap();
+        let block_align = u16::from_le_bytes([wav[fmt + 20], wav[fmt + 21]]) as usize;
+        let data_size = u32::from_le_bytes(wav[data + 4..data + 8].try_into().unwrap()) as usize;
+
+        let last_block = data + 8 + (data_size - 1) / block_align * block_align;
+        wav[last_block] = 0xFF;
+
+        let error = decode_to_end(Box::new(Cursor::new(wav))).unwrap_err();
+
+        assert!(!is_unexpected_eof(&error), "{error}");
+    }
+
+    /// A pipe that breaks after `limit` bytes. Seekable, it failed in the probe instead.
+    struct BreaksPastLimit {
+        bytes: Cursor<Vec<u8>>,
+        limit: u64,
+    }
+
+    impl std::io::Read for BreaksPastLimit {
+        fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+            if self.bytes.position() >= self.limit {
+                return Err(std::io::Error::other("the pipe broke"));
+            }
+
+            self.bytes.read(buffer)
+        }
+    }
+
+    impl std::io::Seek for BreaksPastLimit {
+        fn seek(&mut self, position: std::io::SeekFrom) -> std::io::Result<u64> {
+            self.bytes.seek(position)
+        }
+    }
+
+    impl MediaSource for BreaksPastLimit {
+        fn is_seekable(&self) -> bool {
+            false
+        }
+
+        fn byte_len(&self) -> Option<u64> {
+            None
+        }
+    }
+
+    #[test]
+    fn a_read_error_mid_stream_is_refused() {
+        let wav = std::fs::read(probe_path("pcm_f32.wav")).unwrap();
+        let limit = wav.len() as u64 / 2;
+
+        let error = decode_to_end(Box::new(BreaksPastLimit {
+            bytes: Cursor::new(wav),
+            limit,
+        }))
+        .unwrap_err();
+
+        assert_eq!(error.to_string(), "the pipe broke");
     }
 }
