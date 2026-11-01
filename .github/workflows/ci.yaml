@@ -92,7 +92,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.x"
 
@@ -125,7 +125,7 @@ jobs:
       #  links `libpython` instead of borrowing the loader's symbols, and needs an
       #  interpreter built `--enable-shared`, which is what this action ships.
       #  https://github.com/actions/python-versions/blob/c2033aa6c313f068f4bde238bfaa5987ad4f2e79/builders/ubuntu-python-builder.psm1#L37
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.x"
 
@@ -195,7 +195,7 @@ jobs:
       #  pyo3 does not treat 32-bit-on-64-bit Windows as cross-compilation, so it
       #  reads the host interpreter's config and needs a 32-bit one to be present.
       #  https://github.com/PyO3/pyo3/blob/a70d17f898df41b3d1632ee987f624f5222d8d39/pyo3-build-config/src/impl_.rs#L1675-L1679
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.x"
           architecture: ${{ matrix.target }}
@@ -217,7 +217,7 @@ jobs:
         run: just dist-smoketest
 
       - name: Upload wheels
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: wheels-${{ runner.os }}-${{ matrix.target }}
           path: dist
@@ -238,7 +238,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.x"
 
@@ -259,7 +259,7 @@ jobs:
         run: just dist-smoketest
 
       - name: Upload wheels
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: wheels-${{ matrix.os }}-${{ matrix.target }}
           path: dist
@@ -384,7 +384,7 @@ jobs:
         run: just dist-smoketest-pypy
 
       - name: Upload wheels
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: wheels-${{ runner.os }}-${{ matrix.name }}
           path: dist
@@ -413,7 +413,7 @@ jobs:
       #  10 GB cache limit this repository has already gone over once, which the
       #  `cache-to` line of the `linux` job argues. A pull request would export a
       #  release `target/` nothing else can read, and it is the largest thing here.
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           cache-targets: "false"
           save-if: ${{ github.ref == 'refs/heads/master' }}
@@ -431,7 +431,7 @@ jobs:
           just test-python
 
       - name: Upload sdist
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: wheels-sdist
           path: dist
@@ -519,7 +519,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: wheels-*
           merge-multiple: true
