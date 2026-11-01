@@ -9,7 +9,7 @@
 #  runs on an arm64 host too, so that host writes the same bytes.
 FROM --platform=linux/amd64 mwader/static-ffmpeg:9.0.2-1@sha256:f5d100184884eb3e82b0eb14bb5ebf98da99826ac824989720297fb9ef21c822 AS ffmpeg
 
-FROM rust:1.99.0-slim-trixie@sha256:24e632c09342c20abf8312cf4f61430a911c01ed3a5e4c02b87292b1c39c5273
+FROM rust:1.99.0-slim-trixie@sha256:2752b332db73fdbb7dc576f06c82ed1f312005784ef913d7e04a28f5f55dc581
 
 # The test binary is an executable rather than an extension module, so it links
 #  `libpython`, which `python3-dev` carries. `opusic-sys` builds the bundled
