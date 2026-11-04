@@ -14,7 +14,7 @@ path = "lib.rs"
 [dependencies]
 # Exact: another version rewrites `THIRD-PARTY-NOTICES.md` and turns a green branch
 #  red with nobody having touched the tree.
-cargo-about = "=0.9.2"
+cargo-about = "=0.9.3"
 # What every wheel of a release is built with, read by `.github/workflows/ci.yaml`.
 #  Released to `crates.io` and PyPI under the same version.
 maturin = "=1.15.0"
