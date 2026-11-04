@@ -1005,7 +1005,7 @@ SOFTWARE.
 
 ## MIT License
 
-- `tokio 1.53.3` (https://github.com/tokio-rs/tokio)
+- `tokio 1.54.1` (https://github.com/tokio-rs/tokio)
 
 ```text
 MIT License
