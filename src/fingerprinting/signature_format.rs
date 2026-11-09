@@ -87,6 +87,12 @@ fn encode_peaks(peaks: &[FrequencyPeak]) -> Vec<u8> {
 }
 
 impl Fingerprint {
+    // Computed in `f32` and truncated, as every release has reported it; exact
+    //  integer division moves 4016 samples at 16 kHz from 250 ms to 251 ms.
+    pub fn duration_ms(&self) -> u32 {
+        (self.sample_count as f32 / self.sample_rate_hz as f32 * 1000.0) as u32
+    }
+
     pub fn encode(&self) -> Vec<u8> {
         let mut bands: Vec<_> = self.peaks_by_band.iter().collect();
         bands.sort_by_key(|(band, _)| **band);

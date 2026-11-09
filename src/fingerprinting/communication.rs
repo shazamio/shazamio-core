@@ -4,24 +4,28 @@ use std::time::SystemTime;
 use crate::fingerprinting::signature_format::Fingerprint;
 use crate::response::{Signature, SignatureSong};
 
-pub fn get_signature_json(signature: &Fingerprint) -> Result<Signature, Box<dyn Error>> {
-    // Epoch milliseconds, whole: the client posts this field to the endpoint as it
-    //  stands, and fills it with `int(time.time() * 1000)` on its other code path. A
-    //  `u32` here wrapped it every 49.7 days, so the two disagreed.
-    //  https://github.com/shazamio/ShazamIO/blob/b5321b5c15d88ed98663420e63916704c6537512/shazamio/api.py#L548-L553
-    let timestamp_ms = u64::try_from(
-        SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)?
-            .as_millis(),
-    )?;
-    let samples = (signature.sample_count as f32 / signature.sample_rate_hz as f32 * 1000.) as u32;
+const REQUEST_TIMEZONE: &str = "Europe/Paris";
+
+// Whole epoch milliseconds: the client posts this field to the endpoint as it
+//  stands, and fills it with `int(time.time() * 1000)` on its other code path. A
+//  `u32` here wrapped it every 49.7 days, so the two disagreed.
+//  https://github.com/shazamio/ShazamIO/blob/b5321b5c15d88ed98663420e63916704c6537512/shazamio/api.py#L548-L553
+fn epoch_milliseconds() -> Result<u64, Box<dyn Error>> {
+    let elapsed = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?;
+
+    Ok(u64::try_from(elapsed.as_millis())?)
+}
+
+pub fn get_signature_json(fingerprint: &Fingerprint) -> Result<Signature, Box<dyn Error>> {
+    let song = SignatureSong {
+        samples: fingerprint.duration_ms(),
+        uri: fingerprint.to_data_uri(),
+    };
+
     Ok(Signature {
-        signature: SignatureSong {
-            samples,
-            uri: signature.to_data_uri(),
-        },
-        timestamp: timestamp_ms,
-        timezone: "Europe/Paris".to_string(),
+        signature: song,
+        timestamp: epoch_milliseconds()?,
+        timezone: REQUEST_TIMEZONE.to_string(),
     })
 }
 
@@ -30,46 +34,35 @@ mod tests {
     use super::*;
     use std::collections::HashMap;
 
-    fn epoch_milliseconds() -> u64 {
-        u64::try_from(
-            SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_millis(),
-        )
-        .unwrap()
+    fn fingerprint(sample_count: u32) -> Fingerprint {
+        Fingerprint {
+            sample_rate_hz: 16000,
+            sample_count,
+            peaks_by_band: HashMap::new(),
+        }
     }
 
     #[test]
     fn the_sample_count_is_reported_as_a_duration_in_milliseconds() {
-        let decoded = Fingerprint {
-            sample_rate_hz: 16000,
-            sample_count: 24_500,
-            peaks_by_band: HashMap::new(),
-        };
-        let expected_uri = decoded.to_data_uri();
+        let fingerprint = fingerprint(24_500);
 
-        let signature = get_signature_json(&decoded).unwrap();
+        let signature = get_signature_json(&fingerprint).unwrap();
 
-        // `samples` names a duration, not a count: the sample count over the sample
-        //  rate, truncated to whole milliseconds.
         assert_eq!(signature.signature.samples, 1531);
-
         assert_eq!(signature.timezone, "Europe/Paris");
-        assert_eq!(signature.signature.uri, expected_uri);
+        assert_eq!(signature.signature.uri, fingerprint.to_data_uri());
+    }
+
+    #[test]
+    fn the_duration_keeps_the_released_f32_truncation() {
+        assert_eq!(fingerprint(4016).duration_ms(), 250);
     }
 
     #[test]
     fn the_timestamp_is_the_clock_in_whole_milliseconds() {
-        let decoded = Fingerprint {
-            sample_rate_hz: 16000,
-            sample_count: 16_000,
-            peaks_by_band: HashMap::new(),
-        };
-
-        let before = epoch_milliseconds();
-        let signature = get_signature_json(&decoded).unwrap();
-        let after = epoch_milliseconds();
+        let before = epoch_milliseconds().unwrap();
+        let signature = get_signature_json(&fingerprint(16_000)).unwrap();
+        let after = epoch_milliseconds().unwrap();
 
         assert!(signature.timestamp >= before);
         assert!(signature.timestamp <= after);
