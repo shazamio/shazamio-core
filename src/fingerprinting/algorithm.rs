@@ -1,7 +1,7 @@
 use crate::fingerprinting::decode::MonoDecoder;
 use crate::fingerprinting::hanning::HANNING_WINDOW_2048_MULTIPLIERS;
 use crate::fingerprinting::resample::Resampling;
-use crate::fingerprinting::signature_format::{DecodedSignature, FrequencyBand, FrequencyPeak};
+use crate::fingerprinting::signature_format::{Fingerprint, FrequencyBand, FrequencyPeak};
 use chfft::RFft1D;
 use std::collections::HashMap;
 use std::error::Error;
@@ -186,9 +186,9 @@ fn pick_peaks(history: &History, peaks: &mut HashMap<FrequencyBand, Vec<Frequenc
         };
 
         peaks.entry(band).or_default().push(FrequencyPeak {
-            fft_pass_number: frame_index,
-            peak_magnitude: magnitude as u16,
-            corrected_peak_frequency_bin: refined_bin,
+            frame: frame_index,
+            magnitude: magnitude as u16,
+            refined_bin,
         });
     }
 }
@@ -244,14 +244,14 @@ fn middle_segment(samples: &[i16], segment_duration_seconds: Option<u32>) -> &[i
 pub fn fingerprint_bytes(
     bytes: Vec<u8>,
     segment_duration_seconds: Option<u32>,
-) -> Result<DecodedSignature, Box<dyn Error>> {
+) -> Result<Fingerprint, Box<dyn Error>> {
     fingerprint_decoded(MonoDecoder::from_bytes(bytes)?, segment_duration_seconds)
 }
 
 pub fn fingerprint_file(
     file_path: &Path,
     segment_duration_seconds: Option<u32>,
-) -> Result<DecodedSignature, Box<dyn Error>> {
+) -> Result<Fingerprint, Box<dyn Error>> {
     // Read through as it decodes rather than with `fs::read`, which held the whole
     //  file: 30 minutes of stereo FLAC is 230 MB of bytes before a sample is decoded.
     fingerprint_decoded(MonoDecoder::from_file(file_path)?, segment_duration_seconds)
@@ -260,7 +260,7 @@ pub fn fingerprint_file(
 fn fingerprint_decoded(
     decoder: MonoDecoder,
     segment_duration_seconds: Option<u32>,
-) -> Result<DecodedSignature, Box<dyn Error>> {
+) -> Result<Fingerprint, Box<dyn Error>> {
     let samples = pcm_samples(decoder)?;
 
     Ok(fingerprint_samples(middle_segment(
@@ -270,17 +270,17 @@ fn fingerprint_decoded(
 }
 
 // A trailing part of a hop is dropped, as the frames advance a whole hop at a time.
-pub fn fingerprint_samples(samples: &[i16]) -> DecodedSignature {
+pub fn fingerprint_samples(samples: &[i16]) -> Fingerprint {
     let mut spectrogram = Spectrogram::new();
 
     for hop in samples.chunks_exact(HOP_LENGTH) {
         spectrogram.push_hop(hop);
     }
 
-    DecodedSignature {
+    Fingerprint {
         sample_rate_hz: SAMPLE_RATE_HZ,
-        number_samples: samples.len() as u32,
-        frequency_band_to_sound_peaks: spectrogram.peaks,
+        sample_count: samples.len() as u32,
+        peaks_by_band: spectrogram.peaks,
     }
 }
 
@@ -298,9 +298,9 @@ mod tests {
     //  and the CI runs that showed it.
     //
     //  `UPDATE_EXPECT=1` rewrites the file instead of failing; `just regenerate` sets it.
-    fn assert_golden_uri(signature: &DecodedSignature, name: &str) {
+    fn assert_golden_uri(signature: &Fingerprint, name: &str) {
         expect_test::expect_file![format!("{DATA_DIRECTORY}/{name}.uri")]
-            .assert_eq(&format!("{}\n", signature.encode_to_uri().unwrap()));
+            .assert_eq(&format!("{}\n", signature.to_data_uri()));
     }
 
     struct ProbeShape {
@@ -606,16 +606,16 @@ mod tests {
         //  defines, not only some of them.
         let signature = fingerprint_file(&probe_path("probe.flac"), None).unwrap();
 
-        let mut bands: Vec<_> = signature.frequency_band_to_sound_peaks.keys().collect();
+        let mut bands: Vec<_> = signature.peaks_by_band.keys().collect();
         bands.sort();
 
         assert_eq!(
             bands,
             vec![
-                &FrequencyBand::_250_520,
-                &FrequencyBand::_520_1450,
-                &FrequencyBand::_1450_3500,
-                &FrequencyBand::_3500_5500,
+                &FrequencyBand::Hz250To520,
+                &FrequencyBand::Hz520To1450,
+                &FrequencyBand::Hz1450To3500,
+                &FrequencyBand::Hz3500To5500,
             ],
         );
     }
@@ -635,7 +635,7 @@ mod tests {
         //  makes this the probe a decoding or resampling change is judged on.
         let signature = fingerprint_file(&probe_path("chord.flac"), None).unwrap();
 
-        let top_band = &signature.frequency_band_to_sound_peaks[&FrequencyBand::_3500_5500];
+        let top_band = &signature.peaks_by_band[&FrequencyBand::Hz3500To5500];
 
         assert!(
             top_band.len() > 20,
@@ -650,13 +650,10 @@ mod tests {
         let from_bytes =
             fingerprint_bytes(std::fs::read(probe_path("probe.flac")).unwrap(), Some(4)).unwrap();
 
-        assert_eq!(from_file.number_samples, 4 * 16000);
+        assert_eq!(from_file.sample_count, 4 * 16000);
 
         // Both entry points cut the same window, so they fingerprint the same audio.
-        assert_eq!(
-            from_bytes.encode_to_uri().unwrap(),
-            from_file.encode_to_uri().unwrap(),
-        );
+        assert_eq!(from_bytes.to_data_uri(), from_file.to_data_uri(),);
     }
 
     // `probe.flac` is lossless, so its audio is the `aevalsrc` expression in
@@ -736,8 +733,8 @@ mod tests {
             )
             .unwrap();
 
-            assert_eq!(from_file.number_samples, WHOLE_FILE_SAMPLES, "{duration}");
-            assert_eq!(from_bytes.number_samples, WHOLE_FILE_SAMPLES, "{duration}");
+            assert_eq!(from_file.sample_count, WHOLE_FILE_SAMPLES, "{duration}");
+            assert_eq!(from_bytes.sample_count, WHOLE_FILE_SAMPLES, "{duration}");
         }
     }
 
@@ -750,10 +747,7 @@ mod tests {
 
         // The path form is what the golden above pins, so comparing the two carries
         //  the same guarantee on Linux and still runs everywhere else.
-        assert_eq!(
-            from_bytes.encode_to_uri().unwrap(),
-            from_file.encode_to_uri().unwrap(),
-        );
+        assert_eq!(from_bytes.to_data_uri(), from_file.to_data_uri(),);
     }
 
     #[test]

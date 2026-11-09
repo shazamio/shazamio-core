@@ -1,10 +1,10 @@
 use std::error::Error;
 use std::time::SystemTime;
 
-use crate::fingerprinting::signature_format::DecodedSignature;
+use crate::fingerprinting::signature_format::Fingerprint;
 use crate::response::{Signature, SignatureSong};
 
-pub fn get_signature_json(signature: &DecodedSignature) -> Result<Signature, Box<dyn Error>> {
+pub fn get_signature_json(signature: &Fingerprint) -> Result<Signature, Box<dyn Error>> {
     // Epoch milliseconds, whole: the client posts this field to the endpoint as it
     //  stands, and fills it with `int(time.time() * 1000)` on its other code path. A
     //  `u32` here wrapped it every 49.7 days, so the two disagreed.
@@ -14,12 +14,11 @@ pub fn get_signature_json(signature: &DecodedSignature) -> Result<Signature, Box
             .duration_since(SystemTime::UNIX_EPOCH)?
             .as_millis(),
     )?;
-    let samples =
-        (signature.number_samples as f32 / signature.sample_rate_hz as f32 * 1000.) as u32;
+    let samples = (signature.sample_count as f32 / signature.sample_rate_hz as f32 * 1000.) as u32;
     Ok(Signature {
         signature: SignatureSong {
             samples,
-            uri: signature.encode_to_uri()?,
+            uri: signature.to_data_uri(),
         },
         timestamp: timestamp_ms,
         timezone: "Europe/Paris".to_string(),
@@ -43,12 +42,12 @@ mod tests {
 
     #[test]
     fn the_sample_count_is_reported_as_a_duration_in_milliseconds() {
-        let decoded = DecodedSignature {
+        let decoded = Fingerprint {
             sample_rate_hz: 16000,
-            number_samples: 24_500,
-            frequency_band_to_sound_peaks: HashMap::new(),
+            sample_count: 24_500,
+            peaks_by_band: HashMap::new(),
         };
-        let expected_uri = decoded.encode_to_uri().unwrap();
+        let expected_uri = decoded.to_data_uri();
 
         let signature = get_signature_json(&decoded).unwrap();
 
@@ -62,10 +61,10 @@ mod tests {
 
     #[test]
     fn the_timestamp_is_the_clock_in_whole_milliseconds() {
-        let decoded = DecodedSignature {
+        let decoded = Fingerprint {
             sample_rate_hz: 16000,
-            number_samples: 16_000,
-            frequency_band_to_sound_peaks: HashMap::new(),
+            sample_count: 16_000,
+            peaks_by_band: HashMap::new(),
         };
 
         let before = epoch_milliseconds();

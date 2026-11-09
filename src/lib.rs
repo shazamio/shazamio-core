@@ -8,7 +8,7 @@ use crate::errors::SignatureError;
 use crate::params::{validated_segment_seconds, SearchParams};
 use crate::response::{Signature, SignatureSong};
 use crate::utils::get_python_future;
-use crate::utils::unwrap_decoded_signature;
+use crate::utils::signature_response;
 use fingerprinting::algorithm::{fingerprint_bytes, fingerprint_file, DEFAULT_SEGMENT_SECONDS};
 use log::{debug, info, LevelFilter};
 use pyo3::exceptions::PyRuntimeError;
@@ -112,7 +112,7 @@ impl Recognizer {
                 })?;
 
             debug!("Successfully generated signature from bytes");
-            unwrap_decoded_signature(data)
+            signature_response(data)
         };
 
         let python_future = get_python_future(py, future);
@@ -155,7 +155,7 @@ impl Recognizer {
                 })?;
 
             debug!("Successfully generated signature from file");
-            unwrap_decoded_signature(data)
+            signature_response(data)
         };
 
         let python_future = get_python_future(py, future);
