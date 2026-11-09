@@ -1,10 +1,10 @@
 use crate::fingerprinting::decode::MonoDecoder;
-use crate::fingerprinting::hanning::HANNING_WINDOW_2048_MULTIPLIERS;
 use crate::fingerprinting::resample::Resampling;
 use crate::fingerprinting::signature_format::{Fingerprint, FrequencyBand, FrequencyPeak};
 use chfft::RFft1D;
 use std::collections::HashMap;
 use std::error::Error;
+use std::f64::consts::PI;
 use std::path::Path;
 
 // The rate every entry point resamples to before fingerprinting, and the rate the
@@ -75,6 +75,7 @@ impl History {
 
 struct Spectrogram {
     fft: RFft1D<f32>,
+    window: Vec<f32>,
     samples: [i16; FRAME_LENGTH],
     history: History,
     peaks: HashMap<FrequencyBand, Vec<FrequencyPeak>>,
@@ -89,6 +90,7 @@ impl Spectrogram {
 
         Spectrogram {
             fft: RFft1D::new(FRAME_LENGTH),
+            window: hann_window(),
             samples: [0; FRAME_LENGTH],
             history: History {
                 frames: vec![silence; HISTORY_LENGTH],
@@ -130,7 +132,7 @@ impl Spectrogram {
         let windowed: Vec<f32> = self
             .samples
             .iter()
-            .zip(HANNING_WINDOW_2048_MULTIPLIERS)
+            .zip(&self.window)
             .map(|(&sample, weight)| sample as f32 * weight)
             .collect();
 
@@ -191,6 +193,16 @@ fn pick_peaks(history: &History, peaks: &mut HashMap<FrequencyBand, Vec<Frequenc
             refined_bin,
         });
     }
+}
+
+// `numpy.hanning(FRAME_LENGTH + 2)[1:-1]`: a Hann window whose zero ends fall just
+//  outside the frame, so no sample inside it is weighted to nothing.
+fn hann_window() -> Vec<f32> {
+    let period = (FRAME_LENGTH + 1) as f64;
+
+    (1..=FRAME_LENGTH)
+        .map(|position| (PI * position as f64 / period).sin().powi(2) as f32)
+        .collect()
 }
 
 // The scale the signature format stores a peak's magnitude in.
