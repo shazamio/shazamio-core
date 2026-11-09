@@ -1,146 +1,153 @@
 use base64::engine::general_purpose;
 use base64::Engine;
-use byteorder::{LittleEndian, WriteBytesExt};
-use crc32fast::Hasher;
-use std::cmp::Ordering;
 use std::collections::HashMap;
-use std::error::Error;
-use std::io::{Cursor, Seek, SeekFrom, Write};
 
 const DATA_URI_PREFIX: &str = "data:audio/vnd.shazam.sig;base64,";
 
+const HEADER_LENGTH: usize = 48;
+const HEADER_MAGIC: u32 = 0xcafe_2580;
+const HEADER_SECOND_MAGIC: u32 = 0x9411_9c00;
+const HEADER_FIXED_VALUE: u32 = 0x007c_0000;
+const SAMPLE_RATE_ID_SHIFT: u32 = 27;
+const BODY_MAGIC: u32 = 0x4000_0000;
+const BAND_MARKER_BASE: u32 = 0x6003_0040;
+
+// A frame delta this large does not fit its byte, so the frame index is written whole.
+const FRAME_ESCAPE: u8 = 0xff;
+
 pub struct FrequencyPeak {
-    pub fft_pass_number: u32,
-    pub peak_magnitude: u16,
-    pub corrected_peak_frequency_bin: u16,
+    pub frame: u32,
+    pub magnitude: u16,
+    // In 1/64 of an FFT bin.
+    pub refined_bin: u16,
 }
 
-#[derive(Hash, Eq, PartialEq, Debug, Clone, Copy)]
+#[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Debug, Clone, Copy)]
 pub enum FrequencyBand {
-    _250_520 = 0,
-    _520_1450 = 1,
-    _1450_3500 = 2,
-    _3500_5500 = 3,
+    Hz250To520 = 0,
+    Hz520To1450 = 1,
+    Hz1450To3500 = 2,
+    Hz3500To5500 = 3,
 }
 
-impl Ord for FrequencyBand {
-    fn cmp(&self, other: &Self) -> Ordering {
-        (*self as i32).cmp(&(*other as i32))
+impl FrequencyBand {
+    pub fn containing(frequency_hz: u32) -> Option<Self> {
+        match frequency_hz {
+            250..=519 => Some(FrequencyBand::Hz250To520),
+            520..=1449 => Some(FrequencyBand::Hz520To1450),
+            1450..=3499 => Some(FrequencyBand::Hz1450To3500),
+            3500..=5500 => Some(FrequencyBand::Hz3500To5500),
+            _ => None,
+        }
     }
 }
 
-impl PartialOrd for FrequencyBand {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-pub struct DecodedSignature {
+pub struct Fingerprint {
     pub sample_rate_hz: u32,
-    pub number_samples: u32,
-    pub frequency_band_to_sound_peaks: HashMap<FrequencyBand, Vec<FrequencyPeak>>,
+    pub sample_count: u32,
+    pub peaks_by_band: HashMap<FrequencyBand, Vec<FrequencyPeak>>,
 }
 
-impl DecodedSignature {
-    pub fn encode_to_binary(&self) -> Result<Vec<u8>, Box<dyn Error>> {
-        let mut cursor = Cursor::new(vec![]);
+fn sample_rate_id(sample_rate_hz: u32) -> u32 {
+    match sample_rate_hz {
+        8000 => 1,
+        11025 => 2,
+        16000 => 3,
+        32000 => 4,
+        44100 => 5,
+        48000 => 6,
+        _ => panic!("Invalid sample rate {sample_rate_hz} for a signature"),
+    }
+}
 
-        // The names below are the fields of `RawSignatureHeader` in the project this was
-        //  ported from, which says what each one holds. Only its decoder needed the struct.
-        //  https://github.com/marin-m/SongRec/blob/50b72aab457718fd0b2a814aa002149cea37453a/src/core/fingerprinting/signature_format.rs#L24
+fn encode_peaks(peaks: &[FrequencyPeak]) -> Vec<u8> {
+    let mut encoded = Vec::with_capacity(peaks.len() * 5);
+    let mut previous_frame = 0;
 
-        cursor.write_u32::<LittleEndian>(0xcafe2580)?; // magic1
-        cursor.write_u32::<LittleEndian>(0)?; // crc32 - Will write later
-        cursor.write_u32::<LittleEndian>(0)?; // size_minus_header - Will write later
-        cursor.write_u32::<LittleEndian>(0x94119c00)?; // magic2
+    for peak in peaks {
+        let mut delta = peak
+            .frame
+            .checked_sub(previous_frame)
+            .expect("the peaks of a band are in frame order");
 
-        cursor.write_u32::<LittleEndian>(0)?; // void1
-        cursor.write_u32::<LittleEndian>(0)?;
-        cursor.write_u32::<LittleEndian>(0)?;
-
-        cursor.write_u32::<LittleEndian>(
-            match self.sample_rate_hz {
-                8000 => 1,
-                11025 => 2,
-                16000 => 3,
-                32000 => 4,
-                44100 => 5,
-                48000 => 6,
-                _ => {
-                    panic!("Invalid sample rate passed when encoding Shazam packet");
-                }
-            } << 27,
-        )?; // shifted_sample_rate_id
-
-        cursor.write_u32::<LittleEndian>(0)?; // void2
-        cursor.write_u32::<LittleEndian>(0)?;
-        cursor.write_u32::<LittleEndian>(
-            self.number_samples + (self.sample_rate_hz as f32 * 0.24) as u32,
-        )?; // number_samples_plus_divided_sample_rate
-        cursor.write_u32::<LittleEndian>((15 << 19) + 0x40000)?; // fixed_value
-
-        cursor.write_u32::<LittleEndian>(0x40000000)?;
-        cursor.write_u32::<LittleEndian>(0)?; // size_minus_header - Will write later
-
-        let mut sorted_iterator: Vec<_> = self.frequency_band_to_sound_peaks.iter().collect();
-        sorted_iterator.sort_by(|x, y| x.0.cmp(y.0));
-
-        for (frequency_band, frequency_peaks) in sorted_iterator {
-            let mut peaks_cursor = Cursor::new(vec![]);
-
-            let mut fft_pass_number = 0;
-
-            for frequency_peak in frequency_peaks {
-                assert!(frequency_peak.fft_pass_number >= fft_pass_number);
-
-                if frequency_peak.fft_pass_number - fft_pass_number >= 255 {
-                    peaks_cursor.write_u8(0xff)?;
-                    peaks_cursor.write_u32::<LittleEndian>(frequency_peak.fft_pass_number)?;
-
-                    fft_pass_number = frequency_peak.fft_pass_number;
-                }
-
-                peaks_cursor.write_u8((frequency_peak.fft_pass_number - fft_pass_number) as u8)?;
-
-                peaks_cursor.write_u16::<LittleEndian>(frequency_peak.peak_magnitude)?;
-                peaks_cursor
-                    .write_u16::<LittleEndian>(frequency_peak.corrected_peak_frequency_bin)?;
-
-                fft_pass_number = frequency_peak.fft_pass_number;
-            }
-
-            let peaks_buffer = peaks_cursor.into_inner();
-
-            cursor.write_u32::<LittleEndian>(0x60030040 + *frequency_band as u32)?;
-            cursor.write_u32::<LittleEndian>(peaks_buffer.len() as u32)?;
-            cursor.write_all(&peaks_buffer)?;
-            for _padding_index in 0..((4 - peaks_buffer.len() as u32 % 4) % 4) {
-                cursor.write_u8(0)?;
-            }
+        if delta >= u32::from(FRAME_ESCAPE) {
+            encoded.push(FRAME_ESCAPE);
+            encoded.extend_from_slice(&peak.frame.to_le_bytes());
+            delta = 0;
         }
 
-        let buffer_size = cursor.position() as u32;
+        encoded.push(delta as u8);
+        encoded.extend_from_slice(&peak.magnitude.to_le_bytes());
+        encoded.extend_from_slice(&peak.refined_bin.to_le_bytes());
 
-        cursor.seek(SeekFrom::Start(8))?;
-        cursor.write_u32::<LittleEndian>(buffer_size - 48)?;
-
-        cursor.seek(SeekFrom::Start(48 + 4))?;
-        cursor.write_u32::<LittleEndian>(buffer_size - 48)?;
-
-        cursor.seek(SeekFrom::Start(4))?;
-        let mut hasher = Hasher::new();
-        hasher.update(&cursor.get_ref()[8..]);
-        cursor.write_u32::<LittleEndian>(hasher.finalize())?; // crc32
-
-        Ok(cursor.into_inner())
+        previous_frame = peak.frame;
     }
 
-    pub fn encode_to_uri(&self) -> Result<String, Box<dyn Error>> {
-        Ok(format!(
-            "{}{}",
-            DATA_URI_PREFIX,
-            general_purpose::STANDARD.encode(self.encode_to_binary()?)
-        ))
+    encoded
+}
+
+impl Fingerprint {
+    // Computed in `f32` and truncated, as every release has reported it; exact
+    //  integer division moves 4016 samples at 16 kHz from 250 ms to 251 ms.
+    pub fn duration_ms(&self) -> u32 {
+        (self.sample_count as f32 / self.sample_rate_hz as f32 * 1000.0) as u32
+    }
+
+    pub fn encode(&self) -> Vec<u8> {
+        let mut bands: Vec<_> = self.peaks_by_band.iter().collect();
+        bands.sort_by_key(|(band, _)| **band);
+
+        let mut body = Vec::new();
+        for (band, peaks) in bands {
+            let encoded = encode_peaks(peaks);
+
+            body.extend_from_slice(&(BAND_MARKER_BASE + *band as u32).to_le_bytes());
+            body.extend_from_slice(&(encoded.len() as u32).to_le_bytes());
+            body.extend_from_slice(&encoded);
+            body.resize(body.len().next_multiple_of(4), 0);
+        }
+
+        // The body opens with its own magic and length, and both lengths count them.
+        let body_length = (body.len() + 8) as u32;
+
+        // The format pads the sample count by 240 ms; `* 24 / 100` is exact at every
+        //  rate `sample_rate_id` accepts.
+        let padded_sample_count = self.sample_count + self.sample_rate_hz * 24 / 100;
+
+        let words = [
+            HEADER_MAGIC,
+            0,
+            body_length,
+            HEADER_SECOND_MAGIC,
+            0,
+            0,
+            0,
+            sample_rate_id(self.sample_rate_hz) << SAMPLE_RATE_ID_SHIFT,
+            0,
+            0,
+            padded_sample_count,
+            HEADER_FIXED_VALUE,
+            BODY_MAGIC,
+            body_length,
+        ];
+
+        let mut signature = Vec::with_capacity(HEADER_LENGTH + body_length as usize);
+        for word in words {
+            signature.extend_from_slice(&word.to_le_bytes());
+        }
+        signature.extend_from_slice(&body);
+
+        let checksum = crc32fast::hash(&signature[8..]);
+        signature[4..8].copy_from_slice(&checksum.to_le_bytes());
+
+        signature
+    }
+
+    pub fn to_data_uri(&self) -> String {
+        format!(
+            "{DATA_URI_PREFIX}{}",
+            general_purpose::STANDARD.encode(self.encode())
+        )
     }
 }
 
@@ -148,19 +155,18 @@ impl DecodedSignature {
 mod tests {
     use super::*;
 
-    // Offsets into the 48-byte header, in the order `encode_to_binary` writes it.
-    const MAGIC1_OFFSET: usize = 0;
-    const CRC32_OFFSET: usize = 4;
-    const SIZE_MINUS_HEADER_OFFSET: usize = 8;
-    const MAGIC2_OFFSET: usize = 12;
+    // Offsets into the 48-byte header, in the order `encode` writes it.
+    const MAGIC_OFFSET: usize = 0;
+    const CHECKSUM_OFFSET: usize = 4;
+    const BODY_LENGTH_OFFSET: usize = 8;
+    const SECOND_MAGIC_OFFSET: usize = 12;
 
-    const SHIFTED_SAMPLE_RATE_ID_OFFSET: usize = 28;
-    const NUMBER_SAMPLES_PLUS_OFFSET: usize = 40;
+    const SAMPLE_RATE_ID_OFFSET: usize = 28;
+    const PADDED_SAMPLE_COUNT_OFFSET: usize = 40;
     const FIXED_VALUE_OFFSET: usize = 44;
-    const HEADER_LENGTH: usize = 48;
 
     // The body repeats its own length one `u32` in, and the bands start after that.
-    const BODY_SIZE_OFFSET: usize = HEADER_LENGTH + 4;
+    const BODY_LENGTH_COPY_OFFSET: usize = HEADER_LENGTH + 4;
     const FIRST_BAND_OFFSET: usize = HEADER_LENGTH + 8;
 
     const SAMPLE_RATE_HZ: u32 = 16000;
@@ -169,11 +175,19 @@ mod tests {
         u32::from_le_bytes(encoded[offset..offset + 4].try_into().unwrap())
     }
 
-    fn signature_of(bands: Vec<(FrequencyBand, Vec<FrequencyPeak>)>) -> DecodedSignature {
-        DecodedSignature {
+    fn peak(frame: u32, magnitude: u16, refined_bin: u16) -> FrequencyPeak {
+        FrequencyPeak {
+            frame,
+            magnitude,
+            refined_bin,
+        }
+    }
+
+    fn fingerprint_of(bands: Vec<(FrequencyBand, Vec<FrequencyPeak>)>) -> Fingerprint {
+        Fingerprint {
             sample_rate_hz: SAMPLE_RATE_HZ,
-            number_samples: 128000,
-            frequency_band_to_sound_peaks: bands.into_iter().collect(),
+            sample_count: 128000,
+            peaks_by_band: bands.into_iter().collect(),
         }
     }
 
@@ -195,119 +209,94 @@ mod tests {
 
     #[test]
     fn the_header_carries_the_two_magic_values_and_the_sample_rate_id() {
-        let encoded = signature_of(vec![]).encode_to_binary().unwrap();
+        let encoded = fingerprint_of(vec![]).encode();
 
-        assert_eq!(read_u32(&encoded, MAGIC1_OFFSET), 0xcafe2580);
-        assert_eq!(read_u32(&encoded, MAGIC2_OFFSET), 0x94119c00);
+        assert_eq!(read_u32(&encoded, MAGIC_OFFSET), 0xcafe2580);
+        assert_eq!(read_u32(&encoded, SECOND_MAGIC_OFFSET), 0x94119c00);
         // 16 kHz is sample-rate id 3, and the field holds it shifted left by 27.
-        assert_eq!(read_u32(&encoded, SHIFTED_SAMPLE_RATE_ID_OFFSET), 3 << 27);
+        assert_eq!(read_u32(&encoded, SAMPLE_RATE_ID_OFFSET), 3 << 27);
         assert_eq!(read_u32(&encoded, FIXED_VALUE_OFFSET), (15 << 19) + 0x40000);
     }
 
     #[test]
     fn the_sample_count_is_padded_by_240_ms_worth_of_samples() {
-        let encoded = signature_of(vec![]).encode_to_binary().unwrap();
+        let encoded = fingerprint_of(vec![]).encode();
 
         assert_eq!(
-            read_u32(&encoded, NUMBER_SAMPLES_PLUS_OFFSET),
-            128000 + (SAMPLE_RATE_HZ as f32 * 0.24) as u32,
+            read_u32(&encoded, PADDED_SAMPLE_COUNT_OFFSET),
+            128000 + 3840
         );
     }
 
     #[test]
-    fn every_supported_sample_rate_has_its_own_id() {
-        for (sample_rate_hz, sample_rate_id) in [
-            (8000, 1),
-            (11025, 2),
-            (16000, 3),
-            (32000, 4),
-            (44100, 5),
-            (48000, 6),
+    fn every_supported_sample_rate_has_its_own_id_and_padding() {
+        for (sample_rate_hz, sample_rate_id, padding) in [
+            (8000, 1, 1920),
+            (11025, 2, 2646),
+            (16000, 3, 3840),
+            (32000, 4, 7680),
+            (44100, 5, 10584),
+            (48000, 6, 11520),
         ] {
-            let encoded = DecodedSignature {
+            let encoded = Fingerprint {
                 sample_rate_hz,
-                number_samples: 0,
-                frequency_band_to_sound_peaks: HashMap::new(),
+                sample_count: 0,
+                peaks_by_band: HashMap::new(),
             }
-            .encode_to_binary()
-            .unwrap();
+            .encode();
 
             assert_eq!(
-                read_u32(&encoded, SHIFTED_SAMPLE_RATE_ID_OFFSET),
+                read_u32(&encoded, SAMPLE_RATE_ID_OFFSET),
                 sample_rate_id << 27,
             );
+            assert_eq!(read_u32(&encoded, PADDED_SAMPLE_COUNT_OFFSET), padding);
         }
     }
 
     #[test]
     #[should_panic(expected = "Invalid sample rate")]
     fn an_unsupported_sample_rate_panics() {
-        let signature = DecodedSignature {
+        let fingerprint = Fingerprint {
             sample_rate_hz: 22050,
-            number_samples: 0,
-            frequency_band_to_sound_peaks: HashMap::new(),
+            sample_count: 0,
+            peaks_by_band: HashMap::new(),
         };
 
-        signature.encode_to_binary().unwrap();
+        fingerprint.encode();
     }
 
     #[test]
     fn both_length_fields_hold_everything_after_the_header() {
-        let encoded = signature_of(vec![(
-            FrequencyBand::_250_520,
-            vec![FrequencyPeak {
-                fft_pass_number: 0,
-                peak_magnitude: 0x1234,
-                corrected_peak_frequency_bin: 0x5678,
-            }],
+        let encoded = fingerprint_of(vec![(
+            FrequencyBand::Hz250To520,
+            vec![peak(0, 0x1234, 0x5678)],
         )])
-        .encode_to_binary()
-        .unwrap();
+        .encode();
 
         let body_length = (encoded.len() - HEADER_LENGTH) as u32;
 
-        assert_eq!(read_u32(&encoded, SIZE_MINUS_HEADER_OFFSET), body_length);
-        assert_eq!(read_u32(&encoded, BODY_SIZE_OFFSET), body_length);
+        assert_eq!(read_u32(&encoded, BODY_LENGTH_OFFSET), body_length);
+        assert_eq!(read_u32(&encoded, BODY_LENGTH_COPY_OFFSET), body_length);
     }
 
     #[test]
-    fn the_crc32_covers_every_byte_after_itself() {
-        let encoded = signature_of(vec![(
-            FrequencyBand::_1450_3500,
-            vec![FrequencyPeak {
-                fft_pass_number: 3,
-                peak_magnitude: 7,
-                corrected_peak_frequency_bin: 9,
-            }],
-        )])
-        .encode_to_binary()
-        .unwrap();
+    fn the_checksum_covers_every_byte_after_itself() {
+        let encoded =
+            fingerprint_of(vec![(FrequencyBand::Hz1450To3500, vec![peak(3, 7, 9)])]).encode();
 
-        let mut hasher = Hasher::new();
-        hasher.update(&encoded[CRC32_OFFSET + 4..]);
-
-        assert_eq!(read_u32(&encoded, CRC32_OFFSET), hasher.finalize());
+        assert_eq!(
+            read_u32(&encoded, CHECKSUM_OFFSET),
+            crc32fast::hash(&encoded[CHECKSUM_OFFSET + 4..]),
+        );
     }
 
     #[test]
-    fn a_peak_is_written_as_a_delta_from_the_previous_fft_pass() {
-        let encoded = signature_of(vec![(
-            FrequencyBand::_250_520,
-            vec![
-                FrequencyPeak {
-                    fft_pass_number: 0,
-                    peak_magnitude: 0x1234,
-                    corrected_peak_frequency_bin: 0x5678,
-                },
-                FrequencyPeak {
-                    fft_pass_number: 7,
-                    peak_magnitude: 0x4321,
-                    corrected_peak_frequency_bin: 0x8765,
-                },
-            ],
+    fn a_peak_is_written_as_a_delta_from_the_previous_frame() {
+        let encoded = fingerprint_of(vec![(
+            FrequencyBand::Hz250To520,
+            vec![peak(0, 0x1234, 0x5678), peak(7, 0x4321, 0x8765)],
         )])
-        .encode_to_binary()
-        .unwrap();
+        .encode();
 
         assert_eq!(
             &encoded[FIRST_BAND_OFFSET + 8..FIRST_BAND_OFFSET + 18],
@@ -316,45 +305,41 @@ mod tests {
     }
 
     #[test]
-    fn a_gap_of_255_passes_or_more_is_escaped_with_an_absolute_pass_number() {
-        let encoded = signature_of(vec![(
-            FrequencyBand::_250_520,
-            vec![
-                FrequencyPeak {
-                    fft_pass_number: 0,
-                    peak_magnitude: 1,
-                    corrected_peak_frequency_bin: 2,
-                },
-                FrequencyPeak {
-                    fft_pass_number: 300,
-                    peak_magnitude: 3,
-                    corrected_peak_frequency_bin: 4,
-                },
-            ],
-        )])
-        .encode_to_binary()
-        .unwrap();
+    fn a_gap_of_255_frames_or_more_is_escaped_with_an_absolute_frame_index() {
+        // A delta of 255 would read back as the escape byte itself, and 300 does not fit
+        //  a byte, so both write the frame index whole and a zero delta after it.
+        for frame in [255_u32, 300] {
+            let encoded = fingerprint_of(vec![(
+                FrequencyBand::Hz250To520,
+                vec![peak(0, 1, 2), peak(frame, 3, 4)],
+            )])
+            .encode();
 
-        // A delta byte cannot express 300, so the escape writes the pass number whole
-        //  and the delta that follows it is zero.
-        assert_eq!(
-            &encoded[FIRST_BAND_OFFSET + 13..FIRST_BAND_OFFSET + 23],
-            &[0xff, 0x2c, 0x01, 0x00, 0x00, 0, 3, 0, 4, 0],
-        );
+            let mut expected = vec![0xff];
+            expected.extend(frame.to_le_bytes());
+            expected.extend([0, 3, 0, 4, 0]);
+
+            assert_eq!(
+                &encoded[FIRST_BAND_OFFSET + 13..FIRST_BAND_OFFSET + 23],
+                expected.as_slice(),
+            );
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "frame order")]
+    fn peaks_out_of_frame_order_panic() {
+        fingerprint_of(vec![(
+            FrequencyBand::Hz250To520,
+            vec![peak(5, 1, 2), peak(4, 3, 4)],
+        )])
+        .encode();
     }
 
     #[test]
     fn a_band_is_padded_to_a_multiple_of_four_bytes() {
-        let encoded = signature_of(vec![(
-            FrequencyBand::_250_520,
-            vec![FrequencyPeak {
-                fft_pass_number: 0,
-                peak_magnitude: 1,
-                corrected_peak_frequency_bin: 2,
-            }],
-        )])
-        .encode_to_binary()
-        .unwrap();
+        let encoded =
+            fingerprint_of(vec![(FrequencyBand::Hz250To520, vec![peak(0, 1, 2)])]).encode();
 
         // One peak is five bytes, so three bytes of padding follow it.
         assert_eq!(read_u32(&encoded, FIRST_BAND_OFFSET + 4), 5);
@@ -364,54 +349,53 @@ mod tests {
 
     #[test]
     fn bands_are_written_in_ascending_order_whatever_the_map_hands_back() {
-        let peak = || FrequencyPeak {
-            fft_pass_number: 0,
-            peak_magnitude: 1,
-            corrected_peak_frequency_bin: 2,
-        };
-
         // Inserted highest band first, and `HashMap` iteration order is randomised per
-        //  process anyway: the sort in `encode_to_binary` is the only thing making
-        //  the output stable, and the golden fingerprints depend on it.
-        let encoded = signature_of(vec![
-            (FrequencyBand::_3500_5500, vec![peak()]),
-            (FrequencyBand::_520_1450, vec![peak()]),
-            (FrequencyBand::_1450_3500, vec![peak()]),
-            (FrequencyBand::_250_520, vec![peak()]),
+        //  process anyway: the sort in `encode` is the only thing making the output
+        //  stable, and the golden fingerprints depend on it.
+        let encoded = fingerprint_of(vec![
+            (FrequencyBand::Hz3500To5500, vec![peak(0, 1, 2)]),
+            (FrequencyBand::Hz520To1450, vec![peak(0, 1, 2)]),
+            (FrequencyBand::Hz1450To3500, vec![peak(0, 1, 2)]),
+            (FrequencyBand::Hz250To520, vec![peak(0, 1, 2)]),
         ])
-        .encode_to_binary()
-        .unwrap();
+        .encode();
 
         assert_eq!(
             band_markers(&encoded),
             vec![0x60030040, 0x60030041, 0x60030042, 0x60030043],
         );
+    }
 
-        // The sort reaches `Ord`; the `<` here is what reaches `PartialOrd`, and the two
-        //  are written out separately, so a divergence between them would go unnoticed.
-        assert!(FrequencyBand::_250_520 < FrequencyBand::_3500_5500);
-        assert_eq!(
-            FrequencyBand::_520_1450.partial_cmp(&FrequencyBand::_520_1450),
-            Some(Ordering::Equal),
-        );
+    #[test]
+    fn a_frequency_falls_in_the_band_whose_bounds_hold_it() {
+        for (frequency_hz, band) in [
+            (249, None),
+            (250, Some(FrequencyBand::Hz250To520)),
+            (519, Some(FrequencyBand::Hz250To520)),
+            (520, Some(FrequencyBand::Hz520To1450)),
+            (1450, Some(FrequencyBand::Hz1450To3500)),
+            (3500, Some(FrequencyBand::Hz3500To5500)),
+            (5500, Some(FrequencyBand::Hz3500To5500)),
+            (5501, None),
+        ] {
+            assert_eq!(
+                FrequencyBand::containing(frequency_hz),
+                band,
+                "{frequency_hz}"
+            );
+        }
     }
 
     #[test]
     fn the_uri_is_the_prefix_and_the_binary_survives_a_base64_round_trip() {
-        let signature = signature_of(vec![(
-            FrequencyBand::_520_1450,
-            vec![FrequencyPeak {
-                fft_pass_number: 11,
-                peak_magnitude: 22,
-                corrected_peak_frequency_bin: 33,
-            }],
-        )]);
+        let fingerprint =
+            fingerprint_of(vec![(FrequencyBand::Hz520To1450, vec![peak(11, 22, 33)])]);
 
-        let uri = signature.encode_to_uri().unwrap();
+        let uri = fingerprint.to_data_uri();
 
         let payload = uri.strip_prefix(DATA_URI_PREFIX).unwrap();
         let decoded = general_purpose::STANDARD.decode(payload).unwrap();
 
-        assert_eq!(decoded, signature.encode_to_binary().unwrap());
+        assert_eq!(decoded, fingerprint.encode());
     }
 }

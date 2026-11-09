@@ -1,6 +1,6 @@
 use crate::errors::SignatureError;
 use crate::fingerprinting::communication::get_signature_json;
-use crate::fingerprinting::signature_format::DecodedSignature;
+use crate::fingerprinting::signature_format::Fingerprint;
 use crate::response::Signature;
 use pyo3::{Bound, IntoPyObject, PyAny, PyErr, PyResult, Python};
 use pyo3_async_runtimes::err::RustPanic;
@@ -45,8 +45,8 @@ fn panic_message(payload: &(dyn Any + Send)) -> &str {
     }
 }
 
-pub fn unwrap_decoded_signature(data: DecodedSignature) -> Result<Signature, PyErr> {
-    get_signature_json(&data).map_err(|e| {
+pub fn signature_response(fingerprint: Fingerprint) -> Result<Signature, PyErr> {
+    get_signature_json(&fingerprint).map_err(|e| {
         let error_message = format!("{}", e);
         PyErr::new::<SignatureError, _>(error_message)
     })

@@ -8,8 +8,8 @@ use crate::errors::SignatureError;
 use crate::params::{validated_segment_seconds, SearchParams};
 use crate::response::{Signature, SignatureSong};
 use crate::utils::get_python_future;
-use crate::utils::unwrap_decoded_signature;
-use fingerprinting::algorithm::{SignatureGenerator, DEFAULT_SEGMENT_SECONDS};
+use crate::utils::signature_response;
+use fingerprinting::algorithm::{fingerprint_bytes, fingerprint_file, DEFAULT_SEGMENT_SECONDS};
 use log::{debug, info, LevelFilter};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
@@ -103,19 +103,16 @@ impl Recognizer {
 
         let future = async move {
             debug!("Starting async recognition from bytes");
-            let data = SignatureGenerator::make_signature_from_bytes(
-                value,
-                Some(search_options.segment_duration_seconds),
-            )
-            // The failure is reported by being raised, so it is not logged as well, and
-            //  the message names which of the two entry points it came from: `symphonia`
-            //  describes the stream it was given and never where that stream came from.
-            .map_err(|error| {
-                PyErr::new::<SignatureError, _>(format!("the byte payload: {error}"))
-            })?;
+            let data = fingerprint_bytes(value, Some(search_options.segment_duration_seconds))
+                // The failure is reported by being raised, so it is not logged as well, and
+                //  the message names which of the two entry points it came from: `symphonia`
+                //  describes the stream it was given and never where that stream came from.
+                .map_err(|error| {
+                    PyErr::new::<SignatureError, _>(format!("the byte payload: {error}"))
+                })?;
 
             debug!("Successfully generated signature from bytes");
-            unwrap_decoded_signature(data)
+            signature_response(data)
         };
 
         let python_future = get_python_future(py, future);
@@ -149,19 +146,16 @@ impl Recognizer {
 
         let future = async move {
             debug!("Starting async recognition from file: {}", value.display());
-            let data = SignatureGenerator::make_signature_from_file(
-                &value,
-                Some(search_options.segment_duration_seconds),
-            )
-            // Named for the same reason as above, and here the path matters most:
-            //  `File::open` fails with `No such file or directory (os error 2)`, which
-            //  says nothing about which file.
-            .map_err(|error| {
-                PyErr::new::<SignatureError, _>(format!("{}: {error}", value.display()))
-            })?;
+            let data = fingerprint_file(&value, Some(search_options.segment_duration_seconds))
+                // Named for the same reason as above, and here the path matters most:
+                //  `File::open` fails with `No such file or directory (os error 2)`, which
+                //  says nothing about which file.
+                .map_err(|error| {
+                    PyErr::new::<SignatureError, _>(format!("{}: {error}", value.display()))
+                })?;
 
             debug!("Successfully generated signature from file");
-            unwrap_decoded_signature(data)
+            signature_response(data)
         };
 
         let python_future = get_python_future(py, future);

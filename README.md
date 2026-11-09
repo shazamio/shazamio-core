@@ -180,6 +180,17 @@ Setting up a checkout, what to run before a pull request and how commits are sha
 
 MIT. See [LICENSE](LICENSE).
 
+Releases up to and including 2.0.0 contain code from
+[SongRec](https://github.com/marin-m/SongRec/tree/50b72aab457718fd0b2a814aa002149cea37453a),
+which is licensed under GPL-3.0-or-later
+([`Cargo.toml`](https://github.com/marin-m/SongRec/blob/50b72aab457718fd0b2a814aa002149cea37453a/Cargo.toml#L3)):
+the spectrum and peak picking, the signature encoder, the request builder and the Hann
+window table in `src/fingerprinting/`, so redistributing those releases is subject to
+GPL-3.0-or-later. Later releases replace that code with code written for this crate,
+and keep only what interoperability with Shazam requires: the signature format, the
+algorithm's parameters, the timezone value the request declares and the 12 second
+default segment.
+
 The wheel statically links its Rust dependencies, so the terms in
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) apply to it as well. That file
 says how it is generated; `just licenses-check` fails once a dependency change

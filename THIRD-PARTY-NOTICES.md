@@ -15,7 +15,7 @@ from is named beside it. None of them is patched here.
 
 Crates per licence:
 
-- MIT License (`MIT`): 54
+- MIT License (`MIT`): 53
 - Mozilla Public License 2.0 (`MPL-2.0`): 17
 - Apache License 2.0 (`Apache-2.0`): 2
 - BSD 3-Clause "New" or "Revised" License (`BSD-3-Clause`): 1
@@ -1072,7 +1072,6 @@ DEALINGS IN THE SOFTWARE.
 
 ## MIT License
 
-- `byteorder 1.5.0` (https://github.com/BurntSushi/byteorder)
 - `memchr 2.8.3` (https://github.com/BurntSushi/memchr)
 
 ```text
