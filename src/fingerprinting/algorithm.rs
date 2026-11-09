@@ -15,301 +15,272 @@ pub(crate) const SAMPLE_RATE_HZ: u32 = 16000;
 //  https://github.com/marin-m/SongRec/blob/eaa3ea3e1ce4da90e71881f9853564937db518a7/src/core/fingerprinting/algorithm.rs#L101-L107
 pub(crate) const DEFAULT_SEGMENT_SECONDS: u32 = 12;
 
-pub struct SignatureGenerator {
-    ring_buffer_of_samples: Vec<i16>,
-    reordered_ring_buffer_of_samples: Vec<f32>,
-    fft_outputs: Vec<Vec<f32>>,
-    spread_fft_outputs: Vec<Vec<f32>>,
-    ring_buffer_of_samples_index: usize,
-    fft_outputs_index: usize,
-    fft_object: RFft1D<f32>,
-    spread_fft_outputs_index: usize,
-    num_spread_ffts_done: u32,
-    signature: DecodedSignature,
+const FRAME_LENGTH: usize = 2048;
+const HOP_LENGTH: usize = 128;
+const BIN_COUNT: usize = FRAME_LENGTH / 2 + 1;
+
+// Frames are kept by their index modulo this, and every lag below stays under it.
+const HISTORY_LENGTH: usize = 256;
+
+// A frame is judged this many hops after it was computed, once every later frame its
+//  neighbourhood needs exists; its neighbours are read around an older reference frame.
+const PEAK_LAG: usize = 45;
+const REFERENCE_LAG: usize = 48;
+
+// The neighbourhood a peak must beat. A spread value at `bin - 1` already covers bins
+//  `bin - 1` to `bin + 1`, so the reference bin is the one below the candidate.
+const FREQUENCY_NEIGHBOUR_DISTANCES: [usize; 4] = [2, 3, 6, 9];
+const TIME_NEIGHBOUR_DISTANCES: [usize; 7] = [4, 7, 14, 21, 28, 35, 42];
+
+// How many hops back a new frame's spread values are carried.
+const SPREAD_BACK_LAGS: [usize; 3] = [1, 3, 6];
+
+const FIRST_PEAK_BIN: usize = 10;
+const LAST_PEAK_BIN: usize = 1014;
+const MIN_PEAK_POWER: f32 = 1.0 / 64.0;
+
+// `refined_bin` counts in 1/64 of a bin, and one bin is 8000 / 1024 Hz, so a
+//  refined bin is 125 / 1024 Hz.
+const REFINED_BIN_HZ_NUMERATOR: u32 = 125;
+const REFINED_BIN_HZ_DENOMINATOR: u32 = 1024;
+
+#[derive(Clone)]
+struct Frame {
+    power: [f32; BIN_COUNT],
+    spread: [f32; BIN_COUNT],
 }
 
-impl SignatureGenerator {
-    // Decoded, mixed down and resampled a packet at a time, so nothing longer than one
-    //  packet of the source is ever held beside the 16 kHz result.
-    fn pcm_samples(mut decoder: MonoDecoder) -> Result<Vec<i16>, Box<dyn Error>> {
-        let mut resampling = Resampling::new(decoder.spec().rate())?;
-        let mut mono_frames = Vec::new();
+// The slots are zeroed up front and a lag may reach one not written yet, which reads
+//  as silence.
+struct History {
+    frames: Vec<Frame>,
+    count: usize,
+}
 
-        while decoder.next_chunk(&mut mono_frames)? {
-            resampling.push(&mono_frames)?;
-        }
-
-        resampling.finish()
+impl History {
+    fn slot(&self, lag: usize) -> usize {
+        (self.count + HISTORY_LENGTH - 1 - lag) % HISTORY_LENGTH
     }
 
-    // A file no longer than the requested segment is fingerprinted whole; a longer one
-    //  is cut from its middle, where recognition odds are best.
-    fn middle_segment(samples: &[i16], segment_duration_seconds: Option<u32>) -> &[i16] {
-        let duration_seconds = segment_duration_seconds.unwrap_or(DEFAULT_SEGMENT_SECONDS);
-
-        // The product leaves `u32` at 268436 seconds, and `usize` is 32 bits wide on
-        //  the `i686` wheel, so both are too narrow for a duration callers may pass:
-        //  268436 selected 544 ms of an 8 s file instead of the whole of it.
-        let segment_samples =
-            (duration_seconds as u64 * SAMPLE_RATE_HZ as u64).min(usize::MAX as u64) as usize;
-
-        if samples.len() <= segment_samples {
-            return samples;
-        }
-
-        let middle = samples.len() / 2;
-        let half_segment = segment_samples / 2;
-
-        &samples[middle - half_segment..middle + half_segment]
+    fn ago(&self, lag: usize) -> &Frame {
+        &self.frames[self.slot(lag)]
     }
 
-    pub fn make_signature_from_bytes(
-        bytes: Vec<u8>,
-        segment_duration_seconds: Option<u32>,
-    ) -> Result<DecodedSignature, Box<dyn Error>> {
-        SignatureGenerator::make_signature(
-            MonoDecoder::from_bytes(bytes)?,
-            segment_duration_seconds,
-        )
+    fn ago_mut(&mut self, lag: usize) -> &mut Frame {
+        let slot = self.slot(lag);
+
+        &mut self.frames[slot]
     }
+}
 
-    pub fn make_signature_from_file(
-        file_path: &Path,
-        segment_duration_seconds: Option<u32>,
-    ) -> Result<DecodedSignature, Box<dyn Error>> {
-        // Read through as it decodes rather than with `fs::read`, which held the whole
-        //  file: 30 minutes of stereo FLAC is 230 MB of bytes before a sample is decoded.
-        SignatureGenerator::make_signature(
-            MonoDecoder::from_file(file_path)?,
-            segment_duration_seconds,
-        )
-    }
+struct Spectrogram {
+    fft: RFft1D<f32>,
+    samples: [i16; FRAME_LENGTH],
+    history: History,
+    peaks: HashMap<FrequencyBand, Vec<FrequencyPeak>>,
+}
 
-    fn make_signature(
-        decoder: MonoDecoder,
-        segment_duration_seconds: Option<u32>,
-    ) -> Result<DecodedSignature, Box<dyn Error>> {
-        let raw_pcm_samples = SignatureGenerator::pcm_samples(decoder)?;
-        let segment =
-            SignatureGenerator::middle_segment(&raw_pcm_samples, segment_duration_seconds);
-
-        Ok(SignatureGenerator::make_signature_from_buffer(
-            segment.to_vec(),
-        ))
-    }
-
-    pub fn make_signature_from_buffer(s16_mono_16khz_buffer: Vec<i16>) -> DecodedSignature {
-        let mut this = SignatureGenerator {
-            ring_buffer_of_samples: vec![0i16; 2048],
-            ring_buffer_of_samples_index: 0,
-
-            reordered_ring_buffer_of_samples: vec![0.0f32; 2048],
-
-            fft_outputs: vec![vec![0.0f32; 1025]; 256],
-            fft_outputs_index: 0,
-
-            fft_object: RFft1D::new(2048),
-
-            spread_fft_outputs: vec![vec![0.0f32; 1025]; 256],
-            spread_fft_outputs_index: 0,
-
-            num_spread_ffts_done: 0,
-
-            signature: DecodedSignature {
-                sample_rate_hz: SAMPLE_RATE_HZ,
-                number_samples: s16_mono_16khz_buffer.len() as u32,
-                frequency_band_to_sound_peaks: HashMap::new(),
-            },
+impl Spectrogram {
+    fn new() -> Self {
+        let silence = Frame {
+            power: [0.0; BIN_COUNT],
+            spread: [0.0; BIN_COUNT],
         };
-        for chunk in s16_mono_16khz_buffer.chunks_exact(128) {
-            this.do_fft(chunk);
 
-            this.do_peak_spreading();
+        Spectrogram {
+            fft: RFft1D::new(FRAME_LENGTH),
+            samples: [0; FRAME_LENGTH],
+            history: History {
+                frames: vec![silence; HISTORY_LENGTH],
+                count: 0,
+            },
+            peaks: HashMap::new(),
+        }
+    }
 
-            this.num_spread_ffts_done += 1;
+    fn push_hop(&mut self, hop: &[i16]) {
+        self.samples.copy_within(HOP_LENGTH.., 0);
+        self.samples[FRAME_LENGTH - HOP_LENGTH..].copy_from_slice(hop);
 
-            if this.num_spread_ffts_done >= 46 {
-                this.do_peak_recognition();
+        let power = self.power_spectrum();
+
+        let mut spread = power;
+        for (bin, triple) in power.windows(3).enumerate() {
+            spread[bin] = triple[0].max(triple[1]).max(triple[2]);
+        }
+
+        self.history.count += 1;
+
+        for lag in SPREAD_BACK_LAGS {
+            let earlier = &mut self.history.ago_mut(lag).spread;
+
+            for (earlier_value, value) in earlier.iter_mut().zip(&spread) {
+                *earlier_value = earlier_value.max(*value);
             }
         }
 
-        this.signature
+        *self.history.ago_mut(0) = Frame { power, spread };
+
+        if self.history.count > PEAK_LAG {
+            pick_peaks(&self.history, &mut self.peaks);
+        }
     }
 
-    fn do_fft(&mut self, s16_mono_16khz_buffer: &[i16]) {
-        // Copy the 128 input s16le samples to the local ring buffer
+    fn power_spectrum(&mut self) -> [f32; BIN_COUNT] {
+        let windowed: Vec<f32> = self
+            .samples
+            .iter()
+            .zip(HANNING_WINDOW_2048_MULTIPLIERS)
+            .map(|(&sample, weight)| sample as f32 * weight)
+            .collect();
 
-        self.ring_buffer_of_samples
-            [self.ring_buffer_of_samples_index..self.ring_buffer_of_samples_index + 128]
-            .copy_from_slice(s16_mono_16khz_buffer);
-
-        self.ring_buffer_of_samples_index += 128;
-        self.ring_buffer_of_samples_index &= 2047;
-
-        // Reorder the items (put the latest data at end) and apply Hanning window
-
-        for (index, multiplier) in HANNING_WINDOW_2048_MULTIPLIERS.iter().enumerate() {
-            self.reordered_ring_buffer_of_samples[index] = self.ring_buffer_of_samples
-                [(index + self.ring_buffer_of_samples_index) & 2047]
-                as f32
-                * multiplier;
+        let mut power = [0.0; BIN_COUNT];
+        for (value, coefficient) in power.iter_mut().zip(self.fft.forward(&windowed)) {
+            *value = (coefficient.norm_sqr() / 131072.0).max(1e-10);
         }
 
-        // Perform Fast Fourier transform
-        let reordered_slice: &[f32] = self.reordered_ring_buffer_of_samples.as_ref();
+        power
+    }
+}
 
-        let complex_fft_results = self.fft_object.forward(reordered_slice);
+fn pick_peaks(history: &History, peaks: &mut HashMap<FrequencyBand, Vec<FrequencyPeak>>) {
+    let frame_index = (history.count - 1 - PEAK_LAG) as u32;
+    let candidate = &history.ago(PEAK_LAG).power;
+    let reference = &history.ago(REFERENCE_LAG).spread;
 
-        assert_eq!(complex_fft_results.len(), 1025);
+    let time_neighbours: Vec<&[f32; BIN_COUNT]> = TIME_NEIGHBOUR_DISTANCES
+        .iter()
+        .flat_map(|distance| [REFERENCE_LAG - distance, REFERENCE_LAG + distance])
+        .map(|lag| &history.ago(lag).spread)
+        .collect();
 
-        // Turn complex into reals, and put the results into a local array
+    for bin in FIRST_PEAK_BIN..=LAST_PEAK_BIN {
+        let power = candidate[bin];
+        let below = bin - 1;
 
-        let real_fft_results = &mut self.fft_outputs[self.fft_outputs_index];
-
-        for index in 0..=1024 {
-            real_fft_results[index] = ((complex_fft_results[index].re.powi(2)
-                + complex_fft_results[index].im.powi(2))
-                / ((1 << 17) as f32))
-                .max(0.0000000001);
+        if power < MIN_PEAK_POWER || power < reference[below] {
+            continue;
         }
 
-        self.fft_outputs_index += 1;
-        self.fft_outputs_index &= 255;
+        let beats_frequency_neighbours = FREQUENCY_NEIGHBOUR_DISTANCES.iter().all(|distance| {
+            power > reference[below - distance] && power > reference[below + distance]
+        });
+        let beats_time_neighbours = time_neighbours.iter().all(|frame| power > frame[below]);
+
+        if !beats_frequency_neighbours || !beats_time_neighbours {
+            continue;
+        }
+
+        let magnitude = log_magnitude(power);
+        let refined_bin = refine_bin(
+            bin,
+            log_magnitude(candidate[bin - 1]),
+            magnitude,
+            log_magnitude(candidate[bin + 1]),
+        );
+        let frequency_hz =
+            u32::from(refined_bin) * REFINED_BIN_HZ_NUMERATOR / REFINED_BIN_HZ_DENOMINATOR;
+
+        let Some(band) = FrequencyBand::containing(frequency_hz) else {
+            continue;
+        };
+
+        peaks.entry(band).or_default().push(FrequencyPeak {
+            fft_pass_number: frame_index,
+            peak_magnitude: magnitude as u16,
+            corrected_peak_frequency_bin: refined_bin,
+        });
+    }
+}
+
+// The scale the signature format stores a peak's magnitude in.
+fn log_magnitude(power: f32) -> f32 {
+    power.ln().max(1.0 / 64.0) * 1477.3 + 6144.0
+}
+
+// Fits a parabola through the peak and its two neighbours and returns its vertex, in
+//  1/64 of a bin.
+fn refine_bin(bin: usize, below: f32, peak: f32, above: f32) -> u16 {
+    let curvature = peak * 2.0 - below - above;
+    let vertex_offset = (above - below) * 32.0 / curvature;
+
+    (bin as i32 * 64 + vertex_offset as i32) as u16
+}
+
+// Decoded, mixed down and resampled a packet at a time, so nothing longer than one
+//  packet of the source is ever held beside the 16 kHz result.
+fn pcm_samples(mut decoder: MonoDecoder) -> Result<Vec<i16>, Box<dyn Error>> {
+    let mut resampling = Resampling::new(decoder.spec().rate())?;
+    let mut mono_frames = Vec::new();
+
+    while decoder.next_chunk(&mut mono_frames)? {
+        resampling.push(&mono_frames)?;
     }
 
-    fn do_peak_spreading(&mut self) {
-        let real_fft_results =
-            &self.fft_outputs[((self.fft_outputs_index as i32 - 1) & 255) as usize];
+    resampling.finish()
+}
 
-        let spread_fft_results = &mut self.spread_fft_outputs[self.spread_fft_outputs_index];
+// A file no longer than the requested segment is fingerprinted whole; a longer one
+//  is cut from its middle, where recognition odds are best.
+fn middle_segment(samples: &[i16], segment_duration_seconds: Option<u32>) -> &[i16] {
+    let duration_seconds = segment_duration_seconds.unwrap_or(DEFAULT_SEGMENT_SECONDS);
 
-        // Perform frequency-domain spreading of peak values
-        spread_fft_results.copy_from_slice(real_fft_results);
+    // The product leaves `u32` at 268436 seconds, and `usize` is 32 bits wide on
+    //  the `i686` wheel, so both are too narrow for a duration callers may pass:
+    //  268436 selected 544 ms of an 8 s file instead of the whole of it.
+    let segment_samples =
+        (duration_seconds as u64 * SAMPLE_RATE_HZ as u64).min(usize::MAX as u64) as usize;
 
-        for position in 0..=1022 {
-            spread_fft_results[position] = spread_fft_results[position]
-                .max(spread_fft_results[position + 1])
-                .max(spread_fft_results[position + 2]);
-        }
-
-        let spread_fft_results_copy = spread_fft_results.clone();
-
-        for position in 0..=1024 {
-            for former_fft_number in &[1, 3, 6] {
-                let former_fft_output = &mut self.spread_fft_outputs
-                    [((self.spread_fft_outputs_index as i32 - *former_fft_number) & 255) as usize];
-
-                former_fft_output[position] =
-                    former_fft_output[position].max(spread_fft_results_copy[position]);
-            }
-        }
-
-        self.spread_fft_outputs_index += 1;
-        self.spread_fft_outputs_index &= 255;
+    if samples.len() <= segment_samples {
+        return samples;
     }
 
-    fn do_peak_recognition(&mut self) {
-        // Subtracting an array index needs a cast to signed, or it underflows and
-        //  panics at runtime.
+    let middle = samples.len() / 2;
+    let half_segment = segment_samples / 2;
 
-        let fft_minus_46 = &self.fft_outputs[((self.fft_outputs_index as i32 - 46) & 255) as usize];
-        let fft_minus_49 =
-            &self.spread_fft_outputs[((self.spread_fft_outputs_index as i32 - 49) & 255) as usize];
+    &samples[middle - half_segment..middle + half_segment]
+}
 
-        for bin_position in 10..=1014 {
-            // Ensure that the bin is large enough to be a peak
+pub fn fingerprint_bytes(
+    bytes: Vec<u8>,
+    segment_duration_seconds: Option<u32>,
+) -> Result<DecodedSignature, Box<dyn Error>> {
+    fingerprint_decoded(MonoDecoder::from_bytes(bytes)?, segment_duration_seconds)
+}
 
-            if fft_minus_46[bin_position] >= 1.0 / 64.0
-                && fft_minus_46[bin_position] >= fft_minus_49[bin_position - 1]
-            {
-                // Ensure that it is frequency-domain local minimum
+pub fn fingerprint_file(
+    file_path: &Path,
+    segment_duration_seconds: Option<u32>,
+) -> Result<DecodedSignature, Box<dyn Error>> {
+    // Read through as it decodes rather than with `fs::read`, which held the whole
+    //  file: 30 minutes of stereo FLAC is 230 MB of bytes before a sample is decoded.
+    fingerprint_decoded(MonoDecoder::from_file(file_path)?, segment_duration_seconds)
+}
 
-                let mut max_neighbor_in_fft_minus_49: f32 = 0.0;
+fn fingerprint_decoded(
+    decoder: MonoDecoder,
+    segment_duration_seconds: Option<u32>,
+) -> Result<DecodedSignature, Box<dyn Error>> {
+    let samples = pcm_samples(decoder)?;
 
-                for neighbor_offset in &[-10, -7, -4, -3, 1, 2, 5, 8] {
-                    max_neighbor_in_fft_minus_49 = max_neighbor_in_fft_minus_49
-                        .max(fft_minus_49[(bin_position as i32 + *neighbor_offset) as usize]);
-                }
+    Ok(fingerprint_samples(middle_segment(
+        &samples,
+        segment_duration_seconds,
+    )))
+}
 
-                if fft_minus_46[bin_position] > max_neighbor_in_fft_minus_49 {
-                    // Ensure that it is a time-domain local minimum
+// A trailing part of a hop is dropped, as the frames advance a whole hop at a time.
+pub fn fingerprint_samples(samples: &[i16]) -> DecodedSignature {
+    let mut spectrogram = Spectrogram::new();
 
-                    let mut max_neighbor_in_other_adjacent_ffts = max_neighbor_in_fft_minus_49;
+    for hop in samples.chunks_exact(HOP_LENGTH) {
+        spectrogram.push_hop(hop);
+    }
 
-                    for other_offset in &[
-                        -53, -45, 165, 172, 179, 186, 193, 200, 214, 221, 228, 235, 242, 249,
-                    ] {
-                        let other_fft = &self.spread_fft_outputs[((self.spread_fft_outputs_index
-                            as i32
-                            + other_offset)
-                            & 255)
-                            as usize];
-
-                        max_neighbor_in_other_adjacent_ffts =
-                            max_neighbor_in_other_adjacent_ffts.max(other_fft[bin_position - 1]);
-                    }
-
-                    if fft_minus_46[bin_position] > max_neighbor_in_other_adjacent_ffts {
-                        // This is a peak, store the peak
-
-                        let fft_pass_number = self.num_spread_ffts_done - 46;
-
-                        let peak_magnitude: f32 =
-                            fft_minus_46[bin_position].ln().max(1.0 / 64.0) * 1477.3 + 6144.0;
-                        let peak_magnitude_before: f32 =
-                            fft_minus_46[bin_position - 1].ln().max(1.0 / 64.0) * 1477.3 + 6144.0;
-                        let peak_magnitude_after: f32 =
-                            fft_minus_46[bin_position + 1].ln().max(1.0 / 64.0) * 1477.3 + 6144.0;
-
-                        let peak_variation_1: f32 =
-                            peak_magnitude * 2.0 - peak_magnitude_before - peak_magnitude_after;
-                        let peak_variation_2: f32 = (peak_magnitude_after - peak_magnitude_before)
-                            * 32.0
-                            / peak_variation_1;
-
-                        let corrected_peak_frequency_bin: u16 =
-                            ((bin_position as i32 * 64) + (peak_variation_2 as i32)) as u16;
-
-                        assert!(peak_variation_1 >= 0.0);
-
-                        // Convert a FFT bin back to a frequency, given a 16 KHz sample
-                        //  rate, 1024 useful bins and the multiplication by 64 made
-                        //  before storing the information.
-
-                        let frequency_hz: f32 =
-                            corrected_peak_frequency_bin as f32 * (16000.0 / 2.0 / 1024.0 / 64.0);
-
-                        // Ignore peaks outside the 250 Hz to 5.5 KHz range, and store the
-                        //  rest in the lookup table the binary fingerprint is built from.
-
-                        let frequency_band = match frequency_hz as i32 {
-                            250..=519 => FrequencyBand::_250_520,
-                            520..=1449 => FrequencyBand::_520_1450,
-                            1450..=3499 => FrequencyBand::_1450_3500,
-                            3500..=5500 => FrequencyBand::_3500_5500,
-                            _ => {
-                                continue;
-                            }
-                        };
-
-                        self.signature
-                            .frequency_band_to_sound_peaks
-                            .entry(frequency_band)
-                            .or_default();
-
-                        self.signature
-                            .frequency_band_to_sound_peaks
-                            .get_mut(&frequency_band)
-                            .unwrap()
-                            .push(FrequencyPeak {
-                                fft_pass_number,
-                                peak_magnitude: peak_magnitude as u16,
-                                corrected_peak_frequency_bin,
-                            });
-                    }
-                }
-            }
-        }
+    DecodedSignature {
+        sample_rate_hz: SAMPLE_RATE_HZ,
+        number_samples: samples.len() as u32,
+        frequency_band_to_sound_peaks: spectrogram.peaks,
     }
 }
 
@@ -623,8 +594,7 @@ mod tests {
     #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "the golden URI is pinned on Linux")]
     fn the_whole_pipeline_reproduces_the_golden_uri() {
-        let signature =
-            SignatureGenerator::make_signature_from_file(&probe_path("probe.flac"), None).unwrap();
+        let signature = fingerprint_file(&probe_path("probe.flac"), None).unwrap();
 
         assert_golden_uri(&signature, "probe.flac");
     }
@@ -632,10 +602,9 @@ mod tests {
     #[test]
     fn the_whole_pipeline_peaks_in_every_band() {
         // The golden above pins the bytes and runs on Linux alone. This holds
-        //  everywhere: peaks landed in every band, so `do_peak_recognition` ran its
-        //  whole match rather than half of it.
-        let signature =
-            SignatureGenerator::make_signature_from_file(&probe_path("probe.flac"), None).unwrap();
+        //  everywhere: peaks reached every band `FrequencyBand::containing`
+        //  defines, not only some of them.
+        let signature = fingerprint_file(&probe_path("probe.flac"), None).unwrap();
 
         let mut bands: Vec<_> = signature.frequency_band_to_sound_peaks.keys().collect();
         bands.sort();
@@ -654,8 +623,7 @@ mod tests {
     #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "the golden URI is pinned on Linux")]
     fn the_chord_probe_reproduces_its_golden_uri() {
-        let signature =
-            SignatureGenerator::make_signature_from_file(&probe_path("chord.flac"), None).unwrap();
+        let signature = fingerprint_file(&probe_path("chord.flac"), None).unwrap();
 
         assert_golden_uri(&signature, "chord.flac");
     }
@@ -665,8 +633,7 @@ mod tests {
         // `probe.flac` barely reaches the 3500 to 5500 Hz band, so it puts 2 peaks
         //  there against 32 here. `tests/data/generate.sh` says why, and why that
         //  makes this the probe a decoding or resampling change is judged on.
-        let signature =
-            SignatureGenerator::make_signature_from_file(&probe_path("chord.flac"), None).unwrap();
+        let signature = fingerprint_file(&probe_path("chord.flac"), None).unwrap();
 
         let top_band = &signature.frequency_band_to_sound_peaks[&FrequencyBand::_3500_5500];
 
@@ -679,14 +646,9 @@ mod tests {
 
     #[test]
     fn a_segment_shorter_than_the_file_is_cut_from_the_middle() {
-        let from_file =
-            SignatureGenerator::make_signature_from_file(&probe_path("probe.flac"), Some(4))
-                .unwrap();
-        let from_bytes = SignatureGenerator::make_signature_from_bytes(
-            std::fs::read(probe_path("probe.flac")).unwrap(),
-            Some(4),
-        )
-        .unwrap();
+        let from_file = fingerprint_file(&probe_path("probe.flac"), Some(4)).unwrap();
+        let from_bytes =
+            fingerprint_bytes(std::fs::read(probe_path("probe.flac")).unwrap(), Some(4)).unwrap();
 
         assert_eq!(from_file.number_samples, 4 * 16000);
 
@@ -737,8 +699,8 @@ mod tests {
         const FIRST_SAMPLE: usize = 2 * SAMPLE_RATE_HZ as usize;
 
         let decoder = MonoDecoder::from_file(&probe_path("probe.flac")).unwrap();
-        let samples = SignatureGenerator::pcm_samples(decoder).unwrap();
-        let segment = SignatureGenerator::middle_segment(&samples, Some(SEGMENT_SECONDS));
+        let samples = pcm_samples(decoder).unwrap();
+        let segment = middle_segment(&samples, Some(SEGMENT_SECONDS));
 
         // The resampled audio leads the source by about 0.6 of a sample, so the best
         //  alignment is searched for in tenths. A window off by one whole sample moves
@@ -767,12 +729,8 @@ mod tests {
         // 268436 is where the product left `u32`: it selected 544 ms of this file and
         //  reported success, and 268435456 selected nothing at all.
         for duration in [10, 268_436, 268_435_456, u32::MAX] {
-            let from_file = SignatureGenerator::make_signature_from_file(
-                &probe_path("probe.flac"),
-                Some(duration),
-            )
-            .unwrap();
-            let from_bytes = SignatureGenerator::make_signature_from_bytes(
+            let from_file = fingerprint_file(&probe_path("probe.flac"), Some(duration)).unwrap();
+            let from_bytes = fingerprint_bytes(
                 std::fs::read(probe_path("probe.flac")).unwrap(),
                 Some(duration),
             )
@@ -787,9 +745,8 @@ mod tests {
     fn the_bytes_of_a_file_fingerprint_the_same_as_its_path() {
         let probe = std::fs::read(probe_path("probe.flac")).unwrap();
 
-        let from_bytes = SignatureGenerator::make_signature_from_bytes(probe, None).unwrap();
-        let from_file =
-            SignatureGenerator::make_signature_from_file(&probe_path("probe.flac"), None).unwrap();
+        let from_bytes = fingerprint_bytes(probe, None).unwrap();
+        let from_file = fingerprint_file(&probe_path("probe.flac"), None).unwrap();
 
         // The path form is what the golden above pins, so comparing the two carries
         //  the same guarantee on Linux and still runs everywhere else.
@@ -801,9 +758,9 @@ mod tests {
 
     #[test]
     fn input_no_decoder_understands_is_an_error() {
-        let not_audio = SignatureGenerator::make_signature_from_bytes(b"not audio".to_vec(), None);
+        let not_audio = fingerprint_bytes(b"not audio".to_vec(), None);
         let script = Path::new(DATA_DIRECTORY).join("generate.sh");
-        let not_a_sound_file = SignatureGenerator::make_signature_from_file(&script, None);
+        let not_a_sound_file = fingerprint_file(&script, None);
 
         assert!(not_audio.is_err());
         assert!(not_a_sound_file.is_err());

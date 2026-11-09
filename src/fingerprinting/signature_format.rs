@@ -23,6 +23,18 @@ pub enum FrequencyBand {
     _3500_5500 = 3,
 }
 
+impl FrequencyBand {
+    pub fn containing(frequency_hz: u32) -> Option<Self> {
+        match frequency_hz {
+            250..=519 => Some(FrequencyBand::_250_520),
+            520..=1449 => Some(FrequencyBand::_520_1450),
+            1450..=3499 => Some(FrequencyBand::_1450_3500),
+            3500..=5500 => Some(FrequencyBand::_3500_5500),
+            _ => None,
+        }
+    }
+}
+
 impl Ord for FrequencyBand {
     fn cmp(&self, other: &Self) -> Ordering {
         (*self as i32).cmp(&(*other as i32))
