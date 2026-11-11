@@ -452,7 +452,7 @@ DEALINGS IN THE SOFTWARE.
 ## MIT License
 
 - `bitflags 2.13.2` (https://github.com/bitflags/bitflags)
-- `log 0.4.34` (https://github.com/rust-lang/log)
+- `log 0.4.35` (https://github.com/rust-lang/log)
 - `num-complex 0.4.6` (https://github.com/rust-num/num-complex)
 - `num-integer 0.1.47` (https://github.com/rust-num/num-integer)
 - `num-traits 0.2.19` (https://github.com/rust-num/num-traits)
@@ -930,7 +930,7 @@ SOFTWARE.
 
 ## MIT License
 
-- `crc32fast 1.5.3` (https://github.com/srijs/rust-crc32fast)
+- `crc32fast 1.5.4` (https://github.com/srijs/rust-crc32fast)
 
 ```text
 MIT License
