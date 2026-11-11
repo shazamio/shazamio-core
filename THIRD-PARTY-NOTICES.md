@@ -620,7 +620,7 @@ THE SOFTWARE.
 ## MIT License
 
 - `arc-swap 1.9.2` (https://github.com/vorner/arc-swap)
-- `pyo3-log 0.13.4` (https://github.com/vorner/pyo3-log)
+- `pyo3-log 0.13.5` (https://github.com/vorner/pyo3-log)
 
 ```text
 Copyright (c) 2017 arc-swap developers
