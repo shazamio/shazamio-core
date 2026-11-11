@@ -17,4 +17,4 @@ path = "lib.rs"
 cargo-about = "=0.9.3"
 # What every wheel of a release is built with, read by `.github/workflows/ci.yaml`.
 #  Released to `crates.io` and PyPI under the same version.
-maturin = "=1.15.0"
+maturin = "=1.16.0"
