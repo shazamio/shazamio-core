@@ -930,7 +930,7 @@ SOFTWARE.
 
 ## MIT License
 
-- `crc32fast 1.5.4` (https://github.com/srijs/rust-crc32fast)
+- `crc32fast 1.5.5` (https://github.com/srijs/rust-crc32fast)
 
 ```text
 MIT License
