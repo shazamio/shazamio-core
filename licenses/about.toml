@@ -25,12 +25,13 @@ ignore-dev-dependencies = true
 #  https://embarkstudios.github.io/cargo-about/cli/generate/config.html
 private = { ignore = true }
 
-# The six targets the wheels are built for, so a crate pulled in by a `cfg()`
+# The seven targets the wheels are built for, so a crate pulled in by a `cfg()`
 #  none of them match stays out of the notices. Canonical list:
 #  `.github/workflows/ci.yaml`.
 targets = [
     "x86_64-unknown-linux-gnu",
     "aarch64-unknown-linux-gnu",
+    "riscv64gc-unknown-linux-gnu",
     "x86_64-apple-darwin",
     "aarch64-apple-darwin",
     "x86_64-pc-windows-msvc",

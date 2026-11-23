@@ -385,11 +385,13 @@ jobs:
             os: ubuntu-24.04-arm
             base: manylinux
             smoketest: dist-smoketest
+
           - name: manylinux-x86
             arch: x86_64
             os: ubuntu-latest
             base: manylinux
             smoketest: dist-smoketest
+
           # A musl system matches neither `manylinux` tag, so an install on one built
           #  the crate from source instead: a Rust toolchain and a C compiler first,
           #  then the `libopus` that `opus` bundles. Alpine is the common case.
@@ -398,14 +400,43 @@ jobs:
             os: ubuntu-24.04-arm
             base: musllinux
             smoketest: dist-smoketest-musl
+
           - name: musllinux-x86
             arch: x86_64
             os: ubuntu-latest
             base: musllinux
             smoketest: dist-smoketest-musl
+
+          # No hosted runner is riscv64, so both legs build and smoketest under QEMU.
+          #  `manylinux_2_39` is the stage named for it in `docker/Dockerfile`.
+          - name: manylinux-riscv64
+            arch: riscv64
+            os: ubuntu-latest
+            base: manylinux_2_39
+            smoketest: dist-smoketest-riscv64 gnu
+
+          # `uv` downloads no CPython for musl riscv64, so the free-threaded wheels
+          #  run under the build image's own interpreters instead.
+          - name: musllinux-riscv64
+            arch: riscv64
+            os: ubuntu-latest
+            base: musllinux
+            smoketest: dist-smoketest-riscv64 musl
+            free-threaded-smoketest: dist-smoketest-riscv64-musl-free-threaded
+
+    # The emulated riscv64 legs took 64 and 70 minutes on hosted runners; the cap stops
+    #  a hung emulator from holding the required check for the default 360.
+    #  https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idtimeout-minutes
+    timeout-minutes: ${{ matrix.arch == 'riscv64' && 120 || 360 }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up QEMU
+        if: matrix.arch == 'riscv64'
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+        with:
+          platforms: riscv64
 
       - name: Set up docker buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
@@ -435,7 +466,7 @@ jobs:
           #  nobody could reuse. That held the repository over the 10 GB limit, and eviction
           #  is oldest-first, so the x86 image lost its layers before the next run read
           #  them: 0 cached layers, and 224s of a 441s build step spent re-exporting them.
-          #  Four scopes divide that same limit now, and the two libcs share no layer.
+          #  Six scopes divide that same limit now, and the two libcs share no layer.
           #  https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching
           #
           # A failed export only costs the next run its cache, yet it failed the step after
@@ -491,10 +522,14 @@ jobs:
           ABI3T: ${{ needs.changes.outputs.abi3t-python }}
         run: |
           just ${{ matrix.smoketest }}
-          UV_PYTHON="$FREE_THREADED" just ${{ matrix.smoketest }}
-          UV_PYTHON="$ABI3T" just ${{ matrix.smoketest }}
+          if [[ -n "${{ matrix.free-threaded-smoketest }}" ]]; then
+            just ${{ matrix.free-threaded-smoketest }}
+          else
+            UV_PYTHON="$FREE_THREADED" just ${{ matrix.smoketest }}
+            UV_PYTHON="$ABI3T" just ${{ matrix.smoketest }}
+          fi
 
-      # The musl image ships no PyPy.
+      # The musl and `manylinux_2_39` images ship no PyPy.
       - name: Check each PyPy wheel installs and imports under its own PyPy
         if: matrix.base == 'manylinux'
         run: just dist-smoketest-pypy
@@ -599,7 +634,7 @@ jobs:
   # Branch protection matches a required check by name, and a skipped matrix job
   #  reports its `name:` unexpanded instead of one check per leg: one skipped
   #  `Wheel (${{ matrix.name }})` where a run reports `Wheel (manylinux-arm)` and
-  #  three more. No matrix name is safe to require, so this one is static and
+  #  five more. No matrix name is safe to require, so this one is static and
   #  reports whatever the filters decided.
   gate:
     name: CI

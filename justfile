@@ -219,6 +219,37 @@ dist-smoketest-musl directory="dist":
         ghcr.io/astral-sh/uv:python3.12-alpine@sha256:bba3bd4965901846f025ae7375402ba859862bb83181f19d7e4a82f0f1f8388e \
         python scripts/smoketest_dist.py /wheels
 
+# No `uv` image is built for riscv64, so the script runs in the official Python image
+#  of the wheel's libc, `gnu` or `musl`, with `uv` installed from PyPI first. An x86
+#  machine runs it under the emulator `docker/setup-qemu-action` registers in CI.
+#  `uv` downloads no CPython for musl riscv64, so there `UV_PYTHON` has nothing to name:
+#  the recipe below covers the free-threaded wheels.
+[group("release")]
+[doc("Install a built riscv64 wheel in an emulated container and import what it carries")]
+dist-smoketest-riscv64 libc directory="dist":
+    docker run --rm --platform linux/riscv64 \
+        --env UV_PYTHON \
+        --volume {{ quote(justfile_directory()) }}:/src:ro \
+        --volume "$(cd {{ quote(directory) }} && pwd)":/wheels:ro \
+        --workdir /src \
+        {{ if libc == "gnu" { "python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b" } else if libc == "musl" { "python:3.12-alpine@sha256:c5ba3deef00c7758561a0f03c26f44f10589263d40e732b8748e0d1f38f6dd89" } else { error("libc is `gnu` or `musl`, not " + libc) } }} \
+        sh -ec 'pip install --quiet --disable-pip-version-check --root-user-action=ignore uv && python scripts/smoketest_dist.py /wheels'
+
+# The free-threaded musl riscv64 wheels run under the interpreters the musl build image
+#  ships instead, which carries `uv`, the way `dist-smoketest-pypy` runs PyPy. The
+#  two interpreters are the ones `docker/build-wheels.sh` names; keep them in sync.
+[group("release")]
+[doc("Install each free-threaded musl riscv64 wheel under the build image's own interpreters")]
+dist-smoketest-riscv64-musl-free-threaded directory="dist":
+    docker build --quiet --load --platform linux/riscv64 --build-arg BASE_IMAGE=musllinux --target musllinux \
+        --tag shazamio_core-musllinux-riscv64 --file docker/Dockerfile {{ quote(justfile_directory()) }}
+    docker run --rm --platform linux/riscv64 \
+        --volume {{ quote(justfile_directory()) }}:/src:ro \
+        --volume "$(cd {{ quote(directory) }} && pwd)":/wheels:ro \
+        --workdir /src \
+        shazamio_core-musllinux-riscv64 \
+        bash -ec 'for python in /opt/python/cp314-cp314t/bin/python /opt/python/cp315-cp315t/bin/python; do UV_PYTHON="$python" "$python" scripts/smoketest_dist.py /wheels; done'
+
 # PyPy has no stable ABI, so `docker/build-wheels.sh` builds one wheel per PyPy the
 #  manylinux image ships, and the runner's CPython installs none of them. The script
 #  runs under each of them inside that image, which carries `uv` and is built from its

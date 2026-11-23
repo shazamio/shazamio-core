@@ -1,17 +1,24 @@
 # check=skip=InvalidDefaultArgInFrom
 
-# `BASE_IMAGE` names one of the two stages below and has no default, so a bare
+# `BASE_IMAGE` names one of the stages below and has no default, so a bare
 #  `docker build` fails rather than guessing which wheel to build; the `linux`
 #  matrix of `.github/workflows/ci.yaml` passes it. Reporting that is what the check
-#  above does. Only the named stage is built, so the other image is never pulled.
+#  above does. Only the named stage is built, so the other images are never pulled.
 #  https://docs.docker.com/reference/build-checks/invalid-default-arg-in-from/
-#  The two images lay their interpreters out alike, and both carry the `cmake` and
-#  C compiler that the bundled `libopus` build needs. Neither tag names an architecture:
+#  The images lay their interpreters out alike, and all carry the `cmake` and
+#  C compiler that the bundled `libopus` build needs. No tag names an architecture:
 #  each is a manifest list, so buildx pulls the entry matching `platforms`.
 #  https://docs.docker.com/build/building/multi-platform/
 #  Tagged here rather than in the workflow, where Dependabot reads no image.
+#
+# `manylinux_2_28` has no riscv64 image, so the glibc riscv64 wheel comes from
+#  `manylinux_2_39`, the only one that has. The wheel still reads `manylinux_2_34`:
+#  `maturin` tags it with the oldest policy whose symbol versions the binary meets.
+#  https://github.com/PyO3/maturin/blob/3bec0a32ae2b67ad4fac0194f762f44141e51473/src/auditwheel/linux.rs#L327-L365
+#  https://github.com/pypa/manylinux/blob/89b4e2b712e83be32ba37c20c37069702620c877/README.rst?plain=1#L37-L47
 ARG BASE_IMAGE
 FROM quay.io/pypa/manylinux_2_28:2026.10.31-1 AS manylinux
+FROM quay.io/pypa/manylinux_2_39:2026.10.31-1 AS manylinux_2_39
 FROM quay.io/pypa/musllinux_1_2:2026.10.31-1 AS musllinux
 FROM ${BASE_IMAGE} AS base
 
