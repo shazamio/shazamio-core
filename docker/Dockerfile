@@ -15,9 +15,10 @@ FROM quay.io/pypa/manylinux_2_28:2026.10.31-1 AS manylinux
 FROM quay.io/pypa/musllinux_1_2:2026.10.31-1 AS musllinux
 FROM ${BASE_IMAGE} AS base
 
-# Only the minimum supported interpreter belongs here: the wheel is `abi3`, so one
-#  is emitted whatever builds it, and this entry stays only so `pip3` below exists
-#  at all. Must match the `abi3-py*` feature in `Cargo.toml`.
+# Only the minimum supported interpreter belongs here: the bare build in
+#  `docker/build-wheels.sh` takes it for the `abi3` wheel, which a newer one may not
+#  build (argued above `pyo3` in `Cargo.toml`), and `pip3` below needs it. Must match
+#  the `abi3-py*` feature in `Cargo.toml`.
 ENV PATH="/root/.cargo/bin:/opt/python/cp311-cp311/bin:$PATH"
 # The one pin lives in `tools/Cargo.toml` and arrives here as a build argument, so
 #  the Linux wheels and the macOS/Windows wheels of a release cannot come out of

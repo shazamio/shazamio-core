@@ -86,5 +86,9 @@ cache-keys = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# Every test here awaits the extension, so marking each one adds nothing.
+pythonpath = ["scripts"]
+# Nearly every test awaits the extension, so marking each one adds nothing.
 asyncio_mode = "auto"
+
+[tool.mypy]
+mypy_path = "scripts"

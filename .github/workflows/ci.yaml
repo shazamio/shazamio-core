@@ -57,6 +57,9 @@ jobs:
       fixtures: ${{ steps.filter.outcome == 'skipped' || steps.filter.outputs.fixtures == 'true' }}
       harness_lint: ${{ steps.filter.outcome == 'skipped' || steps.filter.outputs.harness_lint == 'true' }}
       maturin: ${{ steps.pins.outputs.maturin }}
+      abi3-python: ${{ steps.pins.outputs.abi3-python }}
+      abi3t-python: ${{ steps.pins.outputs.abi3t-python }}
+      free-threaded-python: ${{ steps.pins.outputs.free-threaded-python }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -65,8 +68,21 @@ jobs:
       #  resolves to the newest release, and the manylinux images take it as a build
       #  argument; without one version the wheels of a release mix `maturin` versions.
       #  https://github.com/PyO3/maturin-action/blob/e83996d129638aa358a18fbd1dfb82f0b0fb5d3b/src/index.ts#L482-L505
+      #
+      # The macOS and Windows jobs build on three interpreters: the floors of the
+      #  `abi3-py*` and `abi3t-py*` features in `Cargo.toml`, and 3.14t, older than
+      #  `abi3t`, argued there. `docker/build-wheels.sh` names the same free-threaded
+      #  ones for Linux; keep the two in sync. Outputs rather than a workflow `env`,
+      #  because the `test` matrix reads them, and a matrix cannot see `env`.
+      #  https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#context-availability
       - id: pins
-        run: echo "maturin=$(sed -n 's/^maturin = "=\(.*\)"$/\1/p' tools/Cargo.toml)" >> "$GITHUB_OUTPUT"
+        run: |
+          {
+            echo "maturin=$(sed -n 's/^maturin = "=\(.*\)"$/\1/p' tools/Cargo.toml)"
+            echo "abi3-python=$(sed -n 's/.*"abi3-py3\([0-9]*\)".*/3.\1/p' Cargo.toml)"
+            echo "abi3t-python=$(sed -n 's/.*"abi3t-py3\([0-9]*\)".*/3.\1t/p' Cargo.toml)"
+            echo "free-threaded-python=3.14t"
+          } >> "$GITHUB_OUTPUT"
 
       # A tag push carries no diff to filter on, and `workflow_dispatch` is somebody
       #  asking for the whole matrix. The step then does not run and leaves its
@@ -80,34 +96,52 @@ jobs:
   # Builds its own wheel rather than taking one from `linux`: the goldens are a claim
   #  about the algorithm, and the claim has to hold on every platform the wheels
   #  target. `release` waits on this job, so a changed fingerprint stops a publish.
+  #
+  # Every platform runs the `abi3` floor: a newer interpreter builds `abi3t`, argued
+  #  above `pyo3` in `Cargo.toml`, and leaves the binary of the `abi3` wheel untested.
+  #  The free-threaded legs run the suite with the GIL off, where a thread-safety bug
+  #  in the extension shows; the decoder and resampler do not vary by platform there,
+  #  so one runner holds them.
   test:
-    name: Test (${{ matrix.os }})
+    name: Test (${{ matrix.os }}, ${{ matrix.python }})
     needs: changes
     if: needs.changes.outputs.python == 'true'
     strategy:
       fail-fast: false
       matrix:
         os: [ ubuntu-latest, macos-latest, windows-latest ]
+        python: [ "${{ needs.changes.outputs.abi3-python }}" ]
+        include:
+          - os: ubuntu-latest
+            python: ${{ needs.changes.outputs.free-threaded-python }}
+          - os: ubuntu-latest
+            python: ${{ needs.changes.outputs.abi3t-python }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      - id: python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.x"
+          python-version: ${{ matrix.python }}
 
       - uses: ./.github/actions/setup-just
 
+      # Why `UV_PYTHON` is set: the comment above that check in `scripts/smoketest_dist.py`.
       - name: Install the project and its test dependencies
+        env:
+          UV_PYTHON: ${{ steps.python.outputs.python-path }}
         run: just install-test
 
       - name: Run the tests
+        env:
+          UV_PYTHON: ${{ steps.python.outputs.python-path }}
         run: just test-python
 
       # The stub does not vary by platform, so one runner answers for all three. Why
       #  the check exists at all: the `typecheck` recipe.
       - name: Check the type stub against the built extension
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest' && matrix.python == needs.changes.outputs.abi3-python
         run: just typecheck
 
   # Byte layout, checksum, band ordering: none of that varies by platform, so one
@@ -175,9 +209,10 @@ jobs:
   #  because `cargo about` resolves the dependency tree per target and cannot read
   #  a workflow. Adding a target here means adding it there.
 
-  # The wheels below are abi3: one per platform, loading on every CPython from the
-  #  floor up. There is no per-interpreter matrix any more, so a new CPython release
-  #  needs no change here and no new release. The floor lives in `Cargo.toml`.
+  # Every job below emits three CPython wheels: `abi3` for every GIL build from its
+  #  floor up, `abi3t` for every free-threaded build from 3.15 up, and one for 3.14t,
+  #  which predates `abi3t`. A new CPython release needs no change here and no new
+  #  release. Both floors live in `Cargo.toml`; `dist-check` refuses a set missing one.
   windows:
     name: Wheel (windows ${{ matrix.target }})
     needs: changes
@@ -189,23 +224,54 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # The version is deliberately unpinned: under abi3 the wheel is the same
-      #  whichever CPython builds it, and a pinned one would need editing again the
-      #  day it goes end-of-life. The step itself has to stay for the x86 target:
-      #  pyo3 does not treat 32-bit-on-64-bit Windows as cross-compilation, so it
-      #  reads the host interpreter's config and needs a 32-bit one to be present.
+      # The interpreter decides which wheel is built, argued above `pyo3` in `Cargo.toml`,
+      #  so each is named. They match the target for x86: pyo3 does not treat 32-bit-on-64-bit Windows
+      #  as cross-compilation, so it reads the interpreter's config.
       #  https://github.com/PyO3/pyo3/blob/a70d17f898df41b3d1632ee987f624f5222d8d39/pyo3-build-config/src/impl_.rs#L1675-L1679
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      - id: abi3
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.x"
+          python-version: ${{ needs.changes.outputs.abi3-python }}
           architecture: ${{ matrix.target }}
 
-      - name: Build wheels
+      - id: free-threaded
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ needs.changes.outputs.free-threaded-python }}
+          architecture: ${{ matrix.target }}
+          update-environment: false
+
+      - id: abi3t
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ needs.changes.outputs.abi3t-python }}
+          architecture: ${{ matrix.target }}
+          update-environment: false
+
+      # One build per interpreter: given all three at once, `maturin` 1.16.0 built the
+      #  floor a `cp311-cp311` wheel instead of `abi3`, which `dist-check` refuses.
+      - name: Build the abi3 wheel
         uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         with:
           maturin-version: ${{ needs.changes.outputs.maturin }}
           target: ${{ matrix.target }}
-          args: --release --out dist
+          args: --release --out dist --interpreter ${{ steps.abi3.outputs.python-path }}
+          sccache: "true"
+
+      - name: Build the 3.14t wheel
+        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
+        with:
+          maturin-version: ${{ needs.changes.outputs.maturin }}
+          target: ${{ matrix.target }}
+          args: --release --out dist --interpreter ${{ steps.free-threaded.outputs.python-path }}
+          sccache: "true"
+
+      - name: Build the abi3t wheel
+        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
+        with:
+          maturin-version: ${{ needs.changes.outputs.maturin }}
+          target: ${{ matrix.target }}
+          args: --release --out dist --interpreter ${{ steps.abi3t.outputs.python-path }}
           sccache: "true"
 
       - uses: ./.github/actions/setup-just
@@ -213,8 +279,15 @@ jobs:
       - name: Check what the wheels carry
         run: just dist-check
 
-      - name: Check the wheel installs and imports outside the checkout
-        run: just dist-smoketest
+      - name: Check the wheels install and import outside the checkout
+        shell: bash
+        env:
+          FREE_THREADED: ${{ steps.free-threaded.outputs.python-path }}
+          ABI3T: ${{ steps.abi3t.outputs.python-path }}
+        run: |
+          just dist-smoketest
+          UV_PYTHON="$FREE_THREADED" just dist-smoketest
+          UV_PYTHON="$ABI3T" just dist-smoketest
 
       - name: Upload wheels
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -238,16 +311,46 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      # Why each interpreter is named: the `windows` job.
+      - id: abi3
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.x"
+          python-version: ${{ needs.changes.outputs.abi3-python }}
 
-      - name: Build wheels
+      - id: free-threaded
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ needs.changes.outputs.free-threaded-python }}
+          update-environment: false
+
+      - id: abi3t
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ needs.changes.outputs.abi3t-python }}
+          update-environment: false
+
+      - name: Build the abi3 wheel
         uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         with:
           maturin-version: ${{ needs.changes.outputs.maturin }}
           target: ${{ matrix.target }}
-          args: --release --out dist
+          args: --release --out dist --interpreter ${{ steps.abi3.outputs.python-path }}
+          sccache: "true"
+
+      - name: Build the 3.14t wheel
+        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
+        with:
+          maturin-version: ${{ needs.changes.outputs.maturin }}
+          target: ${{ matrix.target }}
+          args: --release --out dist --interpreter ${{ steps.free-threaded.outputs.python-path }}
+          sccache: "true"
+
+      - name: Build the abi3t wheel
+        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
+        with:
+          maturin-version: ${{ needs.changes.outputs.maturin }}
+          target: ${{ matrix.target }}
+          args: --release --out dist --interpreter ${{ steps.abi3t.outputs.python-path }}
           sccache: "true"
 
       - uses: ./.github/actions/setup-just
@@ -255,8 +358,14 @@ jobs:
       - name: Check what the wheels carry
         run: just dist-check
 
-      - name: Check the wheel installs and imports outside the checkout
-        run: just dist-smoketest
+      - name: Check the wheels install and import outside the checkout
+        env:
+          FREE_THREADED: ${{ steps.free-threaded.outputs.python-path }}
+          ABI3T: ${{ steps.abi3t.outputs.python-path }}
+        run: |
+          just dist-smoketest
+          UV_PYTHON="$FREE_THREADED" just dist-smoketest
+          UV_PYTHON="$ABI3T" just dist-smoketest
 
       - name: Upload wheels
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -375,8 +484,15 @@ jobs:
       #  targets. That is what makes the Linux copy of this step the one that
       #  proves the wheel works where users are. A musl wheel cannot be installed
       #  on the runner at all, so its recipe runs the same script inside Alpine.
-      - name: Check the wheel installs and imports outside the checkout
-        run: just ${{ matrix.smoketest }}
+      #  `uv` downloads each free-threaded interpreter, which this runner lacks.
+      - name: Check the wheels install and import outside the checkout
+        env:
+          FREE_THREADED: ${{ needs.changes.outputs.free-threaded-python }}
+          ABI3T: ${{ needs.changes.outputs.abi3t-python }}
+        run: |
+          just ${{ matrix.smoketest }}
+          UV_PYTHON="$FREE_THREADED" just ${{ matrix.smoketest }}
+          UV_PYTHON="$ABI3T" just ${{ matrix.smoketest }}
 
       # The musl image ships no PyPy.
       - name: Check each PyPy wheel installs and imports under its own PyPy

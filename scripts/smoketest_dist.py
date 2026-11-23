@@ -15,6 +15,7 @@ from typing import Final
 #  passes any check that only prints the path.
 _PROBE: Final[str] = """
 import sys
+import sysconfig
 from pathlib import Path
 
 import shazamio_core
@@ -31,6 +32,10 @@ if sys.implementation.name != sys.argv[2]:
 
 # Loading the extension proves it links; calling into it proves it runs.
 shazamio_core.SearchParams(segment_duration_seconds=10)
+
+# Why: `test_importing_the_extension_leaves_the_gil_disabled`, here for the wheel.
+if sysconfig.get_config_var("Py_GIL_DISABLED") and sys._is_gil_enabled():
+    raise SystemExit("importing the extension enabled the GIL")
 
 print(loaded)
 """
