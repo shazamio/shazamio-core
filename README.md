@@ -104,8 +104,8 @@ asyncio.run(main())
 
 `SearchParams` wins where both are given, its own default included: a bare
 `SearchParams()` analyses 12 seconds, not the recognizer's 5. The duration must be
-at least 1; zero raises `ValueError`. A value at or above the length of the file
-analyses it whole, whatever the value.
+at least 1 and at most 4294967295, and any other int raises `ValueError`. A value at
+or above the length of the file analyses it whole, whatever the value.
 
 Shazam returns no matches for a segment of 15 seconds or more:
 https://github.com/shazamio/ShazamIO/issues/150
