@@ -12,6 +12,11 @@ from typing import Final
 
 _FLOOR: Final[re.Pattern[str]] = re.compile(r">=3\.(\d+)")
 
+# PEP 803 defines `abi3t` from 3.15, and `maturin` tags such a wheel with both ABIs.
+#  https://peps.python.org/pep-0803/
+_ABI3T_TAG: Final[str] = "abi3.abi3t"
+_ABI3T_FLOOR_MINOR: Final[int] = 15
+
 
 @dataclass(frozen=True, slots=True)
 class Rules:
@@ -20,6 +25,12 @@ class Rules:
     required: tuple[tuple[str, ...], ...]
     forbidden: tuple[str, ...]
     metadata_entry: str
+
+
+@dataclass(frozen=True, slots=True)
+class WheelTags:
+    python: str
+    abi: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,17 +95,32 @@ _SDIST: Final[Rules] = Rules(
 )
 
 
-# A CPython wheel is built against the `pyo3/abi3-py*` floor, so `maturin` tags it
-#  `cp3XY-abi3` and it claims to load on every CPython from that floor up. Drop that
-#  feature and the build silently goes back to one wheel per interpreter version,
-#  with identical entries and metadata. That floor is set in `Cargo.toml` and the
+# A CPython wheel built against the `pyo3/abi3-py*` floor is tagged `cp3XY-abi3` and
+#  loads on every CPython from that floor up; without the feature the build silently
+#  goes back to one wheel per version. That floor is set in `Cargo.toml` and the
 #  `Requires-Python` one in `pyproject.toml`, so they can drift apart. PyPy has no
-#  stable ABI and is tagged after its interpreter, argued in `docker/build-wheels.sh`.
+#  stable ABI (`docker/build-wheels.sh`), and a free-threaded CPython loads no `abi3`:
+#  3.14t gets a wheel of its own, 3.15t and later one `abi3t` (`Cargo.toml`).
 def _tag_problems(name: str, *, requires_python: str | None) -> list[str]:
     """Report what is wrong with a wheel's tags, read from its name, given its `Requires-Python`."""
-    python_tag, abi_tag = name.removesuffix(".whl").split("-")[-3:-1]
+    tags = _tags(name)
+    python_tag, abi_tag = tags.python, tags.abi
 
     if not python_tag.startswith("cp"):
+        return []
+
+    minor = int(python_tag.removeprefix("cp3"))
+
+    if abi_tag == _ABI3T_TAG:
+        if minor < _ABI3T_FLOOR_MINOR:
+            return [f"is tagged `{python_tag}-{abi_tag}`, older than the 3.{_ABI3T_FLOOR_MINOR} that `abi3t` starts at"]
+
+        return []
+
+    if abi_tag == f"{python_tag}t":
+        if minor >= _ABI3T_FLOOR_MINOR:
+            return [f"is tagged `{python_tag}-{abi_tag}`, a free-threaded build the `abi3t` wheel covers"]
+
         return []
 
     if abi_tag != "abi3":
@@ -113,6 +139,39 @@ def _tag_problems(name: str, *, requires_python: str | None) -> list[str]:
         return [f"is tagged `{python_tag}` but declares `Requires-Python: {requires_python}`"]
 
     return []
+
+
+def _tags(name: str) -> WheelTags:
+    python_tag, abi_tag = name.removesuffix(".whl").split("-")[-3:-1]
+
+    return WheelTags(
+        python=python_tag,
+        abi=abi_tag,
+    )
+
+
+# Each wheel can be right on its own while a whole kind is missing: building on the
+#  wrong interpreter, argued above `pyo3` in `Cargo.toml`, left a set with no `abi3`
+#  wheel. The version-specific free-threaded wheel goes when the floor reaches 3.15.
+def _set_problems(names: list[str]) -> list[str]:
+    """Report every kind of CPython wheel missing from one directory of wheels."""
+    abi_tags = {tags.abi for tags in map(_tags, names) if tags.python.startswith("cp")}
+
+    if not abi_tags:
+        return []
+
+    found: list[str] = []
+
+    if "abi3" not in abi_tags:
+        found.append("no `abi3` wheel, so no CPython with the GIL gets one")
+
+    if _ABI3T_TAG not in abi_tags:
+        found.append(f"no `{_ABI3T_TAG}` wheel, so no free-threaded CPython from 3.{_ABI3T_FLOOR_MINOR} gets one")
+
+    if not any(abi_tag.startswith("cp") and abi_tag.endswith("t") for abi_tag in abi_tags):
+        found.append(f"no version-specific free-threaded wheel, so no free-threaded CPython before 3.{_ABI3T_FLOOR_MINOR} gets one")
+
+    return found
 
 
 def _matches(entries: tuple[str, ...], *, pattern: str) -> list[str]:
@@ -227,6 +286,10 @@ def main() -> int:
                 requires_python=_headers(artifact.metadata).get("Requires-Python"),
             ),
         )
+
+    for problem in _set_problems([path.name for path in wheels]):
+        print(f"{directory}: {problem}", file=sys.stderr)
+        failed = True
 
     for path in sdists:
         failed |= _check(

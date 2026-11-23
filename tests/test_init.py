@@ -1,4 +1,5 @@
 import sys
+import sysconfig
 
 import pytest
 
@@ -37,3 +38,15 @@ def test_every_public_name_reports_the_package_as_its_module(name: str) -> None:
     #  is how `pickle` resolves a class it has only the name of. Pickling also needs a
     #  `__getnewargs__`, which nothing here declares yet.
     assert getattr(sys.modules[declared.__module__], declared.__qualname__) is declared
+
+
+@pytest.mark.skipif(not sysconfig.get_config_var("Py_GIL_DISABLED"), reason="the interpreter has a GIL")
+def test_importing_the_extension_leaves_the_gil_disabled() -> None:
+    # An extension that does not declare free-threading support turns the GIL back
+    #  on at import, with only a `RuntimeWarning`, and every thread then runs serially.
+    #  https://docs.python.org/3/howto/free-threading-extensions.html#multi-phase-initialization
+    #
+    # `sys._is_gil_enabled` is new in 3.13, and `typecheck` runs at the 3.11 floor.
+    #  https://docs.python.org/3/library/sys.html#sys._is_gil_enabled
+    if sys.version_info >= (3, 13):
+        assert not sys._is_gil_enabled()

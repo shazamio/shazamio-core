@@ -28,6 +28,7 @@ what the checks below assert, on every platform.
 import asyncio
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Final
 
@@ -44,6 +45,8 @@ _GOLDEN_AUDIO_FORMAT: Final[str] = "flac"
 #  the reader trims the padding a lossy encoder writes. `.samples` is a duration in
 #  milliseconds, not a count: `src/fingerprinting/communication.rs` does the division.
 _EXPECTED_DURATION_MS: Final[int] = 8000
+
+_THREADS: Final[int] = 4
 
 
 def _probe(audio_format: str) -> Path:
@@ -220,3 +223,22 @@ async def test_a_cancelled_call_leaves_the_recognizer_usable(*, recognizer: Reco
     signature = await recognizer.recognize_path(_probe(_GOLDEN_AUDIO_FORMAT))
 
     assert signature.signature.samples == _EXPECTED_DURATION_MS
+
+
+async def _uri(recognizer: Recognizer, *, audio: bytes) -> str:
+    signature = await recognizer.recognize_bytes(audio)
+
+    return signature.signature.uri
+
+
+async def test_one_recognizer_shared_by_threads_signs_like_one_caller(*, recognizer: Recognizer) -> None:
+    # Each thread runs its own event loop on the one recognizer, which on a
+    #  free-threaded build is the extension running on several threads at once.
+    #  `recognize_bytes` looks up the running loop when called, hence the coroutine.
+    audio = _probe(_GOLDEN_AUDIO_FORMAT).read_bytes()
+    alone = await recognizer.recognize_bytes(audio)
+
+    with ThreadPoolExecutor(max_workers=_THREADS) as pool:
+        uris = list(pool.map(lambda _: asyncio.run(_uri(recognizer, audio=audio)), range(_THREADS * 2)))
+
+    assert set(uris) == {alone.signature.uri}

@@ -203,15 +203,16 @@ dist-smoketest directory="dist":
     uv run --no-project python scripts/smoketest_dist.py {{ quote(directory) }}
 
 # The recipe above cannot answer for a musl wheel: `uv` resolves by platform tag, so
-#  installing one on the glibc machine that built it fails outright, naming
-#  `musllinux_1_2_x86_64` as the platform it is for. The same script runs inside
-#  Alpine instead, in an image carrying `uv`, a `python` and no compiler, pinned by
-#  digest for the reason every `uses:` in the workflow is. The wheels mount apart
-#  from the checkout, which the script needs as a directory to compare against.
+#  installing one on the glibc machine that built it fails, naming `musllinux_1_2_x86_64`.
+#  The same script runs inside Alpine instead, in an image carrying `uv`, a `python`
+#  and no compiler, pinned by digest like every `uses:` in the workflow. The wheels
+#  mount apart from the checkout, which the script compares against, and `UV_PYTHON`
+#  reaches the container when it is set, as it reaches the recipe above.
 [group("release")]
 [doc("Install a built musl wheel inside Alpine and import what it carries")]
 dist-smoketest-musl directory="dist":
     docker run --rm \
+        --env UV_PYTHON \
         --volume {{ quote(justfile_directory()) }}:/src:ro \
         --volume "$(cd {{ quote(directory) }} && pwd)":/wheels:ro \
         --workdir /src \
