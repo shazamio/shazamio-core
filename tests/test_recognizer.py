@@ -26,6 +26,7 @@ what the checks below assert, on every platform.
 """
 
 import asyncio
+import math
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -208,7 +209,13 @@ async def test_the_timestamp_is_the_clock_in_milliseconds(*, recognizer: Recogni
 
     after_ms: int = time.time_ns() // 1_000_000
 
-    assert before_ms <= signature.timestamp <= after_ms
+    # On Windows, Python below 3.13 reads a coarser clock than the precise one Rust reads,
+    #  so `after_ms` trailed the timestamp by 1 ms on a 3.11 runner; the bound allows one step.
+    #  https://github.com/python/cpython/blob/de54cf5be371a6f5e2e9f208c38def5f81d3ef02/Python/pytime.c#L871
+    #  https://github.com/python/cpython/blob/60403a5409ff2c3f3b07dd2ca91a7a3e096839c7/Python/pytime.c#L910
+    #  https://github.com/rust-lang/rust/blob/f8297e351a40c1439a467bbbb6879088047f50b3/library/std/src/sys/pal/windows/time.rs#L70
+    step_ms: int = math.ceil(time.get_clock_info("time").resolution * 1000)
+    assert before_ms <= signature.timestamp <= after_ms + step_ms
 
 
 async def test_a_cancelled_call_leaves_the_recognizer_usable(*, recognizer: Recognizer) -> None:
