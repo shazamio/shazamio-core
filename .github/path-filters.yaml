@@ -43,13 +43,15 @@ rust:
 
 # `Test`, which runs `just test-python` and `just typecheck`. The crate is in scope
 #  because both exercise the built extension rather than the sources beside it, and
-#  `scripts/check_dist.py` because `tests/scripts` imports it.
+#  `scripts/check_dist.py` and `scripts/check_justfile.py` because `tests/scripts`
+#  imports them.
 python:
   - *harness
   - *crate
   - tests/**
   - shazamio_core/**
   - scripts/check_dist.py
+  - scripts/check_justfile.py
   - pyproject.toml
   - uv.lock
 
@@ -106,3 +108,4 @@ harness_lint:
   - scripts/check_ci_gate.py
   - scripts/check_ci_filters.py
   - scripts/check_dependabot.py
+  - scripts/check_justfile.py

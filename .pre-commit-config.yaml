@@ -66,7 +66,7 @@ repos:
         entry: just
         args: [test-python]
         language: system
-        files: ^(\.pre-commit-config\.yaml|justfile|src/.*|Cargo\.(toml|lock)|tests/.*|shazamio_core/.*|scripts/check_dist\.py|pyproject\.toml|uv\.lock)$
+        files: ^(\.pre-commit-config\.yaml|justfile|src/.*|Cargo\.(toml|lock)|tests/.*|shazamio_core/.*|scripts/check_(dist|justfile)\.py|pyproject\.toml|uv\.lock)$
         pass_filenames: false
 
       - id: typecheck
@@ -74,7 +74,7 @@ repos:
         entry: just
         args: [typecheck]
         language: system
-        files: ^(\.pre-commit-config\.yaml|justfile|src/.*|Cargo\.(toml|lock)|tests/.*|shazamio_core/.*|scripts/check_dist\.py|pyproject\.toml|uv\.lock)$
+        files: ^(\.pre-commit-config\.yaml|justfile|src/.*|Cargo\.(toml|lock)|tests/.*|shazamio_core/.*|scripts/check_(dist|justfile)\.py|pyproject\.toml|uv\.lock)$
         pass_filenames: false
 
       - id: licenses
@@ -92,7 +92,7 @@ repos:
         entry: just
         args: [lint-harness]
         language: system
-        files: ^(\.pre-commit-config\.yaml|justfile|pyproject\.toml|uv\.lock|\.github/.*|.*\.sh|scripts/check_(ci_gate|ci_filters|dependabot)\.py)$
+        files: ^(\.pre-commit-config\.yaml|justfile|pyproject\.toml|uv\.lock|\.github/.*|.*\.sh|scripts/check_(ci_gate|ci_filters|dependabot|justfile)\.py)$
         pass_filenames: false
 
       # Replaces `check-vcs-permalinks`, whose ref pattern excludes dots, so a tag

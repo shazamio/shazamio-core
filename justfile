@@ -78,6 +78,7 @@ lint-harness:
     uv run --only-group harness python scripts/check_ci_gate.py
     uv run --only-group harness python scripts/check_ci_filters.py
     uv run --only-group harness python scripts/check_dependabot.py
+    uv run --only-group harness python scripts/check_justfile.py
 
 [group("check")]
 [doc("Reformat the crate")]
