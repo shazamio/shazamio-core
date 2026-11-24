@@ -56,6 +56,7 @@ include = [
     #  bucket a scratch helper can land in, and `include` would ship it over
     #  `.gitignore`.
     "/scripts/check_dist.py",
+    "/scripts/check_justfile.py",
     "/scripts/smoketest_dist.py",
 ]
 

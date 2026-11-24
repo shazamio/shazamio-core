@@ -78,6 +78,7 @@ lint-harness:
     uv run --only-group harness python scripts/check_ci_gate.py
     uv run --only-group harness python scripts/check_ci_filters.py
     uv run --only-group harness python scripts/check_dependabot.py
+    uv run --only-group harness python scripts/check_justfile.py
 
 [group("check")]
 [doc("Reformat the crate")]
@@ -103,13 +104,15 @@ test: test-rust test-python
 
 [group("test")]
 [doc("Run the Python suite; extra arguments reach `pytest`")]
+[positional-arguments]
 test-python *args:
-    uv run pytest {{ args }}
+    uv run pytest "$@"
 
 [group("test")]
 [doc("Run the Rust suite; extra arguments reach `cargo test`")]
+[positional-arguments]
 test-rust *args:
-    cargo test {{ args }}
+    cargo test "$@"
 
 # The fixtures, then the golden URIs from them: only the tests comparing a golden
 #  run, each rewriting its `.uri` rather than failing. Inside the image so the bytes
