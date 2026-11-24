@@ -2,6 +2,7 @@ name: shazamio-core CI
 
 on:
   workflow_dispatch:
+
   # `pull_request` builds the branch merged with `master` as it stood when the run
   #  started, so two branches that are each green can still land a tree nobody ever
   #  compiled, which is how `d743ebb` reached `master` failing `cargo test` with
@@ -10,8 +11,10 @@ on:
     branches:
       - "master"
       - "dev"
+
     tags:
       - "*"
+
   pull_request:
     branches:
       - "master"
@@ -45,10 +48,12 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+
       # The workflow grants `contents` alone, which leaves every other scope at
       #  `none`, and this action reads the pull request's file list through the API.
       #  https://github.com/dorny/paths-filter/blob/ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d/README.md?plain=1#L23
       pull-requests: read
+
     outputs:
       rust: ${{ steps.filter.outcome == 'skipped' || steps.filter.outputs.rust == 'true' }}
       python: ${{ steps.filter.outcome == 'skipped' || steps.filter.outputs.python == 'true' }}
@@ -60,6 +65,7 @@ jobs:
       abi3-python: ${{ steps.pins.outputs.abi3-python }}
       abi3t-python: ${{ steps.pins.outputs.abi3t-python }}
       free-threaded-python: ${{ steps.pins.outputs.free-threaded-python }}
+
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -114,8 +120,10 @@ jobs:
         include:
           - os: ubuntu-latest
             python: ${{ needs.changes.outputs.free-threaded-python }}
+
           - os: ubuntu-latest
             python: ${{ needs.changes.outputs.abi3t-python }}
+
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -180,9 +188,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
       - run: rustup component add rustfmt clippy
-
       - uses: ./.github/actions/setup-just
 
       - name: Check the formatting and run `clippy`
@@ -199,7 +205,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
       - uses: ./.github/actions/setup-just
 
       - name: Lint the scripts and the workflows
@@ -221,6 +226,7 @@ jobs:
     strategy:
       matrix:
         target: [ x64, x86 ]
+
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -305,8 +311,10 @@ jobs:
         include:
           - os: macos-15-intel
             target: x86_64-apple-darwin
+
           - os: macos-latest
             target: aarch64-apple-darwin
+
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -447,20 +455,24 @@ jobs:
         with:
           file: docker/Dockerfile
           platforms: ${{ matrix.arch }}
+
           # The `Dockerfile` declares both arguments and defaults neither, so a tag
           #  that drifts from what is published here fails the build instead.
           build-args: |
             BASE_IMAGE=${{ matrix.base }}
             MATURIN_VERSION=${{ needs.changes.outputs.maturin }}
+
           tags: shazamio_core
           push: false
           load: true
+
           # The matrix entries share the buildx default scope otherwise, so the
           #  repository holds one index and whichever job finishes last on `master`
           #  overwrites the others'. One run measured 12 cached layers on x86 against 0
           #  on ARM64, and 8.72 GB of blobs behind four surviving indexes.
           #  https://github.com/moby/buildkit/blob/703866e5f2e4af295b485b181b447a7755d5099c/README.md?plain=1#L544
           cache-from: type=gha,scope=${{ matrix.name }}
+
           # A pull request's cache is scoped to `refs/pull/N/merge`, which neither `master`
           #  nor another pull request can read, so each one exported a full image of layers
           #  nobody could reuse. That held the repository over the 10 GB limit, and eviction
@@ -596,7 +608,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
       - uses: ./.github/actions/setup-just
 
       - name: Check the crate against the declared MSRV
@@ -612,7 +623,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
       - uses: ./.github/actions/setup-cargo-about
 
       - name: Check the notices still match `Cargo.lock`
@@ -625,7 +635,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
       - uses: ./.github/actions/setup-just
 
       - name: Check `tests/data` is what `just regenerate` writes
@@ -639,6 +648,7 @@ jobs:
   gate:
     name: CI
     needs: [ changes, test, rust-test, lint, harness-lint, msrv, windows, macos, linux, sdist, licenses, fixtures ]
+
     # Runs even when everything it waits on was filtered away, which is the case it
     #  exists for: a documentation-only pull request must report this name too.
     if: always()
@@ -658,17 +668,20 @@ jobs:
   release:
     name: Release
     needs: [ changes, test, rust-test, lint, harness-lint, msrv, windows, macos, linux, sdist, licenses ]
+
     # Tags only: a manual run of a branch would upload its version to PyPI and
     #  create a release named after the branch, since `tag_name` falls back to the
     #  ref name. A manual run started on a tag still has a `refs/tags/` ref.
     #  https://github.com/softprops/action-gh-release/blob/efb35369e0ad2afab669f228072c1b0d510eae64/README.md?plain=1#L227
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
+
     # The only write in the workflow: `action-gh-release` attaches the wheels to the
     #  tag's release through the API. The upload to PyPI needs nothing here, it
     #  authenticates with a token of its own.
     permissions:
       contents: write
+
     steps:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:

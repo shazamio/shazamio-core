@@ -5,6 +5,7 @@ inputs:
   enabled:
     description: "`true` merges once the required checks pass, at once if they already have; `false` cancels a queued merge."
     required: true
+
   token:
     description: The token that merges, read only when `enabled` is `true`; the comment above the merge step says which one and why.
 
@@ -67,5 +68,6 @@ runs:
           mutation($id: ID!) {
           disablePullRequestAutoMerge(input: {pullRequestId: $id})
           { clientMutationId } }
+
         PR_ID: ${{ github.event.pull_request.node_id }}
         GH_TOKEN: ${{ github.token }}
