@@ -39,6 +39,7 @@ from conftest import DATA_DIRECTORY
 from shazamio_core import Recognizer, SearchParams
 
 _AUDIO_FORMATS: Final[tuple[str, ...]] = ("mp3", "ogg", "opus", "flac")
+_OUT_OF_RANGE: Final[str] = "at least 1 and at most 4294967295"
 
 _GOLDEN_AUDIO_FORMAT: Final[str] = "flac"
 
@@ -126,23 +127,57 @@ async def test_a_segment_longer_than_the_file_analyses_it_whole(
     assert signature.signature.samples == _EXPECTED_DURATION_MS
 
 
-def test_a_zero_segment_duration_is_refused() -> None:
-    with pytest.raises(ValueError):
-        Recognizer(0)
+@pytest.mark.parametrize(
+    "duration",
+    [
+        pytest.param(0, id="zero"),
+        pytest.param(-1, id="negative"),
+        pytest.param(2**32, id="past-u32"),
+        pytest.param(2**70, id="past-c-long"),
+    ],
+)
+def test_an_out_of_range_segment_duration_is_refused(*, duration: int) -> None:
+    with pytest.raises(ValueError, match=_OUT_OF_RANGE):
+        Recognizer(duration)
 
-    with pytest.raises(ValueError):
-        SearchParams(0)
+    with pytest.raises(ValueError, match=_OUT_OF_RANGE):
+        SearchParams(duration)
 
-
-def test_a_zero_segment_duration_is_refused_on_assignment_too() -> None:
     recognizer = Recognizer()
     search_parameters = SearchParams()
 
-    with pytest.raises(ValueError):
-        recognizer.segment_duration_seconds = 0
+    with pytest.raises(ValueError, match=_OUT_OF_RANGE):
+        recognizer.segment_duration_seconds = duration
 
-    with pytest.raises(ValueError):
-        search_parameters.segment_duration_seconds = 0
+    with pytest.raises(ValueError, match=_OUT_OF_RANGE):
+        search_parameters.segment_duration_seconds = duration
+
+    assert recognizer.segment_duration_seconds == 12
+    assert search_parameters.segment_duration_seconds == 12
+
+
+@pytest.mark.parametrize(
+    "duration",
+    [
+        pytest.param(1.5, id="float"),
+        pytest.param("5", id="string"),
+    ],
+)
+def test_a_segment_duration_that_is_not_an_int_is_a_type_error(*, duration: float | str) -> None:
+    with pytest.raises(TypeError):
+        Recognizer(duration)  # type: ignore[arg-type]
+
+    with pytest.raises(TypeError):
+        SearchParams(duration)  # type: ignore[arg-type]
+
+    recognizer = Recognizer()
+    search_parameters = SearchParams()
+
+    with pytest.raises(TypeError):
+        recognizer.segment_duration_seconds = duration  # type: ignore[assignment]
+
+    with pytest.raises(TypeError):
+        search_parameters.segment_duration_seconds = duration  # type: ignore[assignment]
 
     assert recognizer.segment_duration_seconds == 12
     assert search_parameters.segment_duration_seconds == 12

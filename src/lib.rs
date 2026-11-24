@@ -5,11 +5,11 @@ mod response;
 mod utils;
 
 use crate::errors::SignatureError;
-use crate::params::{validated_segment_seconds, SearchParams};
+use crate::params::{SearchParams, SegmentSeconds};
 use crate::response::{Signature, SignatureSong};
 use crate::utils::get_python_future;
 use crate::utils::signature_response;
-use fingerprinting::algorithm::{fingerprint_bytes, fingerprint_file, DEFAULT_SEGMENT_SECONDS};
+use fingerprinting::algorithm::{fingerprint_bytes, fingerprint_file};
 use log::{debug, info, LevelFilter};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
@@ -53,16 +53,17 @@ struct Recognizer {
 impl Recognizer {
     #[new]
     #[pyo3(signature = (segment_duration_seconds=None))]
-    pub fn new(segment_duration_seconds: Option<u32>) -> PyResult<Self> {
-        let duration =
-            validated_segment_seconds(segment_duration_seconds.unwrap_or(DEFAULT_SEGMENT_SECONDS))?;
+    pub fn new(segment_duration_seconds: Option<SegmentSeconds>) -> Self {
+        let duration = segment_duration_seconds
+            .unwrap_or(SegmentSeconds::DEFAULT)
+            .0;
         info!(
             "Recognizer created with segment_duration_seconds = {}",
             duration
         );
-        Ok(Recognizer {
+        Recognizer {
             segment_duration_seconds: duration,
-        })
+        }
     }
 
     #[getter]
@@ -71,10 +72,8 @@ impl Recognizer {
     }
 
     #[setter]
-    fn set_segment_duration_seconds(&mut self, value: u32) -> PyResult<()> {
-        self.segment_duration_seconds = validated_segment_seconds(value)?;
-
-        Ok(())
+    fn set_segment_duration_seconds(&mut self, value: SegmentSeconds) {
+        self.segment_duration_seconds = value.0;
     }
 
     #[pyo3(signature = (value, options=None))]
@@ -97,7 +96,9 @@ impl Recognizer {
                     "Options not provided, using default segment duration {}",
                     self.segment_duration_seconds,
                 );
-                SearchParams::new(Some(self.segment_duration_seconds))?
+                SearchParams {
+                    segment_duration_seconds: self.segment_duration_seconds,
+                }
             }
         };
 
@@ -140,7 +141,9 @@ impl Recognizer {
                     "Options not provided, using default segment duration {}",
                     self.segment_duration_seconds,
                 );
-                SearchParams::new(Some(self.segment_duration_seconds))?
+                SearchParams {
+                    segment_duration_seconds: self.segment_duration_seconds,
+                }
             }
         };
 
@@ -171,9 +174,9 @@ mod tests {
     // The same default `SearchParams` carries, and `shazamio_core.pyi` documents.
     #[test]
     fn a_recognizer_defaults_to_a_twelve_second_segment() {
-        assert_eq!(Recognizer::new(None).unwrap().segment_duration_seconds, 12);
+        assert_eq!(Recognizer::new(None).segment_duration_seconds, 12);
         assert_eq!(
-            Recognizer::new(Some(4)).unwrap().segment_duration_seconds,
+            Recognizer::new(Some(SegmentSeconds(4))).segment_duration_seconds,
             4
         );
     }
