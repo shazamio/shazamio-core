@@ -17,9 +17,9 @@
 #  https://github.com/PyO3/maturin/blob/3bec0a32ae2b67ad4fac0194f762f44141e51473/src/auditwheel/linux.rs#L327-L365
 #  https://github.com/pypa/manylinux/blob/89b4e2b712e83be32ba37c20c37069702620c877/README.rst?plain=1#L37-L47
 ARG BASE_IMAGE
-FROM quay.io/pypa/manylinux_2_28:2026.10.31-1 AS manylinux
-FROM quay.io/pypa/manylinux_2_39:2026.10.31-1 AS manylinux_2_39
-FROM quay.io/pypa/musllinux_1_2:2026.10.31-1 AS musllinux
+FROM quay.io/pypa/manylinux_2_28:2026.11.21-1 AS manylinux
+FROM quay.io/pypa/manylinux_2_39:2026.11.21-1 AS manylinux_2_39
+FROM quay.io/pypa/musllinux_1_2:2026.11.21-1 AS musllinux
 FROM ${BASE_IMAGE} AS base
 
 # Only the minimum supported interpreter belongs here: the bare build in
