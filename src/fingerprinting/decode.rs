@@ -70,11 +70,14 @@ impl PacketDecoder {
     fn new(source: Box<dyn MediaSource>) -> Result<Self, Error> {
         let media_source = MediaSourceStream::new(source, Default::default());
 
-        // `symphonia` reports a stream it cannot recognise by naming its own probe:
-        //  `unsupported feature: core (probe): no suitable format reader found`. A caller
-        //  can act on none of that, and this is the only place that knows the failure
-        //  means nothing here could read the stream at all.
+        // `symphonia` reports a stream it cannot recognise by naming its own probe, and
+        //  a caller can act on none of that. The probe also returns the error of a reader
+        //  that recognised the stream and then refused it, `isomp4: missing moov atom`
+        //  for a cut MP4, and that reason is kept.
+        //  https://github.com/pdeljanov/Symphonia/blob/ee35874b571a35a9a6e15d3bc9a3aaf8f11fbeee/symphonia-core/src/formats/probe.rs#L455-L458
         //  https://github.com/pdeljanov/Symphonia/blob/ee35874b571a35a9a6e15d3bc9a3aaf8f11fbeee/symphonia-core/src/formats/probe.rs#L597
+        const PROBE_FOUND_NO_READER: &str = "core (probe): no suitable format reader found";
+
         let format = symphonia::default::get_probe()
             .probe(
                 &Hint::new(),
@@ -83,7 +86,7 @@ impl PacketDecoder {
                 MetadataOptions::default(),
             )
             .map_err(|error| match error {
-                Error::Unsupported(_) => {
+                Error::Unsupported(PROBE_FOUND_NO_READER) => {
                     Error::Unsupported("no reader in this build recognises the stream")
                 }
                 other => other,
