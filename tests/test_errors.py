@@ -9,6 +9,7 @@ what each refusal is; the asserts below hold the messages to it.
 
 import logging
 import re
+import struct
 from pathlib import Path
 from typing import Final
 
@@ -24,6 +25,25 @@ from shazamio_core import Recognizer, SignatureError
 _CUT_BEFORE_AUDIO: Final[bytes] = (DATA_DIRECTORY / "probe.flac").read_bytes()[:2048]
 
 _UNREADABLE: Final[str] = "unsupported feature: no reader in this build recognises the stream"
+
+# A WAV header whose format tag, 0x0031, is GSM 6.10, which the WAV reader refuses
+#  while opening the file.
+_GSM_FORMAT: Final[bytes] = struct.pack("<HHIIHH", 0x0031, 1, 8000, 1625, 65, 0)
+_GSM_IN_WAV: Final[bytes] = (
+    b"RIFF"
+    + struct.pack("<I", 4 + 8 + len(_GSM_FORMAT) + 8 + 650)
+    + b"WAVEfmt "
+    + struct.pack("<I", len(_GSM_FORMAT))
+    + _GSM_FORMAT
+    + b"data"
+    + struct.pack("<I", 650)
+    + bytes(650)
+)
+
+
+def _first_95_percent(name: str) -> bytes:
+    payload = (DATA_DIRECTORY / name).read_bytes()
+    return payload[: len(payload) * 95 // 100]
 
 
 @pytest.mark.parametrize(
@@ -53,6 +73,21 @@ async def test_a_path_that_cannot_be_read_names_itself(
             _CUT_BEFORE_AUDIO,
             "the byte payload: unexpected end of file",
             id="cut-before-audio",
+        ),
+        pytest.param(
+            _first_95_percent("probe.m4a"),
+            "the byte payload: unsupported feature: isomp4: missing moov atom",
+            id="mp4-cut-before-moov",
+        ),
+        pytest.param(
+            _first_95_percent("matroska.webm"),
+            "the byte payload: unsupported feature: mkv: missing segment element",
+            id="matroska-cut",
+        ),
+        pytest.param(
+            _GSM_IN_WAV,
+            "the byte payload: unsupported feature: wav: unsupported wave format",
+            id="wav-holding-gsm",
         ),
     ],
 )

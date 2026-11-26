@@ -118,11 +118,12 @@ Anything the decoder cannot use raises `SignatureError`, and the message opens w
 |------------------------------------------------------|-------------------------------------------------------------------------------------------------|
 | a path that is not there                             | `<input>: No such file or directory (os error 2)`                                               |
 | a stream nothing in this build reads, a directory included | `<input>: unsupported feature: no reader in this build recognises the stream`              |
-| a container that is read, holding a codec that is not | `<input>: unsupported feature: the stream carries no track with a codec this build can decode`  |
+| an MP4 or Matroska file holding a codec this build cannot decode | `<input>: unsupported feature: the stream carries no track with a codec this build can decode` |
+| a stream a reader recognises and then refuses: a WAV, AIFF-C or CAF file holding a codec it does not take, a cut MP4 whose `moov` atom follows the audio, a cut Matroska file, an Ogg file read from past its first page, an MP3 behind an ID3v2 tag it does not take | the reader's reason, such as `<input>: unsupported feature: wav: unsupported wave format` or `isomp4: missing moov atom` |
 | a recording cut before its audio, or a cut AIFF or CAF file | `<input>: unexpected end of file`                                                          |
 | a WAV, FLAC or MP3 file cut inside its first block or frame of audio | `<input>: malformed stream: the stream carries no decodable audio`                              |
 
-A recording cut short is fingerprinted from what is left, since Shazam needs only a few seconds of it, and so is a WAV stream piped out of `ffmpeg -f wav -`, which declares a length it never reaches. Three cases are still refused. A cut before the first whole block, frame or page of audio leaves nothing to fingerprint. WAV, FLAC and MP3 report that the stream carries no decodable audio when the cut falls inside the first block or frame of audio, and an unexpected end of file when it falls earlier, inside the file's headers, an ID3 tag or the 6-byte header of the first FLAC frame; an MP3 cut inside the information frame its encoder writes before the audio reports that no reader recognises the stream. Ogg and Opus report an unexpected end of file, and ADTS that no reader recognises the stream. AIFF and CAF readers skip over the audio while opening the file, so a cut anywhere fails there. MP4 and Matroska fail before decoding starts too, and report that no reader recognises the stream. A chained Ogg file cut inside a later link loses what was read of that link, which is a bug in `symphonia`. A frame whose length field is damaged runs out of bytes the same way a cut does, so an AAC stream with such a frame is fingerprinted up to it rather than refused.
+A recording cut short is fingerprinted from what is left, since Shazam needs only a few seconds of it, and so is a WAV stream piped out of `ffmpeg -f wav -`, which declares a length it never reaches. Three cases are still refused. A cut before the first whole block, frame or page of audio leaves nothing to fingerprint. WAV, FLAC and MP3 report that the stream carries no decodable audio when the cut falls inside the first block or frame of audio, and an unexpected end of file when it falls earlier, inside the file's headers, an ID3 tag or the 6-byte header of the first FLAC frame; an MP3 cut inside the information frame its encoder writes before the audio reports that no reader recognises the stream. Ogg and Opus report an unexpected end of file, and ADTS that no reader recognises the stream. AIFF and CAF readers skip over the audio while opening the file, so a cut anywhere fails there. Matroska and an MP4 whose `moov` atom follows the audio fail before decoding starts too, as the table above shows. An MP4 with `moov` in front fails while decoding, with `malformed stream: isomp4: no atom pending read`, and a fragmented MP4 reports that the stream carries no decodable audio. A chained Ogg file cut inside a later link loses what was read of that link, which is a bug in `symphonia`. A frame whose length field is damaged runs out of bytes the same way a cut does, so an AAC stream with such a frame is fingerprinted up to it rather than refused.
 
 What follows the input is `symphonia`'s wording, or the operating system's, and differs between platforms.
 
@@ -167,12 +168,13 @@ That leaves these codecs, each one probed through the public API in the containe
 
 MP1 is the one row taken from what `symphonia` registers rather than from a run: nothing here encodes it. The containers recognised are ADTS, AIFF, CAF, FLAC, Matroska and WebM, MP4, MPEG, Ogg and WAV, and the test suite runs on Linux, macOS and Windows.
 
-Anything else raises `SignatureError`, and a container from that list is no guarantee: what has to be decodable is the codec inside it. The two refusals differ in how far the file gets:
+Anything else raises `SignatureError`, and a container from that list is no guarantee: what has to be decodable is the codec inside it. The three refusals differ in how far the file gets:
 
 | Refused          | Fails as                                        | Why                                     |
 |------------------|-------------------------------------------------|-----------------------------------------|
 | AC-3 in Matroska | `no track with a codec this build can decode`   | the container is read, the codec is not |
 | WMA in ASF       | `no reader in this build recognises the stream` | there is no ASF demuxer at all          |
+| GSM in WAV       | `wav: unsupported wave format`                  | the reader refuses the codec as it opens the file |
 
 Windows Media Audio decoded in earlier releases through an `ffmpeg` fallback that has since been removed.
 
